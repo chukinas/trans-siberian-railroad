@@ -49,6 +49,9 @@ defmodule TransSiberianRailroad.RailCompany do
   # HELPERS
   #########################################################
 
+  def phase_1_ids(), do: @phase_1_ids
+  def phase_2_ids(), do: @phase_2_ids
+
   defp initial_share_count(id) when id in @phase_1_ids, do: 5
   defp initial_share_count(id) when id in @phase_2_ids, do: 3
 
