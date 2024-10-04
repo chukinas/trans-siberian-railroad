@@ -9,7 +9,8 @@ defmodule TransSiberianRailroad.Application do
   def start(_type, _args) do
     children = [
       TransSiberianRailroadWeb.Telemetry,
-      {DNSCluster, query: Application.get_env(:trans_siberian_railroad, :dns_cluster_query) || :ignore},
+      {DNSCluster,
+       query: Application.get_env(:trans_siberian_railroad, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TransSiberianRailroad.PubSub},
       # Start a worker by calling: TransSiberianRailroad.Worker.start_link(arg)
       # {TransSiberianRailroad.Worker, arg},
