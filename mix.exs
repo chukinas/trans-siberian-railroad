@@ -32,6 +32,7 @@ defmodule TransSiberianRailroad.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:phoenix, "~> 1.7.14"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
@@ -41,6 +42,7 @@ defmodule TransSiberianRailroad.MixProject do
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
+      {:typed_struct, "~> 0.2"},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.1.1",
