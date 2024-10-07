@@ -1,10 +1,10 @@
-defmodule TransSiberianRailroad.AuctionTest do
+defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   use ExUnit.Case
   import TransSiberianRailroad.GameTestHelpers
-  alias TransSiberianRailroad.Auction
+  alias TransSiberianRailroad.Aggregator.Auction
+  alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Players
 
   test "A started game also has an auction_started event" do
     game = start_game_commands() |> game_from_commands()

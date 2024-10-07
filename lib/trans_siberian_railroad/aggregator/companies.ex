@@ -1,5 +1,4 @@
-# TODO rename to Aggregator.Companies?
-defmodule TransSiberianRailroad.Companies do
+defmodule TransSiberianRailroad.Aggregator.Companies do
   alias TransSiberianRailroad.Event
   # TODO rename to just Company
   alias TransSiberianRailroad.RailCompany

@@ -1,6 +1,5 @@
 # TODO add moduledoc
-# TODO rename to Aggregator.Players?
-defmodule TransSiberianRailroad.Players do
+defmodule TransSiberianRailroad.Aggregator.Players do
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Player
   @type t() :: [Player.t()]

@@ -1,59 +1,53 @@
-defmodule TransSiberianRailroad.Auction do
+defmodule TransSiberianRailroad.Aggregator.Auction do
   @moduledoc """
   This module handles all the events and commands related to the auctioning
   of rail companies to players.
   """
 
+  use TransSiberianRailroad.Aggregator
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Player
   alias TransSiberianRailroad.RailCompany
 
-  @opaque t() :: %{
-            optional(:last_version) => non_neg_integer(),
-            optional(:player_order) => [Player.id(), ...],
-            optional(:current_auction_phase) => %{
-              required(:starting_bidder) => Player.id(),
-              required(:remaining_company_ids) => [RailCompany.id()],
-              optional(:current_auction) => %{
-                required(:company_id) => RailCompany.id(),
-                required(:bidders) => Player.id()
-              }
+  # TODO make opaque
+  @type t() :: %{
+          optional(:last_version) => non_neg_integer(),
+          optional(:player_order) => [Player.id(), ...],
+          optional(:current_auction_phase) => %{
+            required(:starting_bidder) => Player.id(),
+            required(:remaining_company_ids) => [RailCompany.id()],
+            optional(:current_auction) => %{
+              required(:company_id) => RailCompany.id(),
+              required(:bidders) => Player.id()
             }
           }
+        }
 
   #########################################################
   # CONSTRUCTORS
   #########################################################
 
+  @impl true
   @doc """
   When the game initializes, we're not in an auction yet
   """
   def init(), do: %{}
 
-  def state(events) do
-    events = Event.sort(events)
+  #########################################################
+  # REDUCERS
+  #########################################################
 
-    auction =
-      Enum.reduce(events, init(), fn event, auction ->
-        %Event{
-          name: event_name,
-          payload: payload,
-          sequence_number: sequence_number
-        } = event
-
-        auction
-        |> Map.put(:last_version, sequence_number)
-        |> handle_event(event_name, payload)
-      end)
-
-    {auction, []}
+  @impl true
+  def put_version(auction, version) do
+    Map.put(auction, :last_version, version)
   end
 
   #########################################################
   # REDUCERS (command handlers)
   #########################################################
 
+  @spec handle_command(t(), String.t(), map()) :: Event.t()
   def handle_command(auction, command_name, payload)
 
   # TODO I don't like all these function clauses are public.
@@ -103,8 +97,7 @@ defmodule TransSiberianRailroad.Auction do
   # REDUCERS (event handlers)
   #########################################################
 
-  # TODO temp
-  require Logger
+  @impl true
   # TODO should be private. Otherwise :last_version will have problems.
   def handle_event(auctions, event_name, payload)
 
