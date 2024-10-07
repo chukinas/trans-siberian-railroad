@@ -4,9 +4,9 @@ defmodule TransSiberianRailroad.Messages do
   and `TransSiberianRailroad.Event`.
   """
 
+  alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Command
   alias TransSiberianRailroad.Event
-  alias TransSiberianRailroad.Players
 
   #########################################################
   # Initializing Game

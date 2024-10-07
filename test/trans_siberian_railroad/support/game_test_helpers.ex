@@ -1,9 +1,9 @@
 defmodule TransSiberianRailroad.GameTestHelpers do
-  alias TransSiberianRailroad.Companies
+  alias TransSiberianRailroad.Aggregator.Companies
+  alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Players
 
   #########################################################
   # Game
