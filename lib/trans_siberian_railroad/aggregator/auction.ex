@@ -58,7 +58,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   def handle_command(auction, "pass_on_company", payload) do
     %{player_id: player_id, company_id: company_id} = payload
     metadata = [sequence_number: auction.last_version + 1]
-    current_bidder = current_bidder!(auction)
+    maybe_current_bidder = get_current_bidder(auction)
 
     cond do
       !in_progress?(auction) ->
@@ -69,11 +69,11 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
           metadata
         )
 
-      player_id != current_bidder ->
+      player_id != maybe_current_bidder ->
         Messages.company_pass_rejected(
           payload.player_id,
           payload.company_id,
-          "It's player #{current_bidder}'s turn to bid on a company.",
+          "It's player #{maybe_current_bidder}'s turn to bid on a company.",
           metadata
         )
 
@@ -89,7 +89,6 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
         Messages.company_passed(player_id, company_id, metadata)
     end
 
-    # TODO current_bidder! shouldn't be used here. I need a function that won't raise.
     # TODO write a test that checks that the index always increases by 1.
   end
 
@@ -132,11 +131,8 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     !!auction[:current_auction_phase]
   end
 
-  def current_bidder!(auction) do
-    case get_in(auction, [:current_auction_phase, :current_auction, :bidders, Access.at(0)]) do
-      player_id when is_integer(player_id) -> player_id
-      _ -> raise "No current bidder"
-    end
+  def get_current_bidder(auction) do
+    get_in(auction, [:current_auction_phase, :current_auction, :bidders, Access.at(0)])
   end
 
   def get_current_company(auction) do
