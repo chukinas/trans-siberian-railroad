@@ -97,6 +97,12 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning
   #########################################################
 
+  # TODO rename auction_phase_started
+  # or phase_1_auction_started
+  # Which would require a later phase_2_auction_started.
+  # Or maybe it's just one event that has a :phase payload field.
+  # Either way, I need to distinguish between the auction phase as a whole,
+  # and the auctioning of individual company first shares.
   def auction_started(current_bidder, company_ids)
       when is_integer(current_bidder) and is_list(company_ids) do
     %Event{
