@@ -11,13 +11,13 @@ defmodule TransSiberianRailroad.Game do
 
   use TypedStruct
   # require Logger
-  alias TransSiberianRailroad.Auction
+  alias TransSiberianRailroad.Aggregator.Auction
+  alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Command
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Events
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Player
-  alias TransSiberianRailroad.Players
   alias TransSiberianRailroad.RailCompany
   alias TransSiberianRailroad.Statechart
 
