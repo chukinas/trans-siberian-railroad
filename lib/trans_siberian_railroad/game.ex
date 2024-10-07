@@ -14,6 +14,7 @@ defmodule TransSiberianRailroad.Game do
   alias TransSiberianRailroad.Auction
   alias TransSiberianRailroad.Command
   alias TransSiberianRailroad.Event
+  alias TransSiberianRailroad.Events
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Player
   alias TransSiberianRailroad.Players
@@ -52,7 +53,7 @@ defmodule TransSiberianRailroad.Game do
   defp do_handle_command(game, "add_player", %{player_name: player_name}) do
     # TODO outsource to a Players module?
     player_id = length(game.snapshot.players) + 1
-    metadata = [sequence_number: next_sequence_number(game)]
+    metadata = [sequence_number: Events.next_sequence_number(game.events)]
 
     if player_id <= 5 do
       Messages.player_added(player_id, player_name, metadata)
@@ -66,7 +67,7 @@ defmodule TransSiberianRailroad.Game do
 
   defp do_handle_command(game, "start_game", %{player_id: player_id}) do
     player_count = length(game.snapshot.players)
-    index = next_sequence_number(game)
+    index = Events.next_sequence_number(game.events)
     metadata = &[sequence_number: index + &1]
 
     if player_count in 3..5 do
@@ -139,14 +140,5 @@ defmodule TransSiberianRailroad.Game do
   defp update_snapshot(snapshot, _unhandled_message_name, _unhandled_payload) do
     # Logger.warning("#{inspect(__MODULE__)} unhandled event: #{unhandled_message_name}")
     snapshot
-  end
-
-  #########################################################
-  # CONVERTERS
-  #########################################################
-
-  # TODO extract zero-index to a constant
-  defp next_sequence_number(%__MODULE__{events: events}) do
-    length(events)
   end
 end
