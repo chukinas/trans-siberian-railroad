@@ -46,36 +46,48 @@ defmodule TransSiberianRailroad.Game do
   end
 
   defp do_handle_command(_game, "initialize_game", %{game_id: game_id}) do
-    Messages.game_initialized(game_id)
+    Messages.game_initialized(game_id, sequence_number: 0)
   end
 
   defp do_handle_command(game, "add_player", %{player_name: player_name}) do
     # TODO outsource to a Players module?
     player_id = length(game.snapshot.players) + 1
+    metadata = [sequence_number: next_sequence_number(game)]
 
     if player_id <= 5 do
-      Messages.player_added(player_id, player_name)
+      Messages.player_added(player_id, player_name, metadata)
     else
       Messages.player_rejected(
-        "'#{player_name}' cannot join the game. There are already 5 players."
+        "'#{player_name}' cannot join the game. There are already 5 players.",
+        metadata
       )
     end
   end
 
   defp do_handle_command(game, "start_game", %{player_id: player_id}) do
     player_count = length(game.snapshot.players)
+    index = next_sequence_number(game)
+    metadata = &[sequence_number: index + &1]
 
     if player_count in 3..5 do
       player_order = Enum.shuffle(1..player_count)
       current_bidder = hd(player_order)
 
       [
-        Messages.game_started(player_id, player_order),
-        Messages.auction_started(current_bidder, RailCompany.phase_1_ids())
+        Messages.game_started(player_id, player_order, metadata.(0)),
+        Messages.auction_started(current_bidder, RailCompany.phase_1_ids(), metadata.(1))
       ]
     else
-      Messages.game_not_started("Cannot start game with fewer than 2 players.")
+      Messages.game_not_started("Cannot start game with fewer than 2 players.", metadata.(0))
     end
+  end
+
+  # TODO what should happen instead if that each command is passed to each handler,
+  # Each of which has the opportunity to hand back one or more events.
+  defp do_handle_command(game, command_name, payload) do
+    {auction, _new_events} = Auction.state(game.events)
+
+    Auction.handle_command(auction, command_name, payload)
   end
 
   defp handle_event(%__MODULE__{} = game, %Event{} = event) do
@@ -127,5 +139,14 @@ defmodule TransSiberianRailroad.Game do
   defp update_snapshot(snapshot, _unhandled_message_name, _unhandled_payload) do
     # Logger.warning("#{inspect(__MODULE__)} unhandled event: #{unhandled_message_name}")
     snapshot
+  end
+
+  #########################################################
+  # CONVERTERS
+  #########################################################
+
+  # TODO extract zero-index to a constant
+  defp next_sequence_number(%__MODULE__{events: events}) do
+    length(events)
   end
 end

@@ -15,13 +15,41 @@ defmodule TransSiberianRailroad.RailCompany do
   @all_ids @phase_1_ids ++ @phase_2_ids
   @type id() :: :red | :blue | :green | :yellow | :black | :white
 
-  @type state() :: :waiting | :up_for_auction
+  # TODO rm :waiting
+  # An :active company is either private or public (calculated).
+  @type state() :: :unauctioned | :waiting | :up_for_auction | :rejected | :active | :nationalized
 
   typedstruct enforce: true do
     field :id, id()
     field :state, state()
     field :money, non_neg_integer()
     field :share_count, non_neg_integer()
+  end
+
+  #########################################################
+  # CONSTRUCTORS
+  #########################################################
+
+  def new(id) do
+    %__MODULE__{
+      id: id,
+      state: :unauctioned,
+      money: 0,
+      share_count: initial_share_count(id)
+    }
+  end
+
+  #########################################################
+  # REDUCERS
+  #########################################################
+
+  def open(%__MODULE__{state: :unauctioned, money: 0} = company, bid_amount) do
+    %__MODULE__{company | state: :active, money: bid_amount}
+    |> sell_share()
+  end
+
+  def sell_share(%__MODULE__{share_count: share_count} = company) when share_count >= 1 do
+    %__MODULE__{company | share_count: share_count - 1}
   end
 
   #########################################################
@@ -51,6 +79,8 @@ defmodule TransSiberianRailroad.RailCompany do
 
   def phase_1_ids(), do: @phase_1_ids
   def phase_2_ids(), do: @phase_2_ids
+
+  def ids(), do: @all_ids
 
   defp initial_share_count(id) when id in @phase_1_ids, do: 5
   defp initial_share_count(id) when id in @phase_2_ids, do: 3

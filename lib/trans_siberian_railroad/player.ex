@@ -9,6 +9,7 @@ defmodule TransSiberianRailroad.Player do
     field :money, non_neg_integer()
   end
 
+  # TODO move this to Players?
   @spec new(id(), String.t()) :: t()
   def new(player_id, player_name) do
     %__MODULE__{

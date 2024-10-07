@@ -16,6 +16,9 @@ defmodule TransSiberianRailroad.Event do
   - How do I handle events that need to generate other events?
     Do the cascading events get created directly or do they
     need to have a command created first?
+  - Add Events module that wraps the list of events.
+    It'd store e.g. the latest event index / vesion.
+    It would replace the test helper functions like fetch_single_event!/2.
   """
 
   use TypedStruct
@@ -23,6 +26,7 @@ defmodule TransSiberianRailroad.Event do
   typedstruct enforce: true do
     field :name, String.t()
     field :payload, nil | map(), default: nil
+    field :sequence_number, non_neg_integer()
   end
 
   defimpl Inspect do
@@ -32,5 +36,17 @@ defmodule TransSiberianRailroad.Event do
       payload = Map.to_list(event.payload || %{})
       concat(["#Event.#{event.name}<", Inspect.List.inspect(payload, opts), ">"])
     end
+  end
+
+  def new(name, payload, metadata) do
+    %__MODULE__{
+      name: name,
+      payload: payload,
+      sequence_number: Keyword.fetch!(metadata, :sequence_number)
+    }
+  end
+
+  def sort(events) do
+    Enum.sort_by(events, & &1.sequence_number)
   end
 end
