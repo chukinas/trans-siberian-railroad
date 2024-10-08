@@ -2,21 +2,11 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   alias TransSiberianRailroad.Aggregator.Companies
   alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Event
-  alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Messages
 
   #########################################################
   # Game
   #########################################################
-
-  # TODO this can be combined into handle_commands
-  def game_from_commands(commands) do
-    Enum.reduce(commands, Game.new(), &Game.handle_command(&2, &1))
-  end
-
-  def handle_commands(game, commands) do
-    Enum.reduce(commands, game, &Game.handle_command(&2, &1))
-  end
 
   def game_has_event?(game, event_name) do
     Enum.any?(game.events, fn event -> event.name == event_name end)
@@ -38,9 +28,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     |> Enum.take(player_count)
   end
 
-  def start_game_commands() do
-    player_count = Enum.random(3..5)
-
+  def start_game_commands(player_count \\ Enum.random(3..5)) do
     List.flatten([
       Messages.initialize_game(),
       add_player_commands(player_count),
@@ -73,7 +61,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   end
 
   # Succeeds only if there is one such sought event in the list.
-  defp fetch_single_event!(events, event_name) do
+  def fetch_single_event!(events, event_name) do
     case filter_events_by_name(events, event_name) do
       [%Event{} = event] -> event
       events -> raise "Expected exactly one #{inspect(event_name)} event; got #{length(events)}."

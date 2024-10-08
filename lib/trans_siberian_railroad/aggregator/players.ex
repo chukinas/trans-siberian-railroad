@@ -39,30 +39,24 @@ defmodule TransSiberianRailroad.Aggregator.Players do
     end
   end
 
-  defp handle_command(_players, _unhandled_command_name, _unhandled_payload), do: nil
-
   #########################################################
   # REDUCERS (event handlers)
   #########################################################
 
-  @impl true
-  # TODO this are public right now, but should they be private?
-  def handle_event(players, "player_added", payload) do
+  defp handle_event(players, "player_added", payload) do
     %{player_id: player_id, player_name: player_name} = payload
     new_player = Player.new(player_id, player_name)
     [new_player | players]
   end
 
-  def handle_event(players, "game_started", %{starting_money: starting_money}) do
+  defp handle_event(players, "game_started", %{starting_money: starting_money}) do
     for %Player{} = player <- players do
       %Player{player | money: starting_money}
     end
   end
 
-  # TODO The fallback should be injected in a using statement.
-  # It should only match on events whose names are not handled by this module.
+  # TODO the fallback should only match on events whose names are not handled by this module.
   # In other words, I want to force a failuse if I fat-finder a payload key.
-  def handle_event(players, _unhandled_event_name, _unhandled_payload), do: players
 
   #########################################################
   # REDUCERS
@@ -84,6 +78,7 @@ defmodule TransSiberianRailroad.Aggregator.Players do
 
   def count(players), do: length(players)
 
+  # TODO rename players -> player_order
   def player_order_once_around_the_table(players, current_player) do
     player_count = count(players)
 
