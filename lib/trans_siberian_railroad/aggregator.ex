@@ -8,6 +8,7 @@ defmodule TransSiberianRailroad.Aggregator do
     quote do
       @mod TransSiberianRailroad.Aggregator
       @behaviour @mod
+      @before_compile @mod
 
       @spec project(TransSiberianRailroad.Event.t()) :: t()
       def project(events) do
@@ -46,7 +47,6 @@ defmodule TransSiberianRailroad.Aggregator do
 
   @callback init() :: agg()
   @callback put_version(agg(), non_neg_integer()) :: agg()
-  @callback handle_event(any(), String.t(), payload :: map()) :: any()
 
   def __state__(events, init_fn, put_version_fn, handle_event_fn) do
     # TODO this should be part of the Events module
@@ -66,5 +66,14 @@ defmodule TransSiberianRailroad.Aggregator do
       end)
 
     {aggregator, []}
+  end
+
+  defmacro __before_compile__(_) do
+    quote do
+      # Fallbacks
+      def events_from_projection(_projection), do: nil
+      defp handle_command(_projection, _unhandled_command_name, _unhandled_payload), do: nil
+      defp handle_event(projection, _unhandled_event_name, _unhandled_payload), do: projection
+    end
   end
 end

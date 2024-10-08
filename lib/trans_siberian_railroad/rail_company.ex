@@ -53,6 +53,12 @@ defmodule TransSiberianRailroad.RailCompany do
   end
 
   #########################################################
+  # CONVERTERS (guards)
+  #########################################################
+
+  defguard is_id(id) when id in @all_ids
+
+  #########################################################
   # CONVERTERS (games states)
   #########################################################
 
@@ -81,6 +87,10 @@ defmodule TransSiberianRailroad.RailCompany do
   def phase_2_ids(), do: @phase_2_ids
 
   def ids(), do: @all_ids
+
+  def ids(phase_number)
+  def ids(1), do: @phase_1_ids
+  def ids(2), do: @phase_2_ids
 
   defp initial_share_count(id) when id in @phase_1_ids, do: 5
   defp initial_share_count(id) when id in @phase_2_ids, do: 3

@@ -16,9 +16,15 @@ defmodule TransSiberianRailroad.Banana do
 
   I don't know what to call this module yet,
   so it's getting one of my typically silly names to make it obvious that a rename's necessary.
+
+  ## Notes
+
+  There's a risk of infinite loops if the aggregators keep generating the same events,
+  but they're not getting handled properly.
   """
 
   alias TransSiberianRailroad.Command
+  alias TransSiberianRailroad.Event
 
   @type t() :: map()
 
@@ -60,6 +66,31 @@ defmodule TransSiberianRailroad.Banana do
     # TODO make sure the events are sorted by sequence number and increment exactly by one.
     # TODO a lot more is needed here.
     Map.put(banana, :events, events)
+    |> generate_further_events()
+  end
+
+  # After a command causes events to be generated,
+  # we need to play those events back into the aggregators
+  # and see if they generate more events.
+  # Example: the Auction module emits an auction_phase_started event after seeing a start_game event.
+  # Similarly, it will then emit a company_auction_started event after its own auction_phase_started event.
+  def generate_further_events(banana) do
+    events_from_projections =
+      Enum.flat_map(banana.aggregator_modules, fn agg_module ->
+        banana.events
+        |> agg_module.project()
+        |> agg_module.events_from_projection()
+        |> List.wrap()
+        |> ensure_events(agg_module)
+      end)
+
+    if Enum.any?(events_from_projections) do
+      banana
+      |> Map.update!(:events, &(Enum.reverse(events_from_projections) ++ &1))
+      |> generate_further_events()
+    else
+      banana
+    end
   end
 
   #########################################################
@@ -72,5 +103,18 @@ defmodule TransSiberianRailroad.Banana do
       [] -> nil
       [event | _] -> event
     end
+  end
+
+  #########################################################
+  # HELPERS
+  #########################################################
+
+  defp ensure_events(events, aggregator) do
+    Enum.each(events, fn
+      %Event{} -> :ok
+      event -> raise "Expected only Events from #{aggregator}, got: #{inspect(event)}"
+    end)
+
+    events
   end
 end

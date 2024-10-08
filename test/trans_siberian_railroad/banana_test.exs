@@ -16,4 +16,7 @@ defmodule TransSiberianRailroad.BananaTest do
 
     assert length(events) == 1
   end
+
+  test "event indexes start at 0"
+  test "event indexes increment by 1"
 end

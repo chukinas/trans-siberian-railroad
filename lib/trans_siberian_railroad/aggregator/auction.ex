@@ -4,25 +4,52 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   of rail companies to players.
   """
 
+  use TypedStruct
   use TransSiberianRailroad.Aggregator
+  require TransSiberianRailroad.RailCompany, as: Company
+  alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
+  alias TransSiberianRailroad.Metadata
   alias TransSiberianRailroad.Player
-  alias TransSiberianRailroad.RailCompany
 
-  # TODO make opaque
-  @type t() :: %{
-          optional(:last_version) => non_neg_integer(),
-          optional(:player_order) => [Player.id(), ...],
-          optional(:current_auction_phase) => %{
-            required(:starting_bidder) => Player.id(),
-            required(:remaining_company_ids) => [RailCompany.id()],
-            optional(:current_auction) => %{
-              required(:company_id) => RailCompany.id(),
-              required(:bidders) => Player.id()
-            }
-          }
-        }
+  typedstruct opaque: true do
+    field :last_version, non_neg_integer()
+
+    # game_started SETS true
+    field :game_started, boolean(), default: false
+
+    # game_started.player_order SETS
+    field :player_order, [Player.id()]
+
+    # auction_phase_started.phase_number SETS
+    # auction_phase_ended CLEARS
+    field :phase_number, 1..2
+
+    # auction_phase_started.starting_bidder SETS
+    # auction_phase_ended CLEARS
+    field :phase_starting_bidder, 1..5
+
+    # company_not_opened    INCREMENTS
+    # company_opened        INCREMENTS
+    # auction_phase_ended   SETS 0
+    field :phase_count_company_auctions_ended, 0..4, default: 0
+
+    # company_auction_started.company_id SETS
+    # company_not_opened CLEARS
+    # company_opened     CLEARS
+    field :company, Company.id()
+
+    # These are the players still in the bidding for the company's share.
+    # As players pass, they are removed from this list.
+    # The first player in the list is the current bidder.
+    # company_auction_started.starting_bidder + :player_order SETS
+    # company_bid MOVES the first player to end of list
+    # company_passed REMOVES the first player
+    # company_not_opened CLEARS
+    # company_opened     CLEARS
+    field :bidders, [Player.id()]
+  end
 
   #########################################################
   # CONSTRUCTORS
@@ -32,7 +59,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   @doc """
   When the game initializes, we're not in an auction yet
   """
-  def init(), do: %{}
+  def init(), do: %__MODULE__{}
 
   #########################################################
   # REDUCERS
@@ -48,16 +75,9 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   #########################################################
 
   @spec handle_command(t(), String.t(), map()) :: Event.t()
-  def handle_command(auction, command_name, payload)
-
-  # TODO I don't like all these function clauses are public.
-  # TODO I don't like the name of this command.
-  # TODO rename player_id to something like 'passing player'
-  # TODO test that if the company and player don't match the current ones,
-  # a rejection event is generated.
-  def handle_command(auction, "pass_on_company", payload) do
+  defp handle_command(auction, "pass_on_company", payload) do
     %{player_id: player_id, company_id: company_id} = payload
-    metadata = [sequence_number: auction.last_version + 1]
+    metadata = Metadata.from_aggregator(auction)
     maybe_current_bidder = get_current_bidder(auction)
 
     cond do
@@ -88,58 +108,142 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       true ->
         Messages.company_passed(player_id, company_id, metadata)
     end
-
-    # TODO write a test that checks that the index always increases by 1.
   end
-
-  # TODO this fallback should be injected
-  # TODO this should be private
-  def handle_command(_auction, _unhandled_command_name, _unhandled_payload), do: nil
 
   #########################################################
   # REDUCERS (event handlers)
   #########################################################
 
-  @impl true
-  # TODO should be private. Otherwise :last_version will have problems.
-  def handle_event(auctions, event_name, payload)
-
-  def handle_event(auction, "game_started", payload) do
-    Map.put(auction, :player_order, payload.player_order)
+  defp handle_event(auction, "game_started", payload) do
+    %__MODULE__{auction | game_started: true, player_order: payload.player_order}
   end
 
-  def handle_event(auction, "auction_started", payload) do
-    current_auction_phase = %{
-      starting_bidder: payload.current_bidder,
-      remaining_company_ids: payload.company_ids
+  defp handle_event(auction, "auction_phase_started", payload) do
+    %__MODULE__{
+      auction
+      | phase_number: payload.phase_number,
+        phase_starting_bidder: payload.starting_bidder
     }
-
-    Map.put(auction, :current_auction_phase, current_auction_phase)
   end
 
-  # TODO add a test to check the current company being bid
-  def handle_event(auction, "company_passed", _payload) do
-    update_in(auction, [:current_auction_phase, :current_auction, :bidders], &Enum.drop(&1, 1))
+  defp handle_event(auction, "auction_phase_ended", _payload) do
+    %__MODULE__{
+      auction
+      | phase_number: nil,
+        phase_starting_bidder: nil,
+        phase_count_company_auctions_ended: 0
+    }
   end
 
-  def handle_event(auction, _unhandled_message_name, _unhandled_payload) do
-    # Logger.warning("#{inspect(__MODULE__)} unhandled event: #{unhandled_message_name}")
-    auction
+  defp handle_event(auction, "company_auction_started", payload) do
+    bidders =
+      Players.player_order_once_around_the_table(auction.player_order, payload.starting_bidder)
+
+    %__MODULE__{auction | company: payload.company, bidders: bidders}
+  end
+
+  defp handle_event(auction, "company_passed", _payload) do
+    bidders = Enum.drop(auction.bidders, 1)
+    %__MODULE__{auction | bidders: bidders}
+  end
+
+  defp handle_event(auction, event_name, _payload)
+       when event_name in ["company_not_opened", "company_opened"] do
+    %__MODULE__{
+      auction
+      | company: nil,
+        bidders: nil,
+        phase_count_company_auctions_ended: auction.phase_count_company_auctions_ended + 1
+    }
+  end
+
+  defp handle_event(auction, "company_bid", _payload) do
+    bidders =
+      with [current_bidder | rest] <- auction.bidders do
+        rest ++ [current_bidder]
+      end
+
+    %__MODULE__{auction | bidders: bidders}
+  end
+
+  #########################################################
+  # CONVERTERS (projection -> events)
+  #########################################################
+
+  def events_from_projection(auction) do
+    [
+      &maybe_start_company_auction/1,
+      &maybe_not_open_company/1
+    ]
+    |> Enum.find_value(& &1.(auction))
+  end
+
+  defp maybe_start_company_auction(%__MODULE__{} = auction) do
+    phase_number = auction.phase_number
+
+    if !!phase_number and !auction.company do
+      starting_bidder =
+        case auction.phase_count_company_auctions_ended do
+          _ -> auction.phase_starting_bidder
+        end
+
+      company =
+        Company.ids(phase_number)
+        |> Enum.drop(auction.phase_count_company_auctions_ended)
+        |> hd
+
+      metadata = Metadata.from_aggregator(auction)
+      Messages.company_auction_started(starting_bidder, company, metadata)
+    end
+  end
+
+  defp maybe_not_open_company(auction) do
+    with {:ok, company} <- fetch_company(auction),
+         true <- all_players_passed_on_company?(auction) do
+      metadata = Metadata.from_aggregator(auction)
+      Messages.company_not_opened(company, metadata)
+    else
+      _ -> nil
+    end
   end
 
   #########################################################
   # CONVERTERS
   #########################################################
 
+  defp all_players_passed_on_company?(%__MODULE__{bidders: bidders}) do
+    bidders == []
+  end
+
   def in_progress?(auction) do
-    !!auction[:current_auction_phase]
+    !!auction.phase_number
+  end
+
+  def fetch_current_bidder(auction) do
+    case get_current_bidder(auction) do
+      nil -> :error
+      current_bidder -> {:ok, current_bidder}
+    end
   end
 
   def get_current_bidder(auction) do
-    get_in(auction, [:current_auction_phase, :current_auction, :bidders, Access.at(0)])
+    case auction.bidders do
+      [current_bidder | _] -> current_bidder
+      _ -> nil
+    end
+  end
+
+  defp fetch_company(auction) do
+    maybe_company = auction.company
+
+    if Company.is_id(maybe_company) do
+      {:ok, maybe_company}
+    else
+      :error
+    end
   end
 
   def get_current_company(auction) do
-    get_in(auction, [:current_auction_phase, :current_auction, :company_id])
+    auction.company
   end
 end

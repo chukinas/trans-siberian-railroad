@@ -2,11 +2,19 @@ defmodule TransSiberianRailroad.Messages do
   @moduledoc """
   This module contains **all** the constructors for `TransSiberianRailroad.Command`
   and `TransSiberianRailroad.Event`.
+
+  ## Notes
+  - add defevent and defcommand macros to cut down on boilerplate
   """
 
   alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Command
+  alias TransSiberianRailroad.RailCompany, as: Company
   alias TransSiberianRailroad.Event
+  alias TransSiberianRailroad.Player
+
+  # TODO
+  @type metadata() :: term()
 
   #########################################################
   # Initializing Game
@@ -49,6 +57,14 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
+  # SETUP - player order and starting player
+  #########################################################
+
+  def start_player_selected(player_id, metadata) when is_integer(player_id) do
+    Event.new("start_player_selected", %{player_id: player_id}, metadata)
+  end
+
+  #########################################################
   # Starting Game
   #########################################################
 
@@ -57,10 +73,6 @@ defmodule TransSiberianRailroad.Messages do
       name: "start_game",
       payload: %{player_id: player_id}
     }
-  end
-
-  def start_player_selected(player_id, metadata) when is_integer(player_id) do
-    Event.new("start_player_selected", %{player_id: player_id}, metadata)
   end
 
   # TODO rename player_id to something more descriptive.
@@ -90,23 +102,65 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
-  # Auctioning
+  # Auctioning - open and close an auction phase
   #########################################################
 
-  # TODO rename auction_phase_started
-  # or phase_1_auction_started
-  # Which would require a later phase_2_auction_started.
-  # Or maybe it's just one event that has a :phase payload field.
-  # Either way, I need to distinguish between the auction phase as a whole,
-  # and the auctioning of individual company first shares.
-  def auction_started(current_bidder, company_ids, metadata)
-      when is_integer(current_bidder) and is_list(company_ids) do
+  def auction_phase_started(phase_number, starting_bidder, metadata)
+      when phase_number in 1..2 and starting_bidder in 1..5 do
     Event.new(
-      "auction_started",
-      %{current_bidder: current_bidder, company_ids: company_ids},
+      "auction_phase_started",
+      %{phase_number: phase_number, starting_bidder: starting_bidder},
       metadata
     )
   end
+
+  def auction_phase_ended(phase_number, metadata) do
+    Event.new("auction_phase_ended", %{phase_number: phase_number}, metadata)
+  end
+
+  #########################################################
+  # Auctioning - open and close a company auction
+  #########################################################
+
+  @doc """
+  Begin the bidding for the first share of a company.
+
+  This can result in either "company_opened" (a player won the share)
+  or "company_not_opened" (no player bid on the share).
+  """
+  @spec company_auction_started(Player.id(), Company.id(), metadata()) :: Event.t()
+  def company_auction_started(starting_bidder, company, metadata) do
+    Event.new(
+      "company_auction_started",
+      %{starting_bidder: starting_bidder, company: company},
+      metadata
+    )
+  end
+
+  # TODO add is_company guard
+  @doc """
+  This and "company_opened" both end the company auction started by "company_auction_started".
+  """
+  def company_not_opened(company_id, metadata) when is_atom(company_id) do
+    Event.new("company_not_opened", %{company_id: company_id}, metadata)
+  end
+
+  # TODO add is_player guard
+  @doc """
+  This and "company_not_opened" both end the company auction started by "company_auction_started".
+  """
+  def company_opened(company_id, player_id, bid_amount, metadata)
+      when is_atom(company_id) and is_integer(bid_amount) and bid_amount >= 8 do
+    Event.new(
+      "company_opened",
+      %{company_id: company_id, player_id: player_id, bid_amount: bid_amount},
+      metadata
+    )
+  end
+
+  #########################################################
+  # Auctioning - players pass on a company
+  #########################################################
 
   def pass_on_company(player_id, company_id) when is_integer(player_id) and is_atom(company_id) do
     %Command{
@@ -131,10 +185,13 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
-  # Ending Game
+  # Auctioning - players bid on a company
   #########################################################
 
-  def game_ended(metadata) do
-    Event.new("game_ended", %{}, metadata)
+  # TODO rename company_bid
+  # TODO add :amount field
+  def company_bid(player_id, company_id, metadata)
+      when is_integer(player_id) and is_atom(company_id) do
+    Event.new("company_bid", %{player_id: player_id, company_id: company_id}, metadata)
   end
 end
