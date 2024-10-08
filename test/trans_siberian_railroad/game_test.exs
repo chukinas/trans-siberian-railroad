@@ -1,6 +1,7 @@
 defmodule TransSiberianRailroad.GameTest do
   use ExUnit.Case
   import TransSiberianRailroad.GameTestHelpers
+  alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Player
@@ -8,12 +9,12 @@ defmodule TransSiberianRailroad.GameTest do
   test "reject player when game is full" do
     commands = [Messages.initialize_game() | add_player_commands(5)]
     game = game_from_commands(commands)
-    assert length(game.snapshot.players) == 5
+    assert Players.state(game.events) |> Players.count() == 5
 
     # Now we will try but fail to add a sixth player
     commands = [Messages.add_player("Frank")]
     game = handle_commands(game, commands)
-    assert length(game.snapshot.players) == 5
+    assert Players.state(game.events) |> Players.count() == 5
     assert [%Event{name: "player_rejected"} | _] = game.events
   end
 
@@ -43,7 +44,7 @@ defmodule TransSiberianRailroad.GameTest do
 
         game = game_from_commands(commands)
 
-        for %Player{money: money} <- game.snapshot.players do
+        for %Player{money: money} <- Players.state(game.events) |> Players.to_list() do
           assert money == expected_money
         end
       end

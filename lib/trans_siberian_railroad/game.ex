@@ -12,14 +12,12 @@ defmodule TransSiberianRailroad.Game do
   use TypedStruct
   # require Logger
   alias TransSiberianRailroad.Aggregator.Auction
-  alias TransSiberianRailroad.Aggregator.Players
+  alias TransSiberianRailroad.Aggregator.Overview
   alias TransSiberianRailroad.Command
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Events
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Player
   alias TransSiberianRailroad.RailCompany
-  alias TransSiberianRailroad.Statechart
 
   typedstruct enforce: true do
     # TODO replace arbitrary map with struct
@@ -92,53 +90,8 @@ defmodule TransSiberianRailroad.Game do
   end
 
   defp handle_event(%__MODULE__{} = game, %Event{} = event) do
-    snapshot = update_snapshot(game.snapshot, event.name, event.payload)
+    snapshot = Overview.handle_event(game.snapshot, event.name, event.payload)
     auction = Auction.handle_event(game.auction, event.name, event.payload)
     %__MODULE__{game | snapshot: snapshot, auction: auction, events: [event | game.events]}
-  end
-
-  defp update_snapshot(snapshot, "game_initialized", %{game_id: game_id}) do
-    snapshot
-    |> Map.put(:statechart, Statechart.new())
-    |> Map.put(:game_id, game_id)
-    |> Map.put(:players, [])
-  end
-
-  defp update_snapshot(snapshot, "player_added", %{player_id: player_id, player_name: player_name}) do
-    Map.update!(snapshot, :players, &Players.add(&1, player_id, player_name))
-  end
-
-  defp update_snapshot(snapshot, "player_rejected", _payload), do: snapshot
-
-  defp update_snapshot(
-         snapshot,
-         "game_started",
-         %{player_id: _, player_order: player_order, starting_money: starting_money} = payload
-       )
-       when map_size(payload) == 3 do
-    players_in_add_order = snapshot.players
-
-    players_in_play_order =
-      for player_id <- player_order do
-        %Player{} = Enum.find(players_in_add_order, &(&1.id == player_id))
-      end
-
-    players_with_starting_money =
-      Players.set_starting_money(players_in_play_order, starting_money)
-
-    first_player_id = hd(player_order)
-
-    snapshot
-    |> Map.replace!(:players, players_with_starting_money)
-    |> Map.update!(:statechart, &Statechart.start_game(&1, first_player_id))
-  end
-
-  defp update_snapshot(snapshot, "game_ended", _payload) do
-    Map.update!(snapshot, :statechart, &Statechart.end_game/1)
-  end
-
-  defp update_snapshot(snapshot, _unhandled_message_name, _unhandled_payload) do
-    # Logger.warning("#{inspect(__MODULE__)} unhandled event: #{unhandled_message_name}")
-    snapshot
   end
 end

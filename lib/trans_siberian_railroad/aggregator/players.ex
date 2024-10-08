@@ -2,6 +2,7 @@
 defmodule TransSiberianRailroad.Aggregator.Players do
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Player
+
   @type t() :: [Player.t()]
 
   @spec new() :: t()
@@ -56,12 +57,6 @@ defmodule TransSiberianRailroad.Aggregator.Players do
     [added_player | players]
   end
 
-  def set_starting_money(players, amount) do
-    for %Player{} = player <- players do
-      %Player{player | money: amount}
-    end
-  end
-
   #########################################################
   # CONVERTERS
   #########################################################
@@ -74,6 +69,9 @@ defmodule TransSiberianRailroad.Aggregator.Players do
     player_order_generator(players, current_player)
     |> Enum.take(player_count)
   end
+
+  @spec to_list(t()) :: [Player.t()]
+  def to_list(players), do: players
 
   #########################################################
   # HELPERS
