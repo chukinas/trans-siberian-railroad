@@ -92,6 +92,10 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     # TODO write a test that checks that the index always increases by 1.
   end
 
+  # TODO this fallback should be injected
+  # TODO this should be private
+  def handle_command(_auction, _unhandled_command_name, _unhandled_payload), do: nil
+
   #########################################################
   # REDUCERS (event handlers)
   #########################################################

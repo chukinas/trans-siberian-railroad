@@ -53,7 +53,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   #########################################################
 
   def player_count(events) do
-    events |> Players.state() |> Players.count()
+    events |> Players.project() |> Players.count()
   end
 
   def player_order(events) do

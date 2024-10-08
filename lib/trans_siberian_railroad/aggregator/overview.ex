@@ -2,6 +2,7 @@ defmodule TransSiberianRailroad.Aggregator.Overview do
   use TransSiberianRailroad.Aggregator
   # TODO rm this dep
   alias TransSiberianRailroad.Aggregator.Players
+  alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Statechart
 
   @type t() :: map()
@@ -13,6 +14,21 @@ defmodule TransSiberianRailroad.Aggregator.Overview do
   def put_version(overview, version) do
     Map.put(overview, :last_version, version)
   end
+
+  #########################################################
+  # REDUCERS (command handlers)
+  #########################################################
+
+  # TODO need to have a rejection command?
+  defp handle_command(_game, "initialize_game", %{game_id: game_id}) do
+    Messages.game_initialized(game_id, sequence_number: 0)
+  end
+
+  defp handle_command(_overview, _unhandled_command_name, _unhandled_payload), do: nil
+
+  #########################################################
+  # REDUCERS (event handlers)
+  #########################################################
 
   @impl true
   def handle_event(overview, event_name, payload) do
