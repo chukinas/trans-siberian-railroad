@@ -1,6 +1,7 @@
 # TODO add moduledoc
 defmodule TransSiberianRailroad.Aggregator.Players do
   use TransSiberianRailroad.Aggregator
+  alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Player
 
   @type t() :: [Player.t()]
@@ -22,7 +23,23 @@ defmodule TransSiberianRailroad.Aggregator.Players do
   # REDUCERS (command handlers)
   #########################################################
 
-  defp handle_command(players, _unhandled_command_name, _unhandled_payload), do: players
+  defp handle_command(players, "add_player", payload) do
+    %{player_name: player_name} = payload
+    player_id = length(players) + 1
+    # TODO sequence_number is just a placeholder
+    metadata = [sequence_number: 666]
+
+    if player_id <= 5 do
+      Messages.player_added(player_id, player_name, metadata)
+    else
+      Messages.player_rejected(
+        "'#{player_name}' cannot join the game. There are already 5 players.",
+        metadata
+      )
+    end
+  end
+
+  defp handle_command(_players, _unhandled_command_name, _unhandled_payload), do: nil
 
   #########################################################
   # REDUCERS (event handlers)

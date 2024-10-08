@@ -1,14 +1,16 @@
+# TODO rename to Main maybe?
 defmodule TransSiberianRailroad.Aggregator.Overview do
   use TransSiberianRailroad.Aggregator
   # TODO rm this dep
   alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Messages
+  alias TransSiberianRailroad.RailCompany
   alias TransSiberianRailroad.Statechart
 
   @type t() :: map()
 
   @impl true
-  def init(), do: %{}
+  def init(), do: %{player_count: 0}
 
   @impl true
   def put_version(overview, version) do
@@ -22,6 +24,27 @@ defmodule TransSiberianRailroad.Aggregator.Overview do
   # TODO need to have a rejection command?
   defp handle_command(_game, "initialize_game", %{game_id: game_id}) do
     Messages.game_initialized(game_id, sequence_number: 0)
+  end
+
+  defp handle_command(overview, "start_game", payload) do
+    # TODO use dot notation
+    player_count = overview[:player_count] || 0
+    %{player_id: player_id} = payload
+    # TODO temp
+    index = 999
+    metadata = &[sequence_number: index + &1]
+
+    if player_count in 3..5 do
+      player_order = Enum.shuffle(1..player_count)
+      current_bidder = hd(player_order)
+
+      [
+        Messages.game_started(player_id, player_order, metadata.(0)),
+        Messages.auction_started(current_bidder, RailCompany.phase_1_ids(), metadata.(1))
+      ]
+    else
+      Messages.game_not_started("Cannot start game with fewer than 2 players.", metadata.(0))
+    end
   end
 
   defp handle_command(_overview, _unhandled_command_name, _unhandled_payload), do: nil
@@ -43,7 +66,10 @@ defmodule TransSiberianRailroad.Aggregator.Overview do
   end
 
   defp update_snapshot(snapshot, "player_added", %{player_id: player_id, player_name: player_name}) do
-    Map.update!(snapshot, :players, &Players.add(&1, player_id, player_name))
+    # TODO rm this first statement
+    overview = Map.update!(snapshot, :players, &Players.add(&1, player_id, player_name))
+    # Keep this one
+    Map.update!(overview, :player_count, &(&1 + 1))
   end
 
   defp update_snapshot(

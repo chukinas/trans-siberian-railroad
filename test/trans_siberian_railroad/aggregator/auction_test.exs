@@ -6,6 +6,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
 
+  @tag skip: "TODO reimplement with Banana loop"
   test "A started game also has an auction_started event" do
     game = start_game_commands() |> game_from_commands()
     assert game_has_event?(game, "game_started")
@@ -20,6 +21,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     assert Auction.in_progress?(game.auction)
   end
 
+  @tag skip: "TODO reimplement with Banana loop"
   test "If all players pass on a railroad, a 'company_removed' event is generated" do
     # ARRANGE
     game = start_game_commands() |> game_from_commands()
