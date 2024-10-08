@@ -21,11 +21,23 @@ defmodule TransSiberianRailroad.Aggregator do
         @mod.__state__(events, &init/0, &put_version/2, &handle_event/3)
       end
 
+      # TODO this is too much injected code. Extract
       def strawberry(events, %TransSiberianRailroad.Command{name: command_name, payload: payload}) do
-        events
-        |> project()
-        |> handle_command(command_name, payload)
-        |> List.wrap()
+        new_events =
+          events
+          |> project()
+          |> handle_command(command_name, payload)
+          |> List.wrap()
+
+        # TODO temp ensure all these are actual events
+        for event <- new_events do
+          case event do
+            %Event{} -> :ok
+            _ -> raise "Expected an Event, got: #{inspect(event)}"
+          end
+        end
+
+        new_events
       end
     end
   end
@@ -37,6 +49,7 @@ defmodule TransSiberianRailroad.Aggregator do
   @callback handle_event(any(), String.t(), payload :: map()) :: any()
 
   def __state__(events, init_fn, put_version_fn, handle_event_fn) do
+    # TODO this should be part of the Events module
     events = Event.sort(events)
 
     aggregator =
