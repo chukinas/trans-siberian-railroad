@@ -1,6 +1,6 @@
 # TODO add moduledoc
 defmodule TransSiberianRailroad.Aggregator.Players do
-  alias TransSiberianRailroad.Event
+  use TransSiberianRailroad.Aggregator
   alias TransSiberianRailroad.Player
 
   @type t() :: [Player.t()]
@@ -12,31 +12,31 @@ defmodule TransSiberianRailroad.Aggregator.Players do
   # CONSTRUCTORS
   #########################################################
 
-  # TODO This should be abstracted away into a behaviour
-  defp init() do
+  @impl true
+  # TODO should init be private?
+  def init() do
     []
   end
 
-  # TODO rename to `from_events`?
-  # TODO is this the right name for this?
-  def state(events) do
-    Event.sort(events)
-    |> Enum.reduce(init(), fn %Event{name: event_name, payload: payload}, state ->
-      handle_event(state, event_name, payload)
-    end)
-  end
+  #########################################################
+  # REDUCERS (command handlers)
+  #########################################################
+
+  defp handle_command(players, _unhandled_command_name, _unhandled_payload), do: players
 
   #########################################################
   # REDUCERS (event handlers)
   #########################################################
 
-  defp handle_event(players, "player_added", payload) do
+  @impl true
+  # TODO this are public right now, but should they be private?
+  def handle_event(players, "player_added", payload) do
     %{player_id: player_id, player_name: player_name} = payload
     new_player = Player.new(player_id, player_name)
     [new_player | players]
   end
 
-  defp handle_event(players, "game_started", %{starting_money: starting_money}) do
+  def handle_event(players, "game_started", %{starting_money: starting_money}) do
     for %Player{} = player <- players do
       %Player{player | money: starting_money}
     end
@@ -45,11 +45,15 @@ defmodule TransSiberianRailroad.Aggregator.Players do
   # TODO The fallback should be injected in a using statement.
   # It should only match on events whose names are not handled by this module.
   # In other words, I want to force a failuse if I fat-finder a payload key.
-  defp handle_event(players, _unhandled_event_name, _unhandled_payload), do: players
+  def handle_event(players, _unhandled_event_name, _unhandled_payload), do: players
 
   #########################################################
   # REDUCERS
   #########################################################
+
+  @impl true
+  # TODO
+  def put_version(players, _sequence_number), do: players
 
   @spec add(t(), Player.id(), String.t()) :: t()
   def add(players, player_id, player_name) do

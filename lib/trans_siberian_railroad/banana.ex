@@ -46,9 +46,10 @@ defmodule TransSiberianRailroad.Banana do
   @spec handle_command(t(), Command.t()) :: t()
   def handle_command(banana, command) do
     banana = Map.update!(banana, :commands, &[command | &1])
-    Enum.flat_map(banana.aggregator_modules, &handle_command(&1, command))
+    new_events = Enum.flat_map(banana.aggregator_modules, & &1.strawberry(banana.events, command))
+    events = Enum.reduce(new_events, banana.events, &[&1 | &2])
     # TODO make sure the events are sorted by sequence number and increment exactly by one.
     # TODO a lot more is needed here.
-    banana
+    Map.put(banana, :events, events)
   end
 end
