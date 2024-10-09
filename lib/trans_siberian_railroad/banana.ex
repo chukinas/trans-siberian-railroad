@@ -1,3 +1,4 @@
+# TODO Rename this module to something more sensible.
 defmodule TransSiberianRailroad.Banana do
   @moduledoc """
   This is taking over for game.ex
@@ -37,7 +38,7 @@ defmodule TransSiberianRailroad.Banana do
       commands: [],
       events: [],
       aggregator_modules: [
-        TransSiberianRailroad.Aggregator.Overview,
+        TransSiberianRailroad.Aggregator.Main,
         TransSiberianRailroad.Aggregator.Players,
         TransSiberianRailroad.Aggregator.Companies,
         TransSiberianRailroad.Aggregator.Auction

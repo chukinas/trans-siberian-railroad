@@ -114,8 +114,12 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # REDUCERS (event handlers)
   #########################################################
 
-  defp handle_event(auction, "game_started", payload) do
-    %__MODULE__{auction | game_started: true, player_order: payload.player_order}
+  defp handle_event(auction, "player_order_set", payload) do
+    %__MODULE__{auction | player_order: payload.player_order}
+  end
+
+  defp handle_event(auction, "game_started", _payload) do
+    %__MODULE__{auction | game_started: true}
   end
 
   defp handle_event(auction, "auction_phase_started", payload) do

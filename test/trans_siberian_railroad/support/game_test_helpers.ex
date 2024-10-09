@@ -45,7 +45,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   end
 
   def player_order(events) do
-    fetch_single_event_payload!(events, "game_started").player_order
+    fetch_single_event_payload!(events, "player_order_set").player_order
   end
 
   def starting_player(events) do

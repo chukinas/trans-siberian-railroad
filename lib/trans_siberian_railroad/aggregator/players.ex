@@ -93,11 +93,7 @@ defmodule TransSiberianRailroad.Aggregator.Players do
   # HELPERS
   #########################################################
 
-  def starting_money(player_count)
-  def starting_money(3), do: 48
-  def starting_money(4), do: 40
-  def starting_money(5), do: 32
-
+  # TODO move this elsewhere
   @spec player_order_generator([3..5], 3..5) :: term()
   def player_order_generator(player_order, start_player) do
     player_order

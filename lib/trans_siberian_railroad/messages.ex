@@ -7,7 +7,6 @@ defmodule TransSiberianRailroad.Messages do
   - add defevent and defcommand macros to cut down on boilerplate
   """
 
-  alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Command
   alias TransSiberianRailroad.RailCompany, as: Company
   alias TransSiberianRailroad.Event
@@ -60,8 +59,19 @@ defmodule TransSiberianRailroad.Messages do
   # SETUP - player order and starting player
   #########################################################
 
-  def start_player_selected(player_id, metadata) when is_integer(player_id) do
-    Event.new("start_player_selected", %{player_id: player_id}, metadata)
+  def start_player_selected(start_player, metadata) when is_integer(start_player) do
+    Event.new("start_player_selected", %{start_player: start_player}, metadata)
+  end
+
+  # TODO replace set with selected?
+  def player_order_set(player_order, metadata) when is_list(player_order) do
+    for player_id <- player_order do
+      if player_id not in 1..5 do
+        raise ArgumentError, "player_order must be a list of integers"
+      end
+    end
+
+    Event.new("player_order_set", %{player_order: player_order}, metadata)
   end
 
   #########################################################
@@ -78,21 +88,10 @@ defmodule TransSiberianRailroad.Messages do
   # TODO rename player_id to something more descriptive.
   # It only matters because we want a record of the player who "pressed the start button".
   # It's not about the player who goes first.
-  def game_started(player_id, player_order, metadata)
-      when is_integer(player_id) and length(player_order) in 3..5 do
-    for player_id <- player_order do
-      if player_id not in 1..5 do
-        raise ArgumentError, "player_order must be a list of integers"
-      end
-    end
-
+  def game_started(player_id, starting_money, metadata) when is_integer(player_id) do
     Event.new(
       "game_started",
-      %{
-        player_id: player_id,
-        player_order: player_order,
-        starting_money: Players.starting_money(length(player_order))
-      },
+      %{player_id: player_id, starting_money: starting_money},
       metadata
     )
   end
