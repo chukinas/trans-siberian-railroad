@@ -13,6 +13,12 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   alias TransSiberianRailroad.Metadata
   alias TransSiberianRailroad.Player
 
+  #########################################################
+  # PROJECTION
+  #########################################################
+
+  use TransSiberianRailroad.Projection
+
   typedstruct opaque: true do
     field :last_version, non_neg_integer()
 
@@ -51,23 +57,49 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     field :bidders, [Player.id()]
   end
 
-  #########################################################
-  # CONSTRUCTORS
-  #########################################################
+  handle_event("player_order_set", ctx, do: [player_order: ctx.payload.player_order])
+  handle_event("game_started", _ctx, do: [game_started: true])
+  handle_event("company_opened", ctx, do: end_company_auction(ctx))
+  handle_event("company_not_opened", ctx, do: end_company_auction(ctx))
 
-  @impl true
-  @doc """
-  When the game initializes, we're not in an auction yet
-  """
-  def init(), do: %__MODULE__{}
+  handle_event "auction_phase_started", ctx do
+    [phase_number: ctx.payload.phase_number, phase_starting_bidder: ctx.payload.starting_bidder]
+  end
 
-  #########################################################
-  # REDUCERS
-  #########################################################
+  handle_event "auction_phase_ended", _ctx do
+    [phase_number: nil, phase_starting_bidder: nil, phase_count_company_auctions_ended: 0]
+  end
 
-  @impl true
-  def put_version(auction, version) do
-    Map.put(auction, :last_version, version)
+  handle_event "company_auction_started", ctx do
+    bidders =
+      Players.player_order_once_around_the_table(
+        ctx.projection.player_order,
+        ctx.payload.starting_bidder
+      )
+
+    [company: ctx.payload.company, bidders: bidders]
+  end
+
+  handle_event "company_passed", ctx do
+    bidders = Enum.drop(ctx.projection.bidders, 1)
+    [bidders: bidders]
+  end
+
+  handle_event "company_bid", ctx do
+    bidders =
+      with [current_bidder | rest] <- ctx.projection.bidders do
+        rest ++ [current_bidder]
+      end
+
+    [bidders: bidders]
+  end
+
+  defp end_company_auction(ctx) do
+    [
+      company: nil,
+      bidders: nil,
+      phase_count_company_auctions_ended: ctx.projection.phase_count_company_auctions_ended + 1
+    ]
   end
 
   #########################################################
@@ -108,66 +140,6 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       true ->
         Messages.company_passed(player_id, company_id, metadata)
     end
-  end
-
-  #########################################################
-  # REDUCERS (event handlers)
-  #########################################################
-
-  defp handle_event(auction, "player_order_set", payload) do
-    %__MODULE__{auction | player_order: payload.player_order}
-  end
-
-  defp handle_event(auction, "game_started", _payload) do
-    %__MODULE__{auction | game_started: true}
-  end
-
-  defp handle_event(auction, "auction_phase_started", payload) do
-    %__MODULE__{
-      auction
-      | phase_number: payload.phase_number,
-        phase_starting_bidder: payload.starting_bidder
-    }
-  end
-
-  defp handle_event(auction, "auction_phase_ended", _payload) do
-    %__MODULE__{
-      auction
-      | phase_number: nil,
-        phase_starting_bidder: nil,
-        phase_count_company_auctions_ended: 0
-    }
-  end
-
-  defp handle_event(auction, "company_auction_started", payload) do
-    bidders =
-      Players.player_order_once_around_the_table(auction.player_order, payload.starting_bidder)
-
-    %__MODULE__{auction | company: payload.company, bidders: bidders}
-  end
-
-  defp handle_event(auction, "company_passed", _payload) do
-    bidders = Enum.drop(auction.bidders, 1)
-    %__MODULE__{auction | bidders: bidders}
-  end
-
-  defp handle_event(auction, event_name, _payload)
-       when event_name in ["company_not_opened", "company_opened"] do
-    %__MODULE__{
-      auction
-      | company: nil,
-        bidders: nil,
-        phase_count_company_auctions_ended: auction.phase_count_company_auctions_ended + 1
-    }
-  end
-
-  defp handle_event(auction, "company_bid", _payload) do
-    bidders =
-      with [current_bidder | rest] <- auction.bidders do
-        rest ++ [current_bidder]
-      end
-
-    %__MODULE__{auction | bidders: bidders}
   end
 
   #########################################################

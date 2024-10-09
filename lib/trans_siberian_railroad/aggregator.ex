@@ -1,5 +1,8 @@
 defmodule TransSiberianRailroad.Aggregator do
   @moduledoc """
+  ## Notes
+  - make a note somewhere on difference between aggregator and metadata
+  - TODO move any projection stuff out to Projection
   """
 
   alias TransSiberianRailroad.Event
@@ -12,14 +15,14 @@ defmodule TransSiberianRailroad.Aggregator do
 
       @spec project(TransSiberianRailroad.Event.t()) :: t()
       def project(events) do
-        {projection, _} = @mod.__state__(events, &init/0, &put_version/2, &handle_event/3)
+        {projection, _} = @mod.__state__(events, &init/0, &put_version/2, &apple/3)
         projection
       end
 
       # TODO this is getting kinda out of date
       @spec state(TransSiberianRailroad.Event.t()) :: {t(), [TransSiberianRailroad.Event.t()]}
       def state(events) do
-        @mod.__state__(events, &init/0, &put_version/2, &handle_event/3)
+        @mod.__state__(events, &init/0, &put_version/2, &apple/3)
       end
 
       # TODO this is too much injected code. Extract
@@ -73,7 +76,7 @@ defmodule TransSiberianRailroad.Aggregator do
       # Fallbacks
       def events_from_projection(_projection), do: nil
       defp handle_command(_projection, _unhandled_command_name, _unhandled_payload), do: nil
-      defp handle_event(projection, _unhandled_event_name, _unhandled_payload), do: projection
+      defp apple(projection, _unhandled_event_name, _unhandled_payload), do: projection
     end
   end
 end

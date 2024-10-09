@@ -47,7 +47,7 @@ defmodule TransSiberianRailroad.PlayersTest do
         |> Banana.handle_commands()
 
       # ASSERT
-      for %Player{money: money} <- Players.project(game.events) do
+      for %Player{money: money} <- Players.project(game.events) |> Players.to_list() do
         assert money == 0
       end
     end
@@ -69,10 +69,11 @@ defmodule TransSiberianRailroad.PlayersTest do
         game = Banana.handle_commands(commands)
 
         # ASSERT
-        players = Players.project(game.events)
-        assert Players.count(players) == player_count
+        # TODO extact intermediate var
+        players = Players.project(game.events) |> Players.to_list()
+        assert length(players) == player_count
 
-        for %Player{money: money} <- Players.project(game.events) do
+        for %Player{money: money} <- Players.project(game.events) |> Players.to_list() do
           assert money == expected_money
         end
       end
