@@ -1,33 +1,37 @@
-# TODO add moduledoc
 defmodule TransSiberianRailroad.Aggregator.Players do
+  @moduledoc """
+  Handles the adding of players to the game.
+
+  That's a pretty thin mandate. As development progresses, this module
+  might prove itself to be too small and might get merged into another module like Main.
+  """
+
   use TransSiberianRailroad.Aggregator
+  use TypedStruct
   alias TransSiberianRailroad.Messages
+  alias TransSiberianRailroad.Metadata
   alias TransSiberianRailroad.Player
 
-  @type t() :: [Player.t()]
-
-  @spec new() :: t()
-  def new(), do: []
+  typedstruct do
+    field :last_version, non_neg_integer()
+    field :players, [Player.t()], default: []
+  end
 
   #########################################################
   # CONSTRUCTORS
   #########################################################
 
   @impl true
-  # TODO should init be private?
-  def init() do
-    []
-  end
+  def init(), do: %__MODULE__{}
 
   #########################################################
   # REDUCERS (command handlers)
   #########################################################
 
-  defp handle_command(players, "add_player", payload) do
+  defp handle_command(projection, "add_player", payload) do
     %{player_name: player_name} = payload
-    player_id = length(players) + 1
-    # TODO sequence_number is just a placeholder
-    metadata = [sequence_number: 666]
+    player_id = length(projection.players) + 1
+    metadata = Metadata.from_aggregator(projection)
 
     if player_id <= 5 do
       Messages.player_added(player_id, player_name, metadata)
@@ -43,16 +47,22 @@ defmodule TransSiberianRailroad.Aggregator.Players do
   # REDUCERS (event handlers)
   #########################################################
 
-  defp handle_event(players, "player_added", payload) do
+  defp handle_event(projection, "player_added", payload) do
     %{player_id: player_id, player_name: player_name} = payload
     new_player = Player.new(player_id, player_name)
-    [new_player | players]
+    new_players = [new_player | projection.players]
+    %__MODULE__{projection | players: new_players}
   end
 
-  defp handle_event(players, "game_started", %{starting_money: starting_money}) do
-    for %Player{} = player <- players do
-      %Player{player | money: starting_money}
-    end
+  # TODO extract a new event
+  defp handle_event(projection, "money_transferred", payload) do
+    new_players =
+      for %Player{} = player <- projection.players do
+        money = payload.transfers[player.id] + player.money
+        %Player{player | money: money}
+      end
+
+    %__MODULE__{projection | players: new_players}
   end
 
   # TODO the fallback should only match on events whose names are not handled by this module.
@@ -63,41 +73,30 @@ defmodule TransSiberianRailroad.Aggregator.Players do
   #########################################################
 
   @impl true
-  # TODO
-  def put_version(players, _sequence_number), do: players
-
-  @spec add(t(), Player.id(), String.t()) :: t()
-  def add(players, player_id, player_name) do
-    added_player = Player.new(player_id, player_name)
-    [added_player | players]
+  # TODO extract this to Metadata module or other
+  def put_version(projection, sequence_number) do
+    %__MODULE__{projection | last_version: sequence_number}
   end
 
   #########################################################
   # CONVERTERS
   #########################################################
 
-  def count(players), do: length(players)
-
-  # TODO rename players -> player_order
-  def player_order_once_around_the_table(players, current_player) do
-    player_count = count(players)
-
-    player_order_generator(players, current_player)
-    |> Enum.take(player_count)
-  end
+  def count(%__MODULE__{players: players}), do: length(players)
 
   @spec to_list(t()) :: [Player.t()]
-  def to_list(players), do: players
+  def to_list(projection), do: projection.players
 
   #########################################################
   # HELPERS
   #########################################################
 
-  # TODO move this elsewhere
-  @spec player_order_generator([3..5], 3..5) :: term()
-  def player_order_generator(player_order, start_player) do
+  def player_order_once_around_the_table(player_order, start_player) do
+    player_count = length(player_order)
+
     player_order
     |> Stream.cycle()
     |> Stream.drop_while(&(&1 != start_player))
+    |> Enum.take(player_count)
   end
 end

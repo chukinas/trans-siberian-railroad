@@ -1,5 +1,7 @@
 defmodule TransSiberianRailroad.Aggregator do
   @moduledoc """
+  ## Notes
+  - make a note somewhere on difference between aggregator and metadata
   """
 
   alias TransSiberianRailroad.Event

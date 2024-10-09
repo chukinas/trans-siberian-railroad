@@ -50,11 +50,18 @@ defmodule TransSiberianRailroad.Aggregator.Main do
           5 -> 32
         end
 
+      transfers =
+        player_order
+        |> Map.new(&{&1, starting_money})
+        |> Map.put(:bank, -(starting_money * player_count))
+
       [
         Messages.start_player_selected(start_player, metadata.(0)),
         Messages.player_order_set(player_order, metadata.(1)),
+        # TODO game_started no longer needs a starting money field?
         Messages.game_started(player_who_requested_game_start, starting_money, metadata.(2)),
-        Messages.auction_phase_started(phase_number, start_player, metadata.(3))
+        Messages.money_transferred(transfers, "starting money", metadata.(3)),
+        Messages.auction_phase_started(phase_number, start_player, metadata.(4))
       ]
     else
       Messages.game_not_started("Cannot start game with fewer than 2 players.", metadata.(0))
