@@ -16,6 +16,22 @@ defmodule TransSiberianRailroad.Messages do
   @type metadata() :: term()
 
   #########################################################
+  # Money
+  # Moving money between players, bank, and companies is
+  # such a common operation that it's all handled via this
+  # single event.
+  #########################################################
+
+  @type entity() :: Player.id() | Company.id() | :bank
+  @type amount() :: integer()
+  @spec money_transferred(%{entity() => amount()}, String.t(), metadata()) :: Event.t()
+  def money_transferred(transfers, reason, metadata) do
+    # TODO validate the transfers
+    0 = transfers |> Map.values() |> Enum.sum()
+    Event.new("money_transferred", %{transfers: transfers, reason: reason}, metadata)
+  end
+
+  #########################################################
   # Initializing Game
   #########################################################
 
