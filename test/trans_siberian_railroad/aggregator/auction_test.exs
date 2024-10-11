@@ -51,10 +51,13 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     assert %{company_id: :red} = fetch_single_event_payload!(game.events, "company_not_opened")
   end
 
+  test "If all players pass on a company, the next company auction begins with the same starting bidder"
   test "The player who wins the first auction starts the second auction"
   test "The order of phase 1 company auctions is :red, :blue, :green, :yellow"
   test "company_pass_rejected when auction not in progress"
   test "company_pass_rejected when player is not current bidder"
   test "company_pass_rejected when company not the current company"
   # TODO rename player_id to something like 'passing player'
+  # TODO what happens if all players pass on all companies in phase 1?
+  test "a bid command is rejected if the player does not have enough money"
 end
