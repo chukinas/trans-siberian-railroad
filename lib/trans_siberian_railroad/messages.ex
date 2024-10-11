@@ -7,13 +7,37 @@ defmodule TransSiberianRailroad.Messages do
   - add defevent and defcommand macros to cut down on boilerplate
   """
 
-  alias TransSiberianRailroad.Command
-  alias TransSiberianRailroad.RailCompany, as: Company
   alias TransSiberianRailroad.Event
+  alias TransSiberianRailroad.RailCompany, as: Company
   alias TransSiberianRailroad.Player
 
   # TODO
   @type metadata() :: term()
+
+  defmacrop build_command(fields) do
+    quote do
+      name =
+        with {name, _arity} = __ENV__.function do
+          to_string(name)
+        end
+
+      payload = Map.new(unquote(fields))
+      %TransSiberianRailroad.Command{name: name, payload: payload}
+    end
+  end
+
+  defmacrop build_event(fields) do
+    quote do
+      name =
+        with {name, _arity} = __ENV__.function do
+          to_string(name)
+        end
+
+      payload = Map.new(unquote(fields))
+      metadata = var!(metadata)
+      TransSiberianRailroad.Event.new(name, payload, metadata)
+    end
+  end
 
   #########################################################
   # Money
@@ -28,7 +52,7 @@ defmodule TransSiberianRailroad.Messages do
   def money_transferred(transfers, reason, metadata) do
     # TODO validate the transfers
     0 = transfers |> Map.values() |> Enum.sum()
-    Event.new("money_transferred", %{transfers: transfers, reason: reason}, metadata)
+    build_event(transfers: transfers, reason: reason)
   end
 
   #########################################################
@@ -41,14 +65,11 @@ defmodule TransSiberianRailroad.Messages do
       |> Enum.map(fn _ -> Enum.random(?A..?Z) end)
       |> Enum.join()
 
-    %Command{
-      name: "initialize_game",
-      payload: %{game_id: game_id}
-    }
+    build_command(game_id: game_id)
   end
 
   def game_initialized(game_id, metadata) when is_binary(game_id) do
-    Event.new("game_initialized", %{game_id: game_id}, metadata)
+    build_event(game_id: game_id)
   end
 
   #########################################################
@@ -56,19 +77,16 @@ defmodule TransSiberianRailroad.Messages do
   #########################################################
 
   def add_player(player_name) when is_binary(player_name) do
-    %Command{
-      name: "add_player",
-      payload: %{player_name: player_name}
-    }
+    build_command(player_name: player_name)
   end
 
   def player_added(player_id, player_name, metadata)
       when is_integer(player_id) and is_binary(player_name) do
-    Event.new("player_added", %{player_id: player_id, player_name: player_name}, metadata)
+    build_event(player_id: player_id, player_name: player_name)
   end
 
   def player_rejected(reason, metadata) when is_binary(reason) do
-    Event.new("player_rejected", %{reason: reason}, metadata)
+    build_event(reason: reason)
   end
 
   #########################################################
@@ -76,7 +94,7 @@ defmodule TransSiberianRailroad.Messages do
   #########################################################
 
   def start_player_selected(start_player, metadata) when is_integer(start_player) do
-    Event.new("start_player_selected", %{start_player: start_player}, metadata)
+    build_event(start_player: start_player)
   end
 
   # TODO replace set with selected?
@@ -87,7 +105,7 @@ defmodule TransSiberianRailroad.Messages do
       end
     end
 
-    Event.new("player_order_set", %{player_order: player_order}, metadata)
+    build_event(player_order: player_order)
   end
 
   #########################################################
@@ -95,25 +113,18 @@ defmodule TransSiberianRailroad.Messages do
   #########################################################
 
   def start_game(player_id) when is_integer(player_id) do
-    %Command{
-      name: "start_game",
-      payload: %{player_id: player_id}
-    }
+    build_command(player_id: player_id)
   end
 
   # TODO rename player_id to something more descriptive.
   # It only matters because we want a record of the player who "pressed the start button".
   # It's not about the player who goes first.
   def game_started(player_id, starting_money, metadata) when is_integer(player_id) do
-    Event.new(
-      "game_started",
-      %{player_id: player_id, starting_money: starting_money},
-      metadata
-    )
+    build_event(player_id: player_id, starting_money: starting_money)
   end
 
   def game_not_started(reason, metadata) when is_binary(reason) do
-    Event.new("game_not_started", %{reason: reason}, metadata)
+    build_event(reason: reason)
   end
 
   #########################################################
@@ -122,15 +133,11 @@ defmodule TransSiberianRailroad.Messages do
 
   def auction_phase_started(phase_number, starting_bidder, metadata)
       when phase_number in 1..2 and starting_bidder in 1..5 do
-    Event.new(
-      "auction_phase_started",
-      %{phase_number: phase_number, starting_bidder: starting_bidder},
-      metadata
-    )
+    build_event(phase_number: phase_number, starting_bidder: starting_bidder)
   end
 
   def auction_phase_ended(phase_number, metadata) do
-    Event.new("auction_phase_ended", %{phase_number: phase_number}, metadata)
+    build_event(phase_number: phase_number)
   end
 
   #########################################################
@@ -145,11 +152,7 @@ defmodule TransSiberianRailroad.Messages do
   """
   @spec company_auction_started(Player.id(), Company.id(), metadata()) :: Event.t()
   def company_auction_started(starting_bidder, company, metadata) do
-    Event.new(
-      "company_auction_started",
-      %{starting_bidder: starting_bidder, company: company},
-      metadata
-    )
+    build_event(starting_bidder: starting_bidder, company: company)
   end
 
   # TODO add is_company guard
@@ -157,7 +160,7 @@ defmodule TransSiberianRailroad.Messages do
   This and "company_opened" both end the company auction started by "company_auction_started".
   """
   def company_not_opened(company_id, metadata) when is_atom(company_id) do
-    Event.new("company_not_opened", %{company_id: company_id}, metadata)
+    build_event(company_id: company_id)
   end
 
   # TODO add is_player guard
@@ -166,11 +169,7 @@ defmodule TransSiberianRailroad.Messages do
   """
   def company_opened(company_id, player_id, bid_amount, metadata)
       when is_atom(company_id) and is_integer(bid_amount) and bid_amount >= 8 do
-    Event.new(
-      "company_opened",
-      %{company_id: company_id, player_id: player_id, bid_amount: bid_amount},
-      metadata
-    )
+    build_event(company_id: company_id, player_id: player_id, bid_amount: bid_amount)
   end
 
   #########################################################
@@ -178,25 +177,18 @@ defmodule TransSiberianRailroad.Messages do
   #########################################################
 
   def pass_on_company(player_id, company_id) when is_integer(player_id) and is_atom(company_id) do
-    %Command{
-      name: "pass_on_company",
-      payload: %{player_id: player_id, company_id: company_id}
-    }
+    build_command(player_id: player_id, company_id: company_id)
   end
 
   # TODO replace is_atom with a more specific guard
   def company_passed(player_id, company_id, metadata)
       when is_integer(player_id) and is_atom(company_id) do
-    Event.new("company_passed", %{player_id: player_id, company_id: company_id}, metadata)
+    build_event(player_id: player_id, company_id: company_id)
   end
 
   def company_pass_rejected(player_id, company_id, reason, metadata)
       when is_integer(player_id) and is_atom(company_id) and is_binary(reason) do
-    Event.new(
-      "company_pass_rejected",
-      %{player_id: player_id, company_id: company_id, reason: reason},
-      metadata
-    )
+    build_event(player_id: player_id, company_id: company_id, reason: reason)
   end
 
   #########################################################
@@ -207,6 +199,6 @@ defmodule TransSiberianRailroad.Messages do
   # TODO add :amount field
   def company_bid(player_id, company_id, metadata)
       when is_integer(player_id) and is_atom(company_id) do
-    Event.new("company_bid", %{player_id: player_id, company_id: company_id}, metadata)
+    build_event(player_id: player_id, company_id: company_id)
   end
 end
