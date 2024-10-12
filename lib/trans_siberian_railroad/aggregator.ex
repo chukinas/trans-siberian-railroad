@@ -32,6 +32,8 @@ defmodule TransSiberianRailroad.Aggregator do
           |> project()
           |> handle_command(command_name, payload)
           |> List.wrap()
+          # TODO this is the third repeat of this line. Clean it up.
+          |> Enum.reject(&is_nil/1)
 
         # TODO temp ensure all these are actual events
         for event <- new_events do
