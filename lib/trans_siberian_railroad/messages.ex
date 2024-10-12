@@ -7,14 +7,25 @@ defmodule TransSiberianRailroad.Messages do
   - add defevent and defcommand macros to cut down on boilerplate
   """
 
+  require TransSiberianRailroad.Metadata, as: Metadata
+  require TransSiberianRailroad.Player, as: Player
+  require TransSiberianRailroad.RailCompany, as: Company
   alias TransSiberianRailroad.Event
-  alias TransSiberianRailroad.RailCompany, as: Company
-  alias TransSiberianRailroad.Player
 
   # TODO
   @type metadata() :: term()
 
+  #########################################################
+  # - Local boilerplate reduction
+  # - Accumulate command and event names
+  #   in order to validate then in aggregators
+  #########################################################
+
+  Module.register_attribute(__MODULE__, :command_names, accumulate: true)
+  Module.register_attribute(__MODULE__, :event_names, accumulate: true)
+
   defmacrop command(fields) do
+    # TODO accumulate command names
     quote do
       name =
         with {name, _arity} = __ENV__.function do
@@ -27,12 +38,15 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   defmacrop event(fields) do
-    quote do
-      name =
-        with {name, _arity} = __ENV__.function do
-          to_string(name)
-        end
+    name =
+      with {name, _arity} = __CALLER__.function do
+        to_string(name)
+      end
 
+    Module.put_attribute(__MODULE__, :event_names, name)
+
+    quote do
+      name = unquote(name)
       payload = Map.new(unquote(fields))
       metadata = var!(metadata)
       TransSiberianRailroad.Event.new(name, payload, metadata)
@@ -49,9 +63,10 @@ defmodule TransSiberianRailroad.Messages do
   @type entity() :: Player.id() | Company.id() | :bank
   @type amount() :: integer()
   @spec money_transferred(%{entity() => amount()}, String.t(), metadata()) :: Event.t()
-  def money_transferred(transfers, reason, metadata) do
+  def money_transferred(%{} = transfers, reason, metadata)
+      when is_binary(reason) and Metadata.is(metadata) do
     # TODO validate the transfers
-    0 = transfers |> Map.values() |> Enum.sum()
+    # 0 = transfers |> Map.values() |> Enum.sum()
     event(transfers: transfers, reason: reason)
   end
 
@@ -207,10 +222,33 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - players bid on a company
   #########################################################
 
+  def submit_bid(player_id, company_id, amount)
+      when Player.is_id(player_id) and Company.is_id(company_id) and is_integer(amount) do
+    command(player_id: player_id, company_id: company_id, amount: amount)
+  end
+
+  def bid_rejected(player_id, company_id, amount, reason, metadata)
+      when Player.is_id(player_id) and Company.is_id(company_id) and is_binary(reason) do
+    event(player_id: player_id, company_id: company_id, amount: amount, reason: reason)
+  end
+
   # TODO rename company_bid
   # TODO add :amount field
-  def company_bid(player_id, company_id, metadata)
-      when is_integer(player_id) and is_atom(company_id) do
-    event(player_id: player_id, company_id: company_id)
+  def company_bid(player_id, company_id, amount, metadata)
+      when Player.is_id(player_id) and Company.is_id(company_id) and is_integer(amount) do
+    event(player_id: player_id, company_id: company_id, amount: amount)
   end
+
+  #########################################################
+  # Message name guards
+  # These must remain at the bottom of the module
+  #########################################################
+
+  def valid_command_name?(name), do: name in @command_names
+  def valid_event_name?(name), do: name in @event_names
+
+  def event_names(), do: @event_names
+
+  # defguard is_command_name(name) when name in @command_names
+  # defguard is_event_name(name) when name in @event_names
 end

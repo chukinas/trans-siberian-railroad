@@ -26,8 +26,14 @@ defmodule TransSiberianRailroad.Aggregator.Players do
   handle_event "money_transferred", ctx do
     new_players =
       for %Player{} = player <- ctx.projection.players do
-        money = ctx.payload.transfers[player.id] + player.money
-        %Player{player | money: money}
+        case ctx.payload.transfers[player.id] do
+          nil ->
+            player
+
+          amount ->
+            money = amount + player.money
+            %Player{player | money: money}
+        end
       end
 
     [players: new_players]

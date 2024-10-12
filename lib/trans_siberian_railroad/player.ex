@@ -18,4 +18,10 @@ defmodule TransSiberianRailroad.Player do
       money: 0
     }
   end
+
+  #########################################################
+  # HELPERS
+  #########################################################
+
+  defguard is_id(x) when x in 1..5
 end

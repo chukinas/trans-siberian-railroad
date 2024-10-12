@@ -28,6 +28,10 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     # game_started.player_order SETS
     field :player_order, [Player.id()]
 
+    # money_transferred.transfers UPDATES
+    # TODO testing property: a player's and company's balance may never be negative.
+    field :player_money_balances, %{Player.id() => integer()}, default: %{}
+
     # auction_phase_started.phase_number SETS
     # auction_phase_ended CLEARS
     field :phase_number, 1..2
@@ -61,6 +65,22 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   handle_event("game_started", _ctx, do: [game_started: true])
   handle_event("company_opened", ctx, do: end_company_auction(ctx))
   handle_event("company_not_opened", ctx, do: end_company_auction(ctx))
+
+  handle_event "money_transferred", ctx do
+    player_money_balances = ctx.projection.player_money_balances
+    transfers = ctx.payload.transfers
+
+    new_player_money_balances =
+      Enum.reduce(transfers, player_money_balances, fn
+        {entity, amount}, balances when is_integer(entity) ->
+          Map.update(balances, entity, amount, &(&1 + amount))
+
+        _, balances ->
+          balances
+      end)
+
+    [player_money_balances: new_player_money_balances]
+  end
 
   handle_event "auction_phase_started", ctx do
     [phase_number: ctx.payload.phase_number, phase_starting_bidder: ctx.payload.starting_bidder]
@@ -112,33 +132,66 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     metadata = Metadata.from_aggregator(auction)
     maybe_current_bidder = get_current_bidder(auction)
 
+    reject = fn reason ->
+      Messages.company_pass_rejected(player_id, company_id, reason, metadata)
+    end
+
     cond do
       !in_progress?(auction) ->
-        Messages.company_pass_rejected(
-          payload.player_id,
-          payload.company_id,
-          "There is no auction in progress.",
-          metadata
-        )
+        reject.("There is no auction in progress.")
 
       player_id != maybe_current_bidder ->
-        Messages.company_pass_rejected(
-          payload.player_id,
-          payload.company_id,
-          "It's player #{maybe_current_bidder}'s turn to bid on a company.",
-          metadata
-        )
+        reject.("It's player #{maybe_current_bidder}'s turn to bid on a company.")
 
       company_id != get_current_company(auction) ->
-        Messages.company_pass_rejected(
-          payload.player_id,
-          payload.company_id,
-          "The company you're trying to pass on isn't the one being auctioned.",
-          metadata
-        )
+        reject.("The company you're trying to pass on isn't the one being auctioned.")
 
       true ->
         Messages.company_passed(player_id, company_id, metadata)
+    end
+  end
+
+  # TODO the command (and event) names should be validated.
+  defp handle_command(auction, "submit_bid", payload) do
+    %{player_id: player_id, company_id: company_id, amount: amount} = payload
+
+    player_money_balance = auction.player_money_balances[player_id] || 0
+
+    maybe_rejection_reason =
+      cond do
+        player_money_balance < amount -> "insufficient funds"
+        # TODO test
+        amount < 8 -> "bid amount must be at least 8"
+        # TODO it must be more than the previous bid
+        true -> nil
+      end
+
+    # TODO test property: all events have incrementing sequence numbers
+    # TODO validate all these fields
+    case maybe_rejection_reason do
+      nil ->
+        [
+          Messages.money_transferred(
+            %{player_id => -amount, company_id => amount},
+            "Player #{player_id} won the auction for #{company_id}'s opening share",
+            Metadata.from_aggregator(auction, 0)
+          ),
+          Messages.company_bid(
+            player_id,
+            company_id,
+            amount,
+            Metadata.from_aggregator(auction, 1)
+          )
+        ]
+
+      reason ->
+        Messages.bid_rejected(
+          player_id,
+          company_id,
+          amount,
+          reason,
+          Metadata.from_aggregator(auction)
+        )
     end
   end
 
@@ -149,7 +202,8 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   def events_from_projection(auction) do
     [
       &maybe_start_company_auction/1,
-      &maybe_not_open_company/1
+      &maybe_not_open_company/1,
+      &maybe_end_auction_phase/1
     ]
     |> Enum.find_value(& &1.(auction))
   end
@@ -163,13 +217,16 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
           _ -> auction.phase_starting_bidder
         end
 
-      company =
-        Company.ids(phase_number)
-        |> Enum.drop(auction.phase_count_company_auctions_ended)
-        |> hd
+      Company.ids(phase_number)
+      |> Enum.drop(auction.phase_count_company_auctions_ended)
+      |> case do
+        [] ->
+          nil
 
-      metadata = Metadata.from_aggregator(auction)
-      Messages.company_auction_started(starting_bidder, company, metadata)
+        [next_company | _] ->
+          metadata = Metadata.from_aggregator(auction)
+          Messages.company_auction_started(starting_bidder, next_company, metadata)
+      end
     end
   end
 
@@ -180,6 +237,13 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       Messages.company_not_opened(company, metadata)
     else
       _ -> nil
+    end
+  end
+
+  defp maybe_end_auction_phase(%__MODULE__{} = auction) do
+    if auction.phase_count_company_auctions_ended == 4 do
+      metadata = Metadata.from_aggregator(auction)
+      Messages.auction_phase_ended(auction.phase_number, metadata)
     end
   end
 
