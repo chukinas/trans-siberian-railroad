@@ -14,7 +14,7 @@ defmodule TransSiberianRailroad.Aggregator.Main do
     field :last_version, non_neg_integer()
     field :game_id, String.t()
     field :player_count, 0..5, default: 0
-    field :start_player_selected, boolean(), default: false
+    field :start_player, 1..5
     field :player_order_set, boolean(), default: false
     field :game_started, boolean(), default: false
   end
@@ -27,7 +27,7 @@ defmodule TransSiberianRailroad.Aggregator.Main do
   end
 
   # TODO loop these
-  handle_event("start_player_selected", _ctx, do: [start_player_selected: true])
+  handle_event("start_player_selected", ctx, do: [start_player: ctx.payload.start_player])
   handle_event("player_order_set", _ctx, do: [player_order_set: true])
   handle_event("game_started", _ctx, do: [game_started: true])
 
@@ -57,7 +57,7 @@ defmodule TransSiberianRailroad.Aggregator.Main do
     metadata = &Metadata.from_aggregator(main, &1)
 
     if player_count in 3..5 do
-      start_player = Enum.random(1..player_count)
+      start_player = main.start_player || Enum.random(1..player_count)
       player_order = Enum.shuffle(1..player_count)
       phase_number = 1
 
@@ -73,21 +73,19 @@ defmodule TransSiberianRailroad.Aggregator.Main do
         |> Map.new(&{&1, starting_money})
         |> Map.put(:bank, -(starting_money * player_count))
 
-      events = [
-        unless(main.player_order_set, do: Messages.player_order_set(player_order, metadata.(0))),
+      [
+        # TODO metadata order is borked
+        unless(main.start_player,
+          do: Messages.start_player_selected(start_player, metadata.(0))
+        ),
+        unless(main.player_order_set,
+          do: Messages.player_order_set(player_order, metadata.(0))
+        ),
         # TODO game_started no longer needs a starting money field?
         Messages.game_started(player_who_requested_game_start, starting_money, metadata.(2)),
         Messages.money_transferred(transfers, "starting money", metadata.(3)),
         Messages.auction_phase_started(phase_number, start_player, metadata.(4))
       ]
-
-      if main.start_player_selected do
-        events
-      else
-        [
-          Messages.start_player_selected(start_player, metadata.(0)) | events
-        ]
-      end
     else
       Messages.game_not_started("Cannot start game with fewer than 2 players.", metadata.(0))
     end

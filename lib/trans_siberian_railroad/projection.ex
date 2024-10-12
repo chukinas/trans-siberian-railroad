@@ -4,6 +4,8 @@ defmodule TransSiberianRailroad.Projection do
   where we rip through the events and build up the current state.
   """
 
+  require TransSiberianRailroad.Messages, as: Messages
+
   defmacro __using__(opts) do
     # TODO refactor stuff until this just always gets injected
     apple =
@@ -43,7 +45,19 @@ defmodule TransSiberianRailroad.Projection do
   end
 
   # This is a macro ONLY because I want to accumulate the event names
-  defmacro handle_event(event_name, ctx, do: block) when is_binary(event_name) do
+  defmacro handle_event(event_name, ctx, do: block) do
+    # TODO unrequire
+    unless Messages.valid_event_name?(event_name) do
+      raise """
+      #{__MODULE__}.handle_event expects an event name already declared in Messages.
+
+      name: #{event_name}
+
+      valid names:
+      #{inspect(Messages.event_names())}
+      """
+    end
+
     quote do
       @__handled_event_names__ unquote(event_name)
       # TODO I don't want this to be public
@@ -65,5 +79,10 @@ defmodule TransSiberianRailroad.Projection do
     else
       projection
     end
+  end
+
+  def orange(projection_mod, event) do
+    projection = projection_mod.init()
+    __handle_event__(projection_mod, projection, event.name, event.payload)
   end
 end
