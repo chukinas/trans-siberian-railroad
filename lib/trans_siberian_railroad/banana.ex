@@ -54,6 +54,7 @@ defmodule TransSiberianRailroad.Banana do
   def handle_commands(banana \\ init(), commands) do
     commands
     |> List.flatten()
+    |> Enum.reject(&is_nil/1)
     |> Enum.reduce(banana, &handle_command(&2, &1))
   end
 
@@ -82,6 +83,7 @@ defmodule TransSiberianRailroad.Banana do
         |> agg_module.project()
         |> agg_module.events_from_projection()
         |> List.wrap()
+        |> Enum.reject(&is_nil/1)
         |> ensure_events(agg_module)
       end)
 
