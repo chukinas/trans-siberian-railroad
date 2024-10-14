@@ -5,14 +5,6 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   alias TransSiberianRailroad.Messages
 
   #########################################################
-  # Game
-  #########################################################
-
-  def game_has_event?(game, event_name) do
-    Enum.any?(game.events, fn event -> event.name == event_name end)
-  end
-
-  #########################################################
   # Commands
   #########################################################
 
@@ -26,14 +18,6 @@ defmodule TransSiberianRailroad.GameTestHelpers do
       Messages.add_player("Frank")
     ]
     |> Enum.take(player_count)
-  end
-
-  def start_game_commands(player_count \\ Enum.random(3..5)) do
-    List.flatten([
-      Messages.initialize_game(),
-      add_player_commands(player_count),
-      Messages.start_game(Enum.random(1..player_count))
-    ])
   end
 
   #########################################################
