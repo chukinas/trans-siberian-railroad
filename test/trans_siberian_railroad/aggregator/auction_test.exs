@@ -132,7 +132,24 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
                pass_rejected.payload
     end
 
-    test "company not the current company"
+    test "company not the current company", context do
+      # ARRANGE
+      start_player = context.start_player
+
+      # ACT
+      game = Banana.handle_command(context.game, Messages.pass_on_company(start_player, :blue))
+
+      # ASSERT
+      assert pass_rejected = fetch_single_event!(game.events, "company_pass_rejected")
+
+      assert %{
+               player_id: ^start_player,
+               company_id: :blue,
+               reason: "The company you're trying to pass on isn't the one being auctioned."
+             } =
+               pass_rejected.payload
+    end
+
     test "player is not current bidder"
   end
 
