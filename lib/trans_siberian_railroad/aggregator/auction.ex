@@ -138,7 +138,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
     cond do
       !in_progress?(auction) ->
-        reject.("There is no auction in progress.")
+        reject.("no auction in progress")
 
       player_id != maybe_current_bidder ->
         reject.("It's player #{maybe_current_bidder}'s turn to bid on a company.")
