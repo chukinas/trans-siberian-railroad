@@ -114,7 +114,20 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   end
 
   describe "passing in an auction is rejected when" do
-    test "auction not in progress (like before the game starts)"
+    test "auction not in progress (like before the game starts)" do
+      # ARRANGE
+      game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
+
+      # ACT
+      game = Banana.handle_command(game, Messages.pass_on_company(1, :red))
+
+      # ASSERT
+      assert pass_rejected = fetch_single_event!(game.events, "company_pass_rejected")
+
+      assert %{player_id: 1, company_id: :red, reason: "no auction in progress"} =
+               pass_rejected.payload
+    end
+
     test "auction not in progress (like immediately after the end of the first auction phase)"
     test "company not the current company"
     test "player is not current bidder"
