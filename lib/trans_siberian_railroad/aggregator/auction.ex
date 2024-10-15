@@ -6,7 +6,8 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   use TypedStruct
   use TransSiberianRailroad.Aggregator
-  require TransSiberianRailroad.RailCompany, as: Company
+  require Logger
+  # require TransSiberianRailroad.RailCompany, as: Company
   alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
@@ -22,49 +23,46 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   typedstruct opaque: true do
     field :last_version, non_neg_integer()
 
-    # game_started SETS true
-    field :game_started, boolean(), default: false
-
-    # game_started.player_order SETS
+    # player_order_set.player_order SETS
     field :player_order, [Player.id()]
 
     # money_transferred.transfers UPDATES
     # TODO testing property: a player's and company's balance may never be negative.
     field :player_money_balances, %{Player.id() => integer()}, default: %{}
 
-    # auction_phase_started.phase_number SETS
-    # auction_phase_ended CLEARS
-    field :phase_number, 1..2
+    # state_machine: a stack of elements that get pushed and popped
+    #
+    # What's NOT in the state machine:
+    #   player order
+    #   player money balances
+    #
+    # {:auction_phase, phase_number: 1, starting_bidder: 1, remaining_companies: ~w(red blue green yellow)a}
+    #   EVENT: auction_phase_started   pushes this element
+    #   REACT: company_auction_started if this is the only element, and :remaining_companies is NOT empty
+    #   EVENT: company_auction_started pops the first :remaining_companies
+    #   EVENT: company_opened          update :starting_bidder
+    #   REACT: auction_phase_ended     if this is the only element, and :remaining_companies IS empty
+    #   EVENT: auction_phase_ended     pops this element
 
-    # auction_phase_started.starting_bidder SETS
-    # auction_phase_ended CLEARS
-    field :phase_starting_bidder, 1..5
-
-    # company_not_opened    INCREMENTS
-    # company_opened        INCREMENTS
-    # auction_phase_ended   SETS 0
-    field :phase_count_company_auctions_ended, 0..4, default: 0
-
-    # company_auction_started.company_id SETS
-    # company_not_opened CLEARS
-    # company_opened     CLEARS
-    field :company, Company.id()
-
-    # These are the players still in the bidding for the company's share.
-    # As players pass, they are removed from this list.
-    # The first player in the list is the current bidder.
-    # company_auction_started.starting_bidder + :player_order SETS
-    # company_bid MOVES the first player to end of list
-    # company_passed REMOVES the first player
-    # company_not_opened CLEARS
-    # company_opened     CLEARS
-    field :bidders, [Player.id()]
+    # {:company_auction, company: :red, bidders: [1 => nil, 2 => nil, 3 => nil, 4 => nil, 5 => nil]}
+    #   COMMAND submit_bid
+    #   ->EVENT company_bid  if company, player, and amount are valid
+    #   ->EVENT bid_rejected otherwise
+    #   EVENT   company_bid  updates the player's balance and moves them to the end of the :bidders list
+    #   COMMAND pass_on_company
+    #   ->EVENT company_passed if valid
+    #   ->EVENT company_pass_rejected otherwise
+    #   EVENT   company_passed removes bidder from :bidders list
+    #   REACT   company_not_opened if :bidders is empty
+    #   REACT   company_opened     if :bidders has only one element with a non-nil value
+    field :state_machine, [term()], default: []
   end
 
+  #########################################################
+  # event handlers not specific to the auction
+  #########################################################
+
   handle_event("player_order_set", ctx, do: [player_order: ctx.payload.player_order])
-  handle_event("game_started", _ctx, do: [game_started: true])
-  handle_event("company_opened", ctx, do: end_company_auction(ctx))
-  handle_event("company_not_opened", ctx, do: end_company_auction(ctx))
 
   handle_event "money_transferred", ctx do
     player_money_balances = ctx.projection.player_money_balances
@@ -82,52 +80,86 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     [player_money_balances: new_player_money_balances]
   end
 
+  #########################################################
+  # start an auction phase and company auctions
+  #########################################################
+
   handle_event "auction_phase_started", ctx do
-    [phase_number: ctx.payload.phase_number, phase_starting_bidder: ctx.payload.starting_bidder]
+    case ctx.projection.state_machine do
+      [] ->
+        :ok
+
+      [current_phase | _] ->
+        Logger.warning("Auction phase already started: #{inspect(current_phase)}")
+    end
+
+    %{phase_number: phase_number, starting_bidder: starting_bidder} = ctx.payload
+
+    auction_phase =
+      {:auction_phase,
+       phase_number: phase_number,
+       starting_bidder: starting_bidder,
+       remaining_companies: ~w(red blue green yellow)a}
+
+    [state_machine: [auction_phase]]
   end
 
-  handle_event "auction_phase_ended", _ctx do
-    [phase_number: nil, phase_starting_bidder: nil, phase_count_company_auctions_ended: 0]
+  # TODO design a macro called... maybe_react
+  defreaction maybe_start_company_auction(%__MODULE__{} = auction) do
+    with [{:auction_phase, kv}] <- auction.state_machine,
+         [next_company | _] <- Keyword.fetch!(kv, :remaining_companies) do
+      starting_bidder = Keyword.fetch!(kv, :starting_bidder)
+      metadata = Metadata.from_aggregator(auction)
+      Messages.company_auction_started(starting_bidder, next_company, metadata)
+    else
+      _ -> nil
+    end
   end
 
+  # TODO if I return an invalid key, currently I get a very unhelpful error message,
+  # one that doesn't mention the line the failed.
+  # I expect to get a message that at least points me to the function or return value in this file.
   handle_event "company_auction_started", ctx do
-    bidders =
-      Players.player_order_once_around_the_table(
-        ctx.projection.player_order,
-        ctx.payload.starting_bidder
-      )
+    %{starting_bidder: starting_bidder, company: company} = ctx.payload
 
-    [company: ctx.payload.company, bidders: bidders]
-  end
+    remove_company_from_list = fn list ->
+      Enum.reject(list, fn
+        ^company -> true
+        _ -> false
+      end)
+    end
 
-  handle_event "company_passed", ctx do
-    bidders = Enum.drop(ctx.projection.bidders, 1)
-    [bidders: bidders]
-  end
+    state_machine =
+      ctx.projection.state_machine
+      |> put_in([:auction_phase, :starting_bidder], starting_bidder)
+      |> update_in([:auction_phase, :remaining_companies], remove_company_from_list)
 
-  handle_event "company_bid", ctx do
-    bidders =
-      with [current_bidder | rest] <- ctx.projection.bidders do
-        rest ++ [current_bidder]
+    company_auction =
+      with player_order = ctx.projection.player_order,
+           player_ids = Players.player_order_once_around_the_table(player_order, starting_bidder),
+           bidders = Enum.map(player_ids, &{&1, nil}) do
+        {:company_auction, company: company, bidders: bidders}
       end
 
-    [bidders: bidders]
-  end
-
-  defp end_company_auction(ctx) do
-    [
-      company: nil,
-      bidders: nil,
-      phase_count_company_auctions_ended: ctx.projection.phase_count_company_auctions_ended + 1
-    ]
+    [state_machine: [company_auction | state_machine]]
   end
 
   #########################################################
-  # REDUCERS (command handlers)
+  # handle players passing on a company
   #########################################################
 
-  @spec handle_command(t(), String.t(), map()) :: Event.t()
-  defp handle_command(auction, "pass_on_company", payload) do
+  handle_event "company_passed", ctx do
+    %{player_id: player_id} = ctx.payload
+
+    state_machine =
+      ctx.projection.state_machine
+      |> update_in([:company_auction, :bidders], fn [{^player_id, _} | rest] -> rest end)
+
+    [state_machine: state_machine]
+  end
+
+  command_handler("pass_on_company", ctx) do
+    %{projection: auction, payload: payload} = ctx
     %{player_id: player_id, company_id: company_id} = payload
     metadata = Metadata.from_aggregator(auction)
     maybe_current_bidder = get_current_bidder(auction)
@@ -151,8 +183,31 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     end
   end
 
+  # If all players pass on a company, the company auction ends, and the company is removed from the game
+  defreaction maybe_not_open_company(auction) do
+    with [{:company_auction, kv} | _] <- auction.state_machine,
+         [] <- Keyword.fetch!(kv, :bidders) do
+      company = Keyword.fetch!(kv, :company)
+      metadata = Metadata.from_aggregator(auction)
+      Messages.company_not_opened(company, metadata)
+    else
+      _ -> nil
+    end
+  end
+
+  handle_event "company_not_opened", ctx do
+    [_company_auction | state_machine] = ctx.projection.state_machine
+    [state_machine: state_machine]
+  end
+
+  #########################################################
+  # handle players bidding on a company
+  #########################################################
+
   # TODO the command (and event) names should be validated.
-  defp handle_command(auction, "submit_bid", payload) do
+  command_handler("submit_bid", ctx) do
+    %{projection: auction, payload: payload} = ctx
+
     %{player_id: player_id, company_id: company_id, amount: amount} = payload
 
     player_money_balance = auction.player_money_balances[player_id] || 0
@@ -170,19 +225,12 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     # TODO validate all these fields
     case maybe_rejection_reason do
       nil ->
-        [
-          Messages.money_transferred(
-            %{player_id => -amount, company_id => amount},
-            "Player #{player_id} won the auction for #{company_id}'s opening share",
-            Metadata.from_aggregator(auction, 0)
-          ),
-          Messages.company_bid(
-            player_id,
-            company_id,
-            amount,
-            Metadata.from_aggregator(auction, 1)
-          )
-        ]
+        Messages.company_bid(
+          player_id,
+          company_id,
+          amount,
+          Metadata.from_aggregator(auction, 1)
+        )
 
       reason ->
         Messages.bid_rejected(
@@ -195,68 +243,80 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     end
   end
 
-  #########################################################
-  # CONVERTERS (projection -> events)
-  #########################################################
+  # TODO rename "bid_submitted"?
+  handle_event "company_bid", ctx do
+    %{player_id: bidder, amount: amount} = ctx.payload
 
-  def events_from_projection(auction) do
-    [
-      &maybe_start_company_auction/1,
-      &maybe_not_open_company/1,
-      &maybe_end_auction_phase/1
-    ]
-    |> Enum.find_value(& &1.(auction))
+    state_machine =
+      ctx.projection.state_machine
+      |> update_in([:company_auction, :bidders], fn [{^bidder, _} | rest] ->
+        rest ++ [{bidder, amount}]
+      end)
+
+    [state_machine: state_machine]
   end
 
-  defp maybe_start_company_auction(%__MODULE__{} = auction) do
-    phase_number = auction.phase_number
-
-    if !!phase_number and !auction.company do
-      starting_bidder =
-        case auction.phase_count_company_auctions_ended do
-          _ -> auction.phase_starting_bidder
-        end
-
-      Company.ids(phase_number)
-      |> Enum.drop(auction.phase_count_company_auctions_ended)
-      |> case do
-        [] ->
-          nil
-
-        [next_company | _] ->
-          metadata = Metadata.from_aggregator(auction)
-          Messages.company_auction_started(starting_bidder, next_company, metadata)
-      end
-    end
-  end
-
-  defp maybe_not_open_company(auction) do
-    with {:ok, company} <- fetch_company(auction),
-         true <- all_players_passed_on_company?(auction) do
+  defreaction maybe_open_company(auction) do
+    with [{:company_auction, kv} | _] <- auction.state_machine,
+         # There's only one bidder left
+         [{player_id, amount}] <- Keyword.fetch!(kv, :bidders),
+         # That player's already made at least one bid
+         true <- is_integer(amount) do
+      company = Keyword.fetch!(kv, :company)
       metadata = Metadata.from_aggregator(auction)
-      Messages.company_not_opened(company, metadata)
+
+      [
+        Messages.company_opened(company, player_id, amount, metadata),
+        Messages.money_transferred(
+          %{player_id => -amount, company => amount},
+          "Player #{player_id} won the auction for #{company}'s opening share",
+          Metadata.from_aggregator(auction, 0)
+        )
+      ]
     else
       _ -> nil
     end
   end
 
-  defp maybe_end_auction_phase(%__MODULE__{} = auction) do
-    if auction.phase_count_company_auctions_ended == 4 do
+  handle_event "company_opened", ctx do
+    [_company_auction | state_machine] = ctx.projection.state_machine
+    [state_machine: state_machine]
+  end
+
+  #########################################################
+  # end the auction phase
+  #########################################################
+
+  defreaction maybe_end_auction_phase(%__MODULE__{} = auction) do
+    with [{:auction_phase, kv}] <- auction.state_machine,
+         [] <- Keyword.fetch!(kv, :remaining_companies) do
+      phase_number = Keyword.fetch!(kv, :phase_number)
       metadata = Metadata.from_aggregator(auction)
-      Messages.auction_phase_ended(auction.phase_number, metadata)
+      Messages.auction_phase_ended(phase_number, metadata)
+    else
+      _ -> nil
     end
+  end
+
+  handle_event "auction_phase_ended", _ctx do
+    [state_machine: []]
   end
 
   #########################################################
   # CONVERTERS
   #########################################################
 
-  defp all_players_passed_on_company?(%__MODULE__{bidders: bidders}) do
-    bidders == []
+  # TODO for the fetch* functions, return {:error, reason} instead of :error
+  defp fetch_company_auction_kv(%__MODULE__{} = auction) do
+    with [{:company_auction, kv} | _auction_phase] <- auction.state_machine do
+      {:ok, kv}
+    else
+      _ -> :error
+    end
   end
 
-  def in_progress?(auction) do
-    !!auction.phase_number
+  defp in_progress?(auction) do
+    Enum.any?(auction.state_machine)
   end
 
   def fetch_current_bidder(auction) do
@@ -266,24 +326,41 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     end
   end
 
-  def get_current_bidder(auction) do
-    case auction.bidders do
-      [current_bidder | _] -> current_bidder
+  defp get_current_bidder(auction) do
+    with {:ok, kv} <- fetch_company_auction_kv(auction),
+         [current_bidder_tuple | _] <- Keyword.fetch!(kv, :bidders) do
+      {player_id, _bid} = current_bidder_tuple
+      player_id
+    else
       _ -> nil
     end
   end
 
-  defp fetch_company(auction) do
-    maybe_company = auction.company
-
-    if Company.is_id(maybe_company) do
-      {:ok, maybe_company}
+  defp get_current_company(auction) do
+    with {:ok, kv} <- fetch_company_auction_kv(auction) do
+      Keyword.fetch!(kv, :company)
     else
-      :error
+      _ -> nil
     end
   end
 
-  def get_current_company(auction) do
-    auction.company
+  #########################################################
+  # GLUE
+  #########################################################
+
+  # TODO rm
+  defp grapefruit(_command_name, _ctx) do
+    nil
+  end
+
+  # TODO rm
+  def events_from_projection(auction) do
+    Enum.find_value(reaction_fns(), & &1.(auction))
+  end
+
+  # TODO rm
+  @spec handle_command(t(), String.t(), map()) :: Event.t()
+  defp handle_command(projection, command_name, payload) do
+    grapefruit(command_name, %{projection: projection, payload: payload})
   end
 end
