@@ -6,6 +6,16 @@ defmodule TransSiberianRailroad.Projection do
 
   require TransSiberianRailroad.Messages, as: Messages
 
+  # TODO mv to bottom
+  defmacro defreaction(projection, do: block) do
+    {function_name, _, _} = projection
+
+    quote do
+      @__reactions__ Function.capture(__MODULE__, unquote(function_name), 1)
+      def(unquote(projection), do: unquote(block))
+    end
+  end
+
   defmacro __using__(opts) do
     # TODO refactor stuff until this just always gets injected
     apple =
@@ -20,7 +30,10 @@ defmodule TransSiberianRailroad.Projection do
     quote do
       @before_compile unquote(__MODULE__)
       Module.register_attribute(__MODULE__, :__handled_event_names__, accumulate: true)
-      import TransSiberianRailroad.Projection, only: [handle_event: 3]
+      Module.register_attribute(__MODULE__, :__reactions__, accumulate: true)
+
+      import TransSiberianRailroad.Projection,
+        only: [handle_event: 3, command_handler: 3, defreaction: 2]
 
       @impl true
       # TODO all aggregators should use this
@@ -41,6 +54,10 @@ defmodule TransSiberianRailroad.Projection do
 
       # TODO rm
       def handled_event_names(), do: @__handled_event_names__
+
+      def reaction_fns() do
+        @__reactions__
+      end
     end
   end
 
@@ -84,5 +101,15 @@ defmodule TransSiberianRailroad.Projection do
   def orange(projection_mod, event) do
     projection = projection_mod.init()
     __handle_event__(projection_mod, projection, event.name, event.payload)
+  end
+
+  # TODO rename
+  defmacro command_handler(command_name, ctx, do: block) do
+    quote do
+      # TODO silly name here
+      defp grapefruit(unquote(command_name), unquote(ctx)) do
+        unquote(block)
+      end
+    end
   end
 end

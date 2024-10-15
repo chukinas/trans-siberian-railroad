@@ -59,8 +59,6 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
-  test "The player who wins the first auction starts the second auction"
-
   test "The order of phase 1 company auctions is :red, :blue, :green, :yellow", context do
     # ARRANGE: see :start_game setup
 
@@ -77,9 +75,6 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     # ASSERT
     assert filter_events_by_name(game.events, "company_not_opened") |> length() == 4
   end
-
-  # TODO rename player_id to something like 'passing player'
-  # TODO what happens if all players pass on all companies in phase 1?
 
   test "auction phase ends if all companies are passed on", context do
     # ARRANGE: see :start_game setup
@@ -197,29 +192,61 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
-  # TODO the other thing that results from this is the closing of red's auction and the start of blue's auction
   describe "when a player wins an auction" do
-    setup :start_game
+    setup context do
+      # capture state before applying the bids and passing
+      game_prior_to_bidding = context.game
 
-    test "the player is charged the winning bid amount", context do
-      # ARRANGE
-      [bidder | passing_players] = context.one_round
-      start_bidder_money = current_money(context.game, bidder)
-
-      # ACT
+      bid_winner = Enum.random(context.one_round)
       amount = 8
-      game = Banana.handle_command(context.game, Messages.submit_bid(bidder, :red, amount))
-      # and the rest pass:
+
       game =
         Banana.handle_commands(
-          game,
-          Enum.map(passing_players, &Messages.pass_on_company(&1, :red))
+          context.game,
+          for player_id <- context.one_round do
+            if player_id == bid_winner do
+              Messages.submit_bid(player_id, :red, amount)
+            else
+              Messages.pass_on_company(player_id, :red)
+            end
+          end
         )
 
-      # ASSERT
-      current_bidder_money = current_money(game, bidder)
-      assert current_bidder_money == start_bidder_money - amount
+      {:ok,
+       game_prior_to_bidding: game_prior_to_bidding,
+       bid_winner: bid_winner,
+       amount: amount,
+       game: game}
     end
+
+    test "the player is charged the winning bid amount", context do
+      # ARRANGE: see :start_game
+      bid_winner = context.bid_winner
+      start_bidder_money = current_money(context.game_prior_to_bidding, bid_winner)
+
+      # ACT: see this descibe block's setup
+
+      # ASSERT
+      current_bidder_money = current_money(context.game, bid_winner)
+      assert current_bidder_money == start_bidder_money - context.amount
+    end
+
+    test "that company's auction closes", context do
+      # ARRANGE: see :start_game
+      # ACT: see this descibe block's setup
+
+      # ASSERT
+      assert company_opened = fetch_single_event!(context.game.events, "company_opened")
+
+      assert company_opened.payload == %{
+               company_id: :red,
+               player_id: context.bid_winner,
+               bid_amount: context.amount
+             }
+    end
+
+    test "the next company's auction begins"
+    test "The player who wins the first auction starts the second auction"
   end
 
   #########################################################
