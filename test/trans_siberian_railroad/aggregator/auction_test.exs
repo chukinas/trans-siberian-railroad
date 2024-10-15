@@ -150,7 +150,25 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
                pass_rejected.payload
     end
 
-    test "player is not current bidder"
+    test "player is not current bidder", context do
+      # ARRANGE
+      start_player = context.start_player
+      wrong_player = context.one_round |> Enum.drop(1) |> Enum.random()
+
+      # ACT
+      game = Banana.handle_command(context.game, Messages.pass_on_company(wrong_player, :red))
+
+      # ASSERT
+      assert pass_rejected = fetch_single_event!(game.events, "company_pass_rejected")
+
+      assert %{
+               player_id: ^wrong_player,
+               company_id: :red,
+               reason: reason
+             } = pass_rejected.payload
+
+      assert reason == "It's player #{start_player}'s turn to bid on a company."
+    end
   end
 
   describe "a bid command is rejected" do
