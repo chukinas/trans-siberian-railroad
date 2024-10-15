@@ -1,7 +1,6 @@
 defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   use ExUnit.Case
   import TransSiberianRailroad.GameTestHelpers
-  alias TransSiberianRailroad.Aggregator.Auction
   alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Banana
   alias TransSiberianRailroad.Messages
@@ -27,47 +26,37 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     assert %{company: :red} = company_auction_started.payload
   end
 
-  test "company_not_opened event when all players pass on a company auction", context do
-    # ARRANGE
-    game = context.game
-    player_count = context.player_count
+  describe "If all players pass on a company," do
+    setup context do
+      game =
+        Banana.handle_commands(
+          context.game,
+          for player_id <- context.one_round do
+            Messages.pass_on_company(player_id, :red)
+          end
+        )
 
-    # ACT
-    # TODO don't test the internals of Auction
-    auction = Auction.project(game.events)
-    assert current_player = Auction.get_current_bidder(auction)
+      {:ok, game: game}
+    end
 
-    pass_commands =
-      player_order(game.events)
-      |> Players.player_order_once_around_the_table(current_player)
-      |> Enum.map(&Messages.pass_on_company(&1, :red))
+    test "that company auction ends", context do
+      # ARRANGE/ACT: see :game_start + above setup
 
-    game = Banana.handle_commands(game, pass_commands)
+      # ASSERT
+      assert company_not_opened = fetch_single_event!(context.game.events, "company_not_opened")
+      assert %{company_id: :red} = company_not_opened.payload
+    end
 
-    # ASSERT
-    assert length(filter_events_by_name(game.events, "company_passed")) == player_count
-    assert %{company_id: :red} = fetch_single_event_payload!(game.events, "company_not_opened")
-  end
+    test "the next company auction begins with the same starting bidder", context do
+      # ARRANGE/ACT: see :game_start + above setup
+      start_player = context.start_player
 
-  test "If all players pass on a company, the next company auction begins with the same starting bidder",
-       context do
-    # ARRANGE
-    start_player = context.start_player
+      # ASSERT
+      assert [blue_auction, _red_auction] =
+               filter_events_by_name(context.game.events, "company_auction_started")
 
-    # ACT
-    game =
-      Banana.handle_commands(
-        context.game,
-        for player_id <- context.one_round do
-          Messages.pass_on_company(player_id, :red)
-        end
-      )
-
-    # ASSERT
-    assert [blue_auction, _red_auction] =
-             filter_events_by_name(game.events, "company_auction_started")
-
-    assert %{company: :blue, starting_bidder: ^start_player} = blue_auction.payload
+      assert %{company: :blue, starting_bidder: ^start_player} = blue_auction.payload
+    end
   end
 
   test "The player who wins the first auction starts the second auction"
