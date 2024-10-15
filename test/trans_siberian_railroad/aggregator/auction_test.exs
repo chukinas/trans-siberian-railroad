@@ -71,7 +71,24 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   end
 
   test "The player who wins the first auction starts the second auction"
-  test "The order of phase 1 company auctions is :red, :blue, :green, :yellow"
+
+  test "The order of phase 1 company auctions is :red, :blue, :green, :yellow", context do
+    # ARRANGE: see :start_game setup
+
+    # ACT
+    game =
+      Banana.handle_commands(
+        context.game,
+        for company <- ~w/red blue green yellow/a,
+            player_id <- context.one_round do
+          Messages.pass_on_company(player_id, company)
+        end
+      )
+
+    # ASSERT
+    assert filter_events_by_name(game.events, "company_not_opened") |> length() == 4
+  end
+
   # TODO rename player_id to something like 'passing player'
   # TODO what happens if all players pass on all companies in phase 1?
 
@@ -89,7 +106,6 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       )
 
     # ASSERT
-    assert filter_events_by_name(game.events, "company_not_opened") |> length() == 4
     assert fetch_single_event!(game.events, "auction_phase_ended")
   end
 
