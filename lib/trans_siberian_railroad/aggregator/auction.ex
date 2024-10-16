@@ -305,10 +305,15 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     end
 
     validate_stock_price = fn kv ->
-      if price <= Keyword.fetch!(kv, :max_price) do
-        :ok
-      else
-        {:error, "price exceeds winning bid"}
+      cond do
+        Keyword.fetch!(kv, :max_price) < price ->
+          {:error, "price exceeds winning bid"}
+
+        price not in TransSiberianRailroad.StockValue.stock_value_spaces() ->
+          {:error, "not one of the valid stock prices"}
+
+        true ->
+          :ok
       end
     end
 
@@ -405,11 +410,6 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   #########################################################
   # GLUE
   #########################################################
-
-  # TODO rm
-  defp grapefruit(_command_name, _ctx) do
-    nil
-  end
 
   # TODO rm
   def events_from_projection(auction) do

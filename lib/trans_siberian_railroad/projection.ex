@@ -55,10 +55,9 @@ defmodule TransSiberianRailroad.Projection do
 
       # TODO rm
       def handled_event_names(), do: @__handled_event_names__
-
-      def reaction_fns() do
-        @__reactions__
-      end
+      def reaction_fns(), do: @__reactions__
+      # TODO rm
+      defp grapefruit(_command_name, _ctx), do: nil
     end
   end
 
