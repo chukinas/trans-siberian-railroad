@@ -292,8 +292,16 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       end
     end
 
+    validate_bid_winner = fn kv ->
+      case Keyword.fetch!(kv, :player_id) do
+        ^player_id -> :ok
+        _ -> {:error, "incorrect player"}
+      end
+    end
+
     with {:ok, kv} <- fetch_substate_kv(auction, :setting_stock_price),
-         :ok <- validate_current_company.(kv) do
+         :ok <- validate_current_company.(kv),
+         :ok <- validate_bid_winner.(kv) do
       Messages.starting_stock_price_set(player_id, company_id, price, metadata)
     else
       {:error, reason} ->
