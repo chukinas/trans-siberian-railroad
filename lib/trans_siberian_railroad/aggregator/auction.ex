@@ -270,8 +270,11 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   handle_event "company_opened", ctx do
     [_company_auction | state_machine] = ctx.projection.state_machine
     # TODO be consistent with player vs player_id
-    %{player_id: player, company_id: company} = ctx.payload
-    setting_stock_price = {:setting_stock_price, player_id: player, company: company}
+    %{player_id: player, company_id: company, bid_amount: amount} = ctx.payload
+
+    setting_stock_price =
+      {:setting_stock_price, player_id: player, company: company, max_price: amount}
+
     [state_machine: [setting_stock_price | state_machine]]
   end
 
@@ -280,6 +283,8 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # - must happen after a company opens
   #########################################################
 
+  # TODO rm parens
+  # TODO rename
   command_handler("set_starting_stock_price", ctx) do
     auction = ctx.projection
     %{player_id: player_id, company_id: company_id, price: price} = ctx.payload
@@ -299,9 +304,18 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       end
     end
 
+    validate_stock_price = fn kv ->
+      if price <= Keyword.fetch!(kv, :max_price) do
+        :ok
+      else
+        {:error, "price exceeds winning bid"}
+      end
+    end
+
     with {:ok, kv} <- fetch_substate_kv(auction, :setting_stock_price),
          :ok <- validate_current_company.(kv),
-         :ok <- validate_bid_winner.(kv) do
+         :ok <- validate_bid_winner.(kv),
+         :ok <- validate_stock_price.(kv) do
       Messages.starting_stock_price_set(player_id, company_id, price, metadata)
     else
       {:error, reason} ->
