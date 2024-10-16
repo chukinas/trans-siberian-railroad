@@ -12,6 +12,7 @@ defmodule TransSiberianRailroad.Projection do
 
     quote do
       @__reactions__ Function.capture(__MODULE__, unquote(function_name), 1)
+      # TODO this shouldn't be public
       def(unquote(projection), do: unquote(block))
     end
   end
