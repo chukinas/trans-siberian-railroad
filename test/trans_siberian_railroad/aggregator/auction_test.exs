@@ -22,8 +22,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     assert fetch_single_event!(events, "auction_phase_started")
 
     # ASSERT
-    assert company_auction_started = fetch_single_event!(events, "company_auction_started")
-    assert %{company: :red} = company_auction_started.payload
+    assert event = fetch_single_event!(events, "company_auction_started")
+    assert event.payload == %{company: :red, starting_bidder: context.start_player}
   end
 
   describe "If all players pass on a company," do
@@ -43,8 +43,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ARRANGE/ACT: see :game_start + above setup
 
       # ASSERT
-      assert company_not_opened = fetch_single_event!(context.game.events, "company_not_opened")
-      assert %{company_id: :red} = company_not_opened.payload
+      assert event = fetch_single_event!(context.game.events, "company_not_opened")
+      assert event.payload == %{company_id: :red}
     end
 
     test "the next company auction begins with the same starting bidder", context do
@@ -105,10 +105,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game = Banana.handle_command(game, Messages.pass_on_company(1, :red))
 
       # ASSERT
-      assert pass_rejected = fetch_single_event!(game.events, "company_pass_rejected")
-
-      assert %{player_id: 1, company_id: :red, reason: "no auction in progress"} =
-               pass_rejected.payload
+      assert event = fetch_single_event!(game.events, "company_pass_rejected")
+      assert event.payload == %{player_id: 1, company_id: :red, reason: "no auction in progress"}
     end
 
     test "auction not in progress (e.g. after end of the first auction phase)", context do
@@ -126,10 +124,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game = Banana.handle_command(game, Messages.pass_on_company(1, :red))
 
       # ASSERT
-      assert pass_rejected = fetch_single_event!(game.events, "company_pass_rejected")
-
-      assert %{player_id: 1, company_id: :red, reason: "no auction in progress"} =
-               pass_rejected.payload
+      assert event = fetch_single_event!(game.events, "company_pass_rejected")
+      assert event.payload == %{player_id: 1, company_id: :red, reason: "no auction in progress"}
     end
 
     test "company not the current company", context do
@@ -140,14 +136,13 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game = Banana.handle_command(context.game, Messages.pass_on_company(start_player, :blue))
 
       # ASSERT
-      assert pass_rejected = fetch_single_event!(game.events, "company_pass_rejected")
+      assert event = fetch_single_event!(game.events, "company_pass_rejected")
 
-      assert %{
-               player_id: ^start_player,
+      assert event.payload == %{
+               player_id: start_player,
                company_id: :blue,
                reason: ":red is the current company"
-             } =
-               pass_rejected.payload
+             }
     end
 
     test "player is not current bidder", context do
@@ -159,15 +154,13 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game = Banana.handle_command(context.game, Messages.pass_on_company(wrong_player, :red))
 
       # ASSERT
-      assert pass_rejected = fetch_single_event!(game.events, "company_pass_rejected")
+      assert event = fetch_single_event!(game.events, "company_pass_rejected")
 
-      assert %{
-               player_id: ^wrong_player,
+      assert event.payload == %{
+               player_id: wrong_player,
                company_id: :red,
-               reason: reason
-             } = pass_rejected.payload
-
-      assert reason == "player #{start_player} is the current player"
+               reason: "player #{start_player} is the current player"
+             }
     end
   end
 
@@ -181,14 +174,14 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game = Banana.handle_command(context.game, Messages.submit_bid(start_player, :red, amount))
 
       # ASSERT
-      assert bid_rejected = fetch_single_event!(game.events, "bid_rejected")
+      assert event = fetch_single_event!(game.events, "bid_rejected")
 
-      assert %{
-               player_id: ^start_player,
+      assert event.payload == %{
+               player_id: start_player,
                company_id: :red,
-               amount: ^amount,
+               amount: amount,
                reason: "insufficient funds"
-             } = bid_rejected.payload
+             }
     end
   end
 
@@ -236,9 +229,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ACT: see this descibe block's setup
 
       # ASSERT
-      assert company_opened = fetch_single_event!(context.game.events, "company_opened")
+      assert event = fetch_single_event!(context.game.events, "company_opened")
 
-      assert company_opened.payload == %{
+      assert event.payload == %{
                company_id: :red,
                player_id: context.bid_winner,
                bid_amount: context.amount
@@ -249,6 +242,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   end
 
   describe "set_starting_stock_price -> starting_stock_price_rejected when" do
+    @tag :no_start_game_setup
     test "not in an auction phase" do
       # ARRANGE
       game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
@@ -257,22 +251,37 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game = Banana.handle_command(game, Messages.set_starting_stock_price(1, :red, 10))
 
       # ASSERT
-      assert starting_stock_price_rejected =
-               fetch_single_event!(game.events, "starting_stock_price_rejected")
+      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
 
-      assert %{
+      assert event.payload == %{
                player_id: 1,
                company_id: :red,
                price: 10,
                reason: "no auction in progress"
-             } = starting_stock_price_rejected.payload
+             }
     end
 
-    test "we are not in the correct phase of the auction"
+    test "not in the correct auction substate", context do
+      # ARRANGE: see :start_game setup
+
+      # ACT
+      game = Banana.handle_command(context.game, Messages.set_starting_stock_price(1, :red, 10))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
+
+      assert event.payload == %{
+               player_id: 1,
+               company_id: :red,
+               price: 10,
+               reason: "not in the correct phase of the auction"
+             }
+    end
+
     test "we are not the current bidder"
     test "we are not the correct company"
-    test "the price is an invalid amount"
     test "the price is more than the winning bid"
+    test "the price is some other invalid amount"
   end
 
   describe "when a player sets the starting stock price" do
