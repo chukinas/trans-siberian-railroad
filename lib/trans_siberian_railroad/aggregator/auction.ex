@@ -269,8 +269,10 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   handle_event "company_opened", ctx do
     [_company_auction | state_machine] = ctx.projection.state_machine
-    # setting_stock_price = {:setting_stock_price, player_id: player_id, company: company}
-    [state_machine: state_machine]
+    # TODO be consistent with player vs player_id
+    %{player_id: player, company_id: company} = ctx.payload
+    setting_stock_price = {:setting_stock_price, player_id: player, company: company}
+    [state_machine: [setting_stock_price | state_machine]]
   end
 
   #########################################################
@@ -283,7 +285,15 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     %{player_id: player_id, company_id: company_id, price: price} = ctx.payload
     metadata = Metadata.from_aggregator(auction)
 
-    with :ok <- validate_current_company(auction, company_id) do
+    validate_current_company = fn kv ->
+      case Keyword.fetch!(kv, :company) do
+        ^company_id -> :ok
+        company -> {:error, "#{inspect(company)} is the current company"}
+      end
+    end
+
+    with {:ok, kv} <- fetch_substate_kv(auction, :setting_stock_price),
+         :ok <- validate_current_company.(kv) do
       Messages.starting_stock_price_set(player_id, company_id, price, metadata)
     else
       {:error, reason} ->
@@ -314,18 +324,30 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # CONVERTERS
   #########################################################
 
-  defp fetch_company_auction_or_stock_price_kv(%__MODULE__{} = auction) do
+  defp fetch_substate(auction) do
     case auction.state_machine do
-      [{:company_auction, kv} | _auction_phase] -> {:ok, kv}
-      [{:setting_stock_price, kv} | _auction_phase] -> {:ok, kv}
       [] -> {:error, "no auction in progress"}
-      # TODO
-      _ -> {:error, "other"}
+      [_auction_phase] -> {:error, "no substate"}
+      [substate, _auction_phase] -> {:ok, substate}
     end
   end
 
-  defp validate_current_bidder(auction, player_id) do
-    with {:ok, kv} <- fetch_company_auction_or_stock_price_kv(auction),
+  defp fetch_substate_kv(auction, substate_name)
+       when substate_name in ~w(company_auction setting_stock_price)a do
+    with {:ok, substate} <- fetch_substate(auction),
+         {^substate_name, kv} <- substate do
+      {:ok, kv}
+    else
+      {:error, reason} ->
+        {:error, reason}
+
+      {_substate_name, _kv} ->
+        {:error, "not in the correct phase of the auction"}
+    end
+  end
+
+  defp fetch_current_bidder(auction) do
+    with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
          [current_bidder_tuple | _] <- Keyword.fetch!(kv, :bidders) do
       {player_id, _bid} = current_bidder_tuple
       {:ok, player_id}
@@ -333,7 +355,10 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       {:error, reason} -> {:error, reason}
       [] -> {:error, "no current bidder"}
     end
-    |> case do
+  end
+
+  defp validate_current_bidder(auction, player_id) do
+    case fetch_current_bidder(auction) do
       {:ok, ^player_id} ->
         :ok
 
@@ -346,7 +371,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   end
 
   defp validate_current_company(auction, company_id) do
-    with {:ok, kv} <- fetch_company_auction_or_stock_price_kv(auction),
+    with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
          ^company_id <- Keyword.fetch!(kv, :company) do
       :ok
     else
