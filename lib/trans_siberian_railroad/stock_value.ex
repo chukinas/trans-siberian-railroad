@@ -17,13 +17,13 @@ defmodule TransSiberianRailroad.StockValue do
   # Otherwise I would have had to have written a public function.
   23 = Enum.count(@stock_value_spaces)
 
-  @doc """
-  When a company's first stock is purchased (always at a minimum of 8 money),
-  That player sets the initial stock value (less than or equal to bid).
-  """
-  def available_initial_stock_values(bid) when is_integer(bid) and bid >= 8 do
-    Enum.filter(@stock_value_spaces, &(&1 <= bid))
-  end
+  # @doc """
+  # When a company's first stock is purchased (always at a minimum of 8 money),
+  # That player sets the initial stock value (less than or equal to bid).
+  # """
+  # defp available_initial_stock_values(bid) when is_integer(bid) and bid >= 8 do
+  # Enum.filter(@stock_value_spaces, &(&1 <= bid))
+  # end
 
   def increase(starting_stock_value, count_spaces)
       when starting_stock_value in @stock_value_spaces and is_integer(count_spaces) and
@@ -38,4 +38,6 @@ defmodule TransSiberianRailroad.StockValue do
   end
 
   def causes_game_end?(stock_value), do: stock_value == @max_value
+
+  def stock_value_spaces(), do: @stock_value_spaces
 end

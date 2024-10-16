@@ -304,6 +304,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
+    @tag winning_bid_amount: 10
     test "the price is more than the winning bid", context do
       # ARRANGE: see :start_game setup
 
@@ -327,7 +328,29 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "the price is some other invalid amount"
+    @tag winning_bid_amount: 16
+    test "the price is some other invalid amount", context do
+      # ARRANGE: see :start_game setup
+
+      # ACT
+      bid_winner = context.bid_winner
+
+      game =
+        Banana.handle_command(
+          context.game,
+          Messages.set_starting_stock_price(bid_winner, :red, 9)
+        )
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
+
+      assert event.payload == %{
+               player_id: bid_winner,
+               company_id: :red,
+               price: 9,
+               reason: "not one of the valid stock prices"
+             }
+    end
   end
 
   describe "when a player sets the starting stock price" do
@@ -372,7 +395,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     game_prior_to_bidding = context.game
 
     bid_winner = Enum.random(context.one_round)
-    amount = 8
+    amount = context[:winning_bid_amount] || 8
 
     game =
       Banana.handle_commands(
