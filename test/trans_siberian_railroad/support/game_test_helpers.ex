@@ -61,4 +61,8 @@ defmodule TransSiberianRailroad.GameTestHelpers do
       events
     end
   end
+
+  def get_latest_event_by_name(events, event_name) do
+    Enum.find(events, &(&1.name == event_name))
+  end
 end
