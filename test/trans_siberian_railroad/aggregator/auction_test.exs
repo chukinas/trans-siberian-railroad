@@ -374,7 +374,27 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert ~w/red blue/a == Enum.map(events, & &1.payload.company)
     end
 
-    test "The player who wins the first auction starts the second auction"
+    @tag start_player: 1
+    @tag bid_winner: 2
+    test "The player who wins the first auction starts the second auction", context do
+      # ARRANGE
+      game =
+        Banana.handle_command(
+          context.game,
+          Messages.set_starting_stock_price(2, :red, 8)
+        )
+
+      # ACT
+      game =
+        Banana.handle_command(
+          game,
+          Messages.pass_on_company(2, :blue)
+        )
+
+      # ASSERT
+      assert event = get_latest_event_by_name(game.events, "company_passed")
+      assert event.payload == %{company_id: :blue, player_id: 2}
+    end
   end
 
   #########################################################
@@ -383,9 +403,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
   defp start_game(%{no_start_game_setup: true}), do: :ok
 
-  defp start_game(_context) do
+  defp start_game(context) do
     player_count = Enum.random(3..5)
-    start_player = Enum.random(1..player_count)
+    start_player = context[:starting_player] || Enum.random(1..player_count)
     player_order = Enum.shuffle(1..player_count)
     player_who_requested_game_start = Enum.random(1..player_count)
     one_round = Players.player_order_once_around_the_table(player_order, start_player)
@@ -412,8 +432,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   defp auction_off_company(context) do
     # capture state before applying the bids and passing
     game_prior_to_bidding = context.game
-
-    bid_winner = Enum.random(context.one_round)
+    bid_winner = context[:bid_winner] || Enum.random(context.one_round)
     amount = context[:winning_bid_amount] || 8
 
     game =
