@@ -288,7 +288,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     validate_current_company = fn kv ->
       case Keyword.fetch!(kv, :company) do
         ^company_id -> :ok
-        company -> {:error, "#{inspect(company)} is the current company"}
+        _incorrect_company -> {:error, "incorrect company"}
       end
     end
 

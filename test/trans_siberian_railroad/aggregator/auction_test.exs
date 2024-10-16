@@ -287,7 +287,23 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "we are not the correct company"
+    test "not the correct company", context do
+      # ARRANGE: see :start_game setup
+
+      # ACT
+      game = Banana.handle_command(context.game, Messages.set_starting_stock_price(1, :blue, 10))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
+
+      assert event.payload == %{
+               player_id: 1,
+               company_id: :blue,
+               price: 10,
+               reason: "incorrect company"
+             }
+    end
+
     test "the price is more than the winning bid"
     test "the price is some other invalid amount"
   end
