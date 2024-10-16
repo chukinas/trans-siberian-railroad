@@ -59,6 +59,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
+  # TODO test the order of phase 2 company auctions
   test "The order of phase 1 company auctions is :red, :blue, :green, :yellow", context do
     # ARRANGE: see :start_game setup
 
@@ -164,6 +165,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
+  # TODO there should be others here.
   describe "a bid command is rejected" do
     test "if the player does not have enough money", context do
       # ARRANGE
@@ -353,8 +355,25 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
-  describe "when a player sets the starting stock price" do
-    test "the next company's auction begins"
+  describe "starting_stock_price_set" do
+    setup :auction_off_company
+
+    test "starts the next company's auction begins", context do
+      # ARRANGE
+      game = context.game
+
+      # ACT
+      game =
+        Banana.handle_command(
+          game,
+          Messages.set_starting_stock_price(context.bid_winner, :red, 8)
+        )
+
+      # ASSERT
+      events = filter_events_by_name(game.events, "company_auction_started", asc: true)
+      assert ~w/red blue/a == Enum.map(events, & &1.payload.company)
+    end
+
     test "The player who wins the first auction starts the second auction"
   end
 

@@ -200,25 +200,6 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
-  # Auctioning - set starting stock price
-  #########################################################
-
-  def set_starting_stock_price(bidder, company_id, price)
-      when Player.is_id(bidder) and is_atom(company_id) and is_integer(price) do
-    command(player_id: bidder, company_id: company_id, price: price)
-  end
-
-  def starting_stock_price_set(player_id, company_id, price, metadata)
-      when Player.is_id(player_id) and Company.is_id(company_id) and is_integer(price) do
-    event(player_id: player_id, company_id: company_id, price: price)
-  end
-
-  def starting_stock_price_rejected(player_id, company_id, price, reason, metadata)
-      when Player.is_id(player_id) and Company.is_id(company_id) and is_binary(reason) do
-    event(player_id: player_id, company_id: company_id, price: price, reason: reason)
-  end
-
-  #########################################################
   # Auctioning - players pass on a company
   #########################################################
 
@@ -256,6 +237,25 @@ defmodule TransSiberianRailroad.Messages do
   def company_bid(player_id, company_id, amount, metadata)
       when Player.is_id(player_id) and Company.is_id(company_id) and is_integer(amount) do
     event(player_id: player_id, company_id: company_id, amount: amount)
+  end
+
+  #########################################################
+  # Auctioning - set starting stock price
+  #########################################################
+
+  def set_starting_stock_price(bidder, company_id, price)
+      when Player.is_id(bidder) and is_atom(company_id) and is_integer(price) do
+    command(player_id: bidder, company_id: company_id, price: price)
+  end
+
+  def starting_stock_price_set(player_id, company_id, price, metadata)
+      when Player.is_id(player_id) and Company.is_id(company_id) and is_integer(price) do
+    event(player_id: player_id, company_id: company_id, price: price)
+  end
+
+  def starting_stock_price_rejected(player_id, company_id, price, reason, metadata)
+      when Player.is_id(player_id) and Company.is_id(company_id) and is_binary(reason) do
+    event(player_id: player_id, company_id: company_id, price: price, reason: reason)
   end
 
   #########################################################

@@ -20,6 +20,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   use TransSiberianRailroad.Projection
 
+  # TODO rm these notes. It's probably not helpful and impossible to keep current
   typedstruct opaque: true do
     field :last_version, non_neg_integer()
 
@@ -326,6 +327,18 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       {:error, reason} ->
         Messages.starting_stock_price_rejected(player_id, company_id, price, reason, metadata)
     end
+  end
+
+  handle_event "starting_stock_price_set", ctx do
+    # TODO be consistent with extracting payload first
+    %{player_id: player_to_start_next_company_auction} = ctx.payload
+
+    auction_phase_kv =
+      ctx.projection.state_machine
+      |> Keyword.fetch!(:auction_phase)
+      |> Keyword.replace!(:starting_bidder, player_to_start_next_company_auction)
+
+    [state_machine: [{:auction_phase, auction_phase_kv}]]
   end
 
   #########################################################

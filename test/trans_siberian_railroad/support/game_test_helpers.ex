@@ -52,7 +52,13 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     end
   end
 
-  def filter_events_by_name(events, event_name) do
-    Enum.filter(events, &(&1.name == event_name))
+  def filter_events_by_name(events, event_name, opts \\ []) do
+    events = Enum.filter(events, &(&1.name == event_name))
+
+    if opts[:asc] do
+      Enum.reverse(events)
+    else
+      events
+    end
   end
 end

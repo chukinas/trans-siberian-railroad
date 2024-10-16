@@ -98,11 +98,6 @@ defmodule TransSiberianRailroad.Projection do
     end
   end
 
-  def orange(projection_mod, event) do
-    projection = projection_mod.init()
-    __handle_event__(projection_mod, projection, event.name, event.payload)
-  end
-
   # TODO rename
   defmacro command_handler(command_name, ctx, do: block) do
     quote do

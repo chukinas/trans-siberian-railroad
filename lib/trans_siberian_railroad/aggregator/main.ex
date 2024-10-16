@@ -4,6 +4,12 @@ defmodule TransSiberianRailroad.Aggregator.Main do
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Metadata
 
+  @starting_money_by_player_count %{
+    3 => 48,
+    4 => 40,
+    5 => 32
+  }
+
   #########################################################
   # PROJECTION
   #########################################################
@@ -60,13 +66,7 @@ defmodule TransSiberianRailroad.Aggregator.Main do
       start_player = main.start_player || Enum.random(1..player_count)
       player_order = Enum.shuffle(1..player_count)
       phase_number = 1
-
-      starting_money =
-        case length(player_order) do
-          3 -> 48
-          4 -> 40
-          5 -> 32
-        end
+      starting_money = Map.fetch!(@starting_money_by_player_count, player_count)
 
       transfers =
         player_order
