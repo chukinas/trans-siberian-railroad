@@ -186,31 +186,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   end
 
   describe "when a player wins an auction" do
-    setup context do
-      # capture state before applying the bids and passing
-      game_prior_to_bidding = context.game
-
-      bid_winner = Enum.random(context.one_round)
-      amount = 8
-
-      game =
-        Banana.handle_commands(
-          context.game,
-          for player_id <- context.one_round do
-            if player_id == bid_winner do
-              Messages.submit_bid(player_id, :red, amount)
-            else
-              Messages.pass_on_company(player_id, :red)
-            end
-          end
-        )
-
-      {:ok,
-       game_prior_to_bidding: game_prior_to_bidding,
-       bid_winner: bid_winner,
-       amount: amount,
-       game: game}
-    end
+    setup :auction_off_company
 
     test "the player is charged the winning bid amount", context do
       # ARRANGE: see :start_game
@@ -242,6 +218,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   end
 
   describe "set_starting_stock_price -> starting_stock_price_rejected when" do
+    setup :auction_off_company
+
     @tag :no_start_game_setup
     test "not in an auction phase" do
       # ARRANGE
@@ -265,7 +243,12 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ARRANGE: see :start_game setup
 
       # ACT
-      game = Banana.handle_command(context.game, Messages.set_starting_stock_price(1, :red, 10))
+      game =
+        Banana.handle_command(
+          # TODO I don't like that the setup runs the auction when I don't need it.
+          context.game_prior_to_bidding,
+          Messages.set_starting_stock_price(1, :red, 10)
+        )
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
@@ -278,7 +261,32 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "we are not the current bidder"
+    test "not the current bidder", context do
+      # ARRANGE: see :start_game setup
+
+      # ACT
+      incorrect_player =
+        context.one_round
+        |> Enum.reject(&(&1 == context.bid_winner))
+        |> Enum.random()
+
+      game =
+        Banana.handle_command(
+          context.game,
+          Messages.set_starting_stock_price(incorrect_player, :red, 10)
+        )
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
+
+      assert event.payload == %{
+               player_id: incorrect_player,
+               company_id: :red,
+               price: 10,
+               reason: "incorrect player"
+             }
+    end
+
     test "we are not the correct company"
     test "the price is more than the winning bid"
     test "the price is some other invalid amount"
@@ -317,6 +325,34 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
      player_count: player_count,
      player_order: player_order,
      one_round: one_round}
+  end
+
+  defp auction_off_company(context) when not is_map_key(context, :game), do: :ok
+
+  defp auction_off_company(context) do
+    # capture state before applying the bids and passing
+    game_prior_to_bidding = context.game
+
+    bid_winner = Enum.random(context.one_round)
+    amount = 8
+
+    game =
+      Banana.handle_commands(
+        context.game,
+        for player_id <- context.one_round do
+          if player_id == bid_winner do
+            Messages.submit_bid(player_id, :red, amount)
+          else
+            Messages.pass_on_company(player_id, :red)
+          end
+        end
+      )
+
+    {:ok,
+     game_prior_to_bidding: game_prior_to_bidding,
+     bid_winner: bid_winner,
+     amount: amount,
+     game: game}
   end
 
   defp current_money(game, player_id) do
