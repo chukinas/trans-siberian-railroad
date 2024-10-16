@@ -145,7 +145,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert %{
                player_id: ^start_player,
                company_id: :blue,
-               reason: "The company you're trying to pass on isn't the one being auctioned."
+               reason: ":red is the current company"
              } =
                pass_rejected.payload
     end
@@ -167,7 +167,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
                reason: reason
              } = pass_rejected.payload
 
-      assert reason == "It's player #{start_player}'s turn to bid on a company."
+      assert reason == "player #{start_player} is the current player"
     end
   end
 
@@ -245,6 +245,37 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
+    test "the only valid next command is to set starting stock price"
+  end
+
+  describe "set_starting_stock_price -> starting_stock_price_rejected when" do
+    test "not in an auction phase" do
+      # ARRANGE
+      game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
+
+      # ACT
+      game = Banana.handle_command(game, Messages.set_starting_stock_price(1, :red, 10))
+
+      # ASSERT
+      assert starting_stock_price_rejected =
+               fetch_single_event!(game.events, "starting_stock_price_rejected")
+
+      assert %{
+               player_id: 1,
+               company_id: :red,
+               price: 10,
+               reason: "no auction in progress"
+             } = starting_stock_price_rejected.payload
+    end
+
+    test "we are not in the correct phase of the auction"
+    test "we are not the current bidder"
+    test "we are not the correct company"
+    test "the price is an invalid amount"
+    test "the price is more than the winning bid"
+  end
+
+  describe "when a player sets the starting stock price" do
     test "the next company's auction begins"
     test "The player who wins the first auction starts the second auction"
   end

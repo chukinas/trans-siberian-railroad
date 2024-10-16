@@ -159,27 +159,16 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   end
 
   command_handler("pass_on_company", ctx) do
-    %{projection: auction, payload: payload} = ctx
-    %{player_id: player_id, company_id: company_id} = payload
+    auction = ctx.projection
+    %{player_id: player_id, company_id: company_id} = ctx.payload
     metadata = Metadata.from_aggregator(auction)
-    maybe_current_bidder = get_current_bidder(auction)
 
-    reject = fn reason ->
-      Messages.company_pass_rejected(player_id, company_id, reason, metadata)
-    end
-
-    cond do
-      !in_progress?(auction) ->
-        reject.("no auction in progress")
-
-      player_id != maybe_current_bidder ->
-        reject.("It's player #{maybe_current_bidder}'s turn to bid on a company.")
-
-      company_id != get_current_company(auction) ->
-        reject.("The company you're trying to pass on isn't the one being auctioned.")
-
-      true ->
-        Messages.company_passed(player_id, company_id, metadata)
+    with :ok <- validate_current_bidder(auction, player_id),
+         :ok <- validate_current_company(auction, company_id) do
+      Messages.company_passed(player_id, company_id, metadata)
+    else
+      {:error, reason} ->
+        Messages.company_pass_rejected(player_id, company_id, reason, metadata)
     end
   end
 
@@ -280,7 +269,26 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   handle_event "company_opened", ctx do
     [_company_auction | state_machine] = ctx.projection.state_machine
+    # setting_stock_price = {:setting_stock_price, player_id: player_id, company: company}
     [state_machine: state_machine]
+  end
+
+  #########################################################
+  # setting starting stock price
+  # - must happen after a company opens
+  #########################################################
+
+  command_handler("set_starting_stock_price", ctx) do
+    auction = ctx.projection
+    %{player_id: player_id, company_id: company_id, price: price} = ctx.payload
+    metadata = Metadata.from_aggregator(auction)
+
+    with :ok <- validate_current_company(auction, company_id) do
+      Messages.starting_stock_price_set(player_id, company_id, price, metadata)
+    else
+      {:error, reason} ->
+        Messages.starting_stock_price_rejected(player_id, company_id, price, reason, metadata)
+    end
   end
 
   #########################################################
@@ -306,41 +314,44 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # CONVERTERS
   #########################################################
 
-  # TODO for the fetch* functions, return {:error, reason} instead of :error
-  defp fetch_company_auction_kv(%__MODULE__{} = auction) do
-    with [{:company_auction, kv} | _auction_phase] <- auction.state_machine do
-      {:ok, kv}
-    else
-      _ -> :error
+  defp fetch_company_auction_or_stock_price_kv(%__MODULE__{} = auction) do
+    case auction.state_machine do
+      [{:company_auction, kv} | _auction_phase] -> {:ok, kv}
+      [{:setting_stock_price, kv} | _auction_phase] -> {:ok, kv}
+      [] -> {:error, "no auction in progress"}
+      # TODO
+      _ -> {:error, "other"}
     end
   end
 
-  defp in_progress?(auction) do
-    Enum.any?(auction.state_machine)
-  end
-
-  def fetch_current_bidder(auction) do
-    case get_current_bidder(auction) do
-      nil -> :error
-      current_bidder -> {:ok, current_bidder}
-    end
-  end
-
-  defp get_current_bidder(auction) do
-    with {:ok, kv} <- fetch_company_auction_kv(auction),
+  defp validate_current_bidder(auction, player_id) do
+    with {:ok, kv} <- fetch_company_auction_or_stock_price_kv(auction),
          [current_bidder_tuple | _] <- Keyword.fetch!(kv, :bidders) do
       {player_id, _bid} = current_bidder_tuple
-      player_id
+      {:ok, player_id}
     else
-      _ -> nil
+      {:error, reason} -> {:error, reason}
+      [] -> {:error, "no current bidder"}
+    end
+    |> case do
+      {:ok, ^player_id} ->
+        :ok
+
+      {:ok, current_player} ->
+        {:error, "player #{current_player} is the current player"}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp get_current_company(auction) do
-    with {:ok, kv} <- fetch_company_auction_kv(auction) do
-      Keyword.fetch!(kv, :company)
+  defp validate_current_company(auction, company_id) do
+    with {:ok, kv} <- fetch_company_auction_or_stock_price_kv(auction),
+         ^company_id <- Keyword.fetch!(kv, :company) do
+      :ok
     else
-      _ -> nil
+      {:error, reason} -> {:error, reason}
+      current_company -> {:error, "#{inspect(current_company)} is the current company"}
     end
   end
 
