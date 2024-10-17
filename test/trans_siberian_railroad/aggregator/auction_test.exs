@@ -8,6 +8,14 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
   setup :start_game
 
+  setup context do
+    if context[:auction_off_company] do
+      auction_off_company(context)
+    else
+      :ok
+    end
+  end
+
   test "game_started -> auction_phase_started", context do
     # ARRANGE/ACT: see :start_game setup
     events = context.game.events
@@ -201,41 +209,23 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "insufficient funds", context do
+    @tag :auction_off_company
+    test "not in correct auction subphase", context do
       # ARRANGE
-      start_player = context.start_player
+      bid_winner = context.bid_winner
 
       # ACT
-      amount = 100
-      game = Banana.handle_command(context.game, Messages.submit_bid(start_player, :red, amount))
+      incorrect_player = context.one_round |> Enum.reject(&(&1 == bid_winner)) |> Enum.random()
+      game = Banana.handle_command(context.game, Messages.submit_bid(incorrect_player, :black, 0))
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "bid_rejected")
 
       assert event.payload == %{
-               player_id: start_player,
-               company_id: :red,
-               amount: amount,
-               reason: "insufficient funds"
-             }
-    end
-
-    test "bid not higher that current bid", context do
-      # ARRANGE
-      [first_player, second_player | _] = context.one_round
-      game = Banana.handle_command(context.game, Messages.submit_bid(first_player, :red, 8))
-
-      # ACT
-      game = Banana.handle_command(game, Messages.submit_bid(second_player, :red, 8))
-
-      # ASSERT
-      assert event = fetch_single_event!(game.events, "bid_rejected")
-
-      assert event.payload == %{
-               player_id: second_player,
-               company_id: :red,
-               amount: 8,
-               reason: "bid must be higher than the current bid"
+               player_id: incorrect_player,
+               company_id: :black,
+               amount: 0,
+               reason: "not in the correct phase of the auction"
              }
     end
 
@@ -259,9 +249,48 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
 
     test "incorrect company"
+
+    test "bid not higher that current bid", context do
+      # ARRANGE
+      [first_player, second_player | _] = context.one_round
+      game = Banana.handle_command(context.game, Messages.submit_bid(first_player, :red, 8))
+
+      # ACT
+      game = Banana.handle_command(game, Messages.submit_bid(second_player, :red, 8))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "bid_rejected")
+
+      assert event.payload == %{
+               player_id: second_player,
+               company_id: :red,
+               amount: 8,
+               reason: "bid must be higher than the current bid"
+             }
+    end
+
     test "amount is less than 8"
     # TODO this shouldn't be a test, but rather, a guard
     test "amount not an integer"
+
+    test "insufficient funds", context do
+      # ARRANGE
+      start_player = context.start_player
+
+      # ACT
+      amount = 100
+      game = Banana.handle_command(context.game, Messages.submit_bid(start_player, :red, amount))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "bid_rejected")
+
+      assert event.payload == %{
+               player_id: start_player,
+               company_id: :red,
+               amount: amount,
+               reason: "insufficient funds"
+             }
+    end
   end
 
   describe "when a player wins an auction" do
