@@ -235,20 +235,37 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       incorrect_player = context.one_round |> Enum.reject(&(&1 == start_player)) |> Enum.random()
 
       # ACT
-      game = Banana.handle_command(context.game, Messages.submit_bid(incorrect_player, :red, 8))
+      game = Banana.handle_command(context.game, Messages.submit_bid(incorrect_player, :blue, 0))
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "bid_rejected")
 
       assert event.payload == %{
                player_id: incorrect_player,
-               company_id: :red,
-               amount: 8,
+               company_id: :blue,
+               amount: 0,
                reason: "incorrect player"
              }
     end
 
-    test "incorrect company"
+    test "incorrect company", context do
+      # ARRANGE
+      start_player = context.start_player
+
+      # ACT
+      # invalid amount, but that won't cause the rejection
+      game = Banana.handle_command(context.game, Messages.submit_bid(start_player, :blue, 0))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "bid_rejected")
+
+      assert event.payload == %{
+               player_id: start_player,
+               company_id: :blue,
+               amount: 0,
+               reason: "incorrect company"
+             }
+    end
 
     test "bid not higher that current bid", context do
       # ARRANGE
