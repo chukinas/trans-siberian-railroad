@@ -209,11 +209,19 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
         do: {:error, "bid amount must be at least 8"},
         else: :ok
 
+    validate_company = fn kv ->
+      case Keyword.fetch!(kv, :company) do
+        ^company_id -> :ok
+        _incorrect_company -> {:error, "incorrect company"}
+      end
+    end
+
     metadata = Metadata.from_aggregator(auction)
 
     # TODO refactor to make use of kv
     with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
          :ok <- validate_current_bidder(auction, bidder),
+         :ok <- validate_company.(kv),
          :ok <- validate_min_bid,
          :ok <- validate_increasing_bid.(kv),
          :ok <- validate_balance.() do
