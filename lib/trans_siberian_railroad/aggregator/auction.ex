@@ -213,34 +213,42 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
     player_money_balance = auction.player_money_balances[player_id] || 0
 
+    current_bid =
+      case fetch_substate_kv(auction, :company_auction) do
+        {:ok, kv} ->
+          bidders = Keyword.fetch!(kv, :bidders)
+
+          Enum.reduce(bidders, 0, fn {_player, bid}, max_bid ->
+            if is_integer(bid) do
+              max(bid, max_bid)
+            else
+              max_bid
+            end
+          end)
+
+        {:error, _} ->
+          0
+      end
+
     maybe_rejection_reason =
       cond do
         player_money_balance < amount -> "insufficient funds"
         # TODO test
         amount < 8 -> "bid amount must be at least 8"
-        # TODO it must be more than the previous bid
+        not (current_bid < amount) -> "bid must be higher than the current bid"
         true -> nil
       end
+
+    metadata = Metadata.from_aggregator(auction)
 
     # TODO test property: all events have incrementing sequence numbers
     # TODO validate all these fields
     case maybe_rejection_reason do
       nil ->
-        Messages.company_bid(
-          player_id,
-          company_id,
-          amount,
-          Metadata.from_aggregator(auction, 1)
-        )
+        Messages.company_bid(player_id, company_id, amount, metadata)
 
       reason ->
-        Messages.bid_rejected(
-          player_id,
-          company_id,
-          amount,
-          reason,
-          Metadata.from_aggregator(auction)
-        )
+        Messages.bid_rejected(player_id, company_id, amount, reason, metadata)
     end
   end
 

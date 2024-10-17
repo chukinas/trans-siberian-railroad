@@ -5,6 +5,7 @@ defmodule TransSiberianRailroad.Messages do
 
   ## Notes
   - add defevent and defcommand macros to cut down on boilerplate
+  - TODO: somehow make the event metadata optional?
   """
 
   require TransSiberianRailroad.Metadata, as: Metadata
