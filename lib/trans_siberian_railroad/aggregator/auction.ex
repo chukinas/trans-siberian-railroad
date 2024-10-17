@@ -176,9 +176,8 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # TODO test property: all events have incrementing sequence numbers
   # TODO the command (and event) names should be validated.
   command_handler("submit_bid", ctx) do
-    %{projection: auction, payload: payload} = ctx
-
-    %{player_id: bidder, company_id: company_id, amount: amount} = payload
+    %{player_id: bidder, company_id: company_id, amount: amount} = ctx.payload
+    auction = ctx.projection
 
     validate_balance = fn ->
       player_money_balance = auction.player_money_balances[bidder] || 0
@@ -206,9 +205,10 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
     validate_min_bid =
       if amount < 8,
-        do: {:error, "bid amount must be at least 8"},
+        do: {:error, "bid must be at least 8"},
         else: :ok
 
+    # TODO this should be used by the pass command too
     validate_company = fn kv ->
       case Keyword.fetch!(kv, :company) do
         ^company_id -> :ok
@@ -218,7 +218,6 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
     metadata = Metadata.from_aggregator(auction)
 
-    # TODO refactor to make use of kv
     with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
          :ok <- validate_current_bidder(auction, bidder),
          :ok <- validate_company.(kv),

@@ -267,6 +267,24 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
+    test "amount is less than 8", context do
+      # ARRANGE
+      start_player = context.start_player
+
+      # ACT
+      game = Banana.handle_command(context.game, Messages.submit_bid(start_player, :red, 7))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "bid_rejected")
+
+      assert event.payload == %{
+               player_id: start_player,
+               company_id: :red,
+               amount: 7,
+               reason: "bid must be at least 8"
+             }
+    end
+
     test "bid not higher that current bid", context do
       # ARRANGE
       [first_player, second_player | _] = context.one_round
@@ -286,9 +304,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "amount is less than 8"
     # TODO this shouldn't be a test, but rather, a guard
-    test "amount not an integer"
+    # test "amount not an integer"
 
     test "insufficient funds", context do
       # ARRANGE
