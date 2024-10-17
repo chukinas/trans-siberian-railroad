@@ -164,7 +164,6 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
     test "player is not current bidder", context do
       # ARRANGE
-      start_player = context.start_player
       wrong_player = context.one_round |> Enum.drop(1) |> Enum.random()
 
       # ACT
@@ -176,14 +175,14 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert event.payload == %{
                player_id: wrong_player,
                company_id: :red,
-               reason: "player #{start_player} is the current player"
+               reason: "incorrect player"
              }
     end
   end
 
-  # TODO rename the describe to show the event name
-  # TODO there should be others here.
-  describe "sumbit_bid -> bid_rejected when" do
+  describe "submit_bid -> bid_rejected when" do
+    test "not in auction phase"
+
     test "insufficient funds", context do
       # ARRANGE
       start_player = context.start_player
@@ -222,11 +221,29 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "if incorrect player"
-    test "if incorrect company"
-    test "if amount is less than 8"
+    test "incorrect player", context do
+      # ARRANGE
+      start_player = context.start_player
+      incorrect_player = context.one_round |> Enum.reject(&(&1 == start_player)) |> Enum.random()
+
+      # ACT
+      game = Banana.handle_command(context.game, Messages.submit_bid(incorrect_player, :red, 8))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "bid_rejected")
+
+      assert event.payload == %{
+               player_id: incorrect_player,
+               company_id: :red,
+               amount: 8,
+               reason: "incorrect player"
+             }
+    end
+
+    test "incorrect company"
+    test "amount is less than 8"
     # TODO this shouldn't be a test, but rather, a guard
-    test "if amount not an integer"
+    test "amount not an integer"
   end
 
   describe "when a player wins an auction" do
