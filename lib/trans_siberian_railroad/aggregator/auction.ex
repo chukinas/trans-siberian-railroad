@@ -7,7 +7,6 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   use TypedStruct
   use TransSiberianRailroad.Aggregator
   require Logger
-  # require TransSiberianRailroad.RailCompany, as: Company
   alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
@@ -20,42 +19,11 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   use TransSiberianRailroad.Projection
 
-  # TODO rm these notes. It's probably not helpful and impossible to keep current
   typedstruct opaque: true do
     field :last_version, non_neg_integer()
-
-    # player_order_set.player_order SETS
     field :player_order, [Player.id()]
-
-    # money_transferred.transfers UPDATES
     # TODO testing property: a player's and company's balance may never be negative.
     field :player_money_balances, %{Player.id() => integer()}, default: %{}
-
-    # state_machine: a stack of elements that get pushed and popped
-    #
-    # What's NOT in the state machine:
-    #   player order
-    #   player money balances
-    #
-    # {:auction_phase, phase_number: 1, starting_bidder: 1, remaining_companies: ~w(red blue green yellow)a}
-    #   EVENT: auction_phase_started   pushes this element
-    #   REACT: company_auction_started if this is the only element, and :remaining_companies is NOT empty
-    #   EVENT: company_auction_started pops the first :remaining_companies
-    #   EVENT: company_opened          update :starting_bidder
-    #   REACT: auction_phase_ended     if this is the only element, and :remaining_companies IS empty
-    #   EVENT: auction_phase_ended     pops this element
-
-    # {:company_auction, company: :red, bidders: [1 => nil, 2 => nil, 3 => nil, 4 => nil, 5 => nil]}
-    #   COMMAND submit_bid
-    #   ->EVENT company_bid  if company, player, and amount are valid
-    #   ->EVENT bid_rejected otherwise
-    #   EVENT   company_bid  updates the player's balance and moves them to the end of the :bidders list
-    #   COMMAND pass_on_company
-    #   ->EVENT company_passed if valid
-    #   ->EVENT company_pass_rejected otherwise
-    #   EVENT   company_passed removes bidder from :bidders list
-    #   REACT   company_not_opened if :bidders is empty
-    #   REACT   company_opened     if :bidders has only one element with a non-nil value
     field :state_machine, [term()], default: []
   end
 
@@ -205,50 +173,53 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # handle players bidding on a company
   #########################################################
 
+  # TODO test property: all events have incrementing sequence numbers
   # TODO the command (and event) names should be validated.
   command_handler("submit_bid", ctx) do
     %{projection: auction, payload: payload} = ctx
 
-    %{player_id: player_id, company_id: company_id, amount: amount} = payload
+    %{player_id: bidder, company_id: company_id, amount: amount} = payload
 
-    player_money_balance = auction.player_money_balances[player_id] || 0
+    validate_balance = fn ->
+      player_money_balance = auction.player_money_balances[bidder] || 0
 
-    current_bid =
-      case fetch_substate_kv(auction, :company_auction) do
-        {:ok, kv} ->
-          bidders = Keyword.fetch!(kv, :bidders)
-
-          Enum.reduce(bidders, 0, fn {_player, bid}, max_bid ->
-            if is_integer(bid) do
-              max(bid, max_bid)
-            else
-              max_bid
-            end
-          end)
-
-        {:error, _} ->
-          0
+      if player_money_balance < amount do
+        {:error, "insufficient funds"}
+      else
+        :ok
       end
+    end
 
-    maybe_rejection_reason =
-      cond do
-        player_money_balance < amount -> "insufficient funds"
-        # TODO test
-        amount < 8 -> "bid amount must be at least 8"
-        not (current_bid < amount) -> "bid must be higher than the current bid"
-        true -> nil
-      end
+    validate_increasing_bid = fn kv ->
+      current_bid =
+        Keyword.fetch!(kv, :bidders)
+        |> Enum.reduce(0, fn {_player, bid}, max_bid ->
+          if is_integer(bid) do
+            max(bid, max_bid)
+          else
+            max_bid
+          end
+        end)
+
+      if current_bid < amount, do: :ok, else: {:error, "bid must be higher than the current bid"}
+    end
+
+    validate_min_bid =
+      if amount < 8,
+        do: {:error, "bid amount must be at least 8"},
+        else: :ok
 
     metadata = Metadata.from_aggregator(auction)
 
-    # TODO test property: all events have incrementing sequence numbers
-    # TODO validate all these fields
-    case maybe_rejection_reason do
-      nil ->
-        Messages.company_bid(player_id, company_id, amount, metadata)
-
-      reason ->
-        Messages.bid_rejected(player_id, company_id, amount, reason, metadata)
+    # TODO refactor to make use of kv
+    with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
+         :ok <- validate_current_bidder(auction, bidder),
+         :ok <- validate_min_bid,
+         :ok <- validate_increasing_bid.(kv),
+         :ok <- validate_balance.() do
+      Messages.company_bid(bidder, company_id, amount, metadata)
+    else
+      {:error, reason} -> Messages.bid_rejected(bidder, company_id, amount, reason, metadata)
     end
   end
 
@@ -256,9 +227,11 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   handle_event "company_bid", ctx do
     %{player_id: bidder, amount: amount} = ctx.payload
 
+    state_machine = ctx.projection.state_machine
+
+    # TODO combine with above
     state_machine =
-      ctx.projection.state_machine
-      |> update_in([:company_auction, :bidders], fn [{^bidder, _} | rest] ->
+      update_in(state_machine, [:company_auction, :bidders], fn [{^bidder, _} | rest] ->
         rest ++ [{bidder, amount}]
       end)
 
@@ -421,8 +394,8 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       {:ok, ^player_id} ->
         :ok
 
-      {:ok, current_player} ->
-        {:error, "player #{current_player} is the current player"}
+      {:ok, _current_player} ->
+        {:error, "incorrect player"}
 
       {:error, reason} ->
         {:error, reason}
