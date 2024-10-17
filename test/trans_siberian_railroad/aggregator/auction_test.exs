@@ -181,9 +181,10 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
+  # TODO rename the describe to show the event name
   # TODO there should be others here.
-  describe "a bid command is rejected" do
-    test "if the player does not have enough money", context do
+  describe "sumbit_bid -> bid_rejected when" do
+    test "insufficient funds", context do
       # ARRANGE
       start_player = context.start_player
 
@@ -201,6 +202,31 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
                reason: "insufficient funds"
              }
     end
+
+    test "bid not higher that current bid", context do
+      # ARRANGE
+      [first_player, second_player | _] = context.one_round
+      game = Banana.handle_command(context.game, Messages.submit_bid(first_player, :red, 8))
+
+      # ACT
+      game = Banana.handle_command(game, Messages.submit_bid(second_player, :red, 8))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "bid_rejected")
+
+      assert event.payload == %{
+               player_id: second_player,
+               company_id: :red,
+               amount: 8,
+               reason: "bid must be higher than the current bid"
+             }
+    end
+
+    test "if incorrect player"
+    test "if incorrect company"
+    test "if amount is less than 8"
+    # TODO this shouldn't be a test, but rather, a guard
+    test "if amount not an integer"
   end
 
   describe "when a player wins an auction" do
