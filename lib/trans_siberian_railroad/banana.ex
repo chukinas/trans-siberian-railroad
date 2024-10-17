@@ -24,27 +24,39 @@ defmodule TransSiberianRailroad.Banana do
   but they're not getting handled properly.
   """
 
+  use TypedStruct
   alias TransSiberianRailroad.Command
   alias TransSiberianRailroad.Event
 
-  @type t() :: map()
+  typedstruct enforce: true do
+    field :commands, [Command.t()], default: []
+    field :events, [Event.t()], default: []
 
-  #########################################################
-  # CONSTRUCTORS
-  #########################################################
-
-  def init() do
-    %{
-      commands: [],
-      events: [],
-      aggregator_modules: [
+    field :aggregator_modules, [module()],
+      default: [
         TransSiberianRailroad.Aggregator.Main,
         TransSiberianRailroad.Aggregator.Players,
         TransSiberianRailroad.Aggregator.Companies,
         TransSiberianRailroad.Aggregator.Auction
       ]
-    }
   end
+
+  defimpl Inspect do
+    def inspect(banana, opts) do
+      events = banana.events
+
+      with_projections =
+        update_in(banana, [Access.key!(:aggregator_modules), Access.all()], & &1.project(events))
+
+      Inspect.Map.inspect(with_projections, opts)
+    end
+  end
+
+  #########################################################
+  # CONSTRUCTORS
+  #########################################################
+
+  def init(), do: %__MODULE__{}
 
   #########################################################
   # REDUCERS
@@ -59,23 +71,33 @@ defmodule TransSiberianRailroad.Banana do
   end
 
   @spec handle_command(t(), Command.t()) :: t()
-  def handle_command(banana, command) do
-    banana = Map.update!(banana, :commands, &[command | &1])
+  def handle_command(banana, %Command{} = command) do
     new_events = Enum.flat_map(banana.aggregator_modules, & &1.strawberry(banana.events, command))
 
-    events = Enum.reduce(new_events, banana.events, &[&1 | &2])
+    banana
+    |> Map.update!(:commands, &[command | &1])
+    |> handle_events(new_events)
+  end
 
+  @spec handle_event(t(), Event.t()) :: t()
+  def handle_event(banana, %Event{} = event) do
+    handle_events(banana, [event])
+  end
+
+  def handle_events(banana, new_events) do
     # TODO make sure the events are sorted by sequence number and increment exactly by one.
     # TODO a lot more is needed here.
-    Map.put(banana, :events, events)
+    update = fn events -> Enum.reduce(new_events, events, &[&1 | &2]) end
+
+    banana
+    |> Map.update!(:events, update)
     |> generate_further_events()
   end
 
   # After a command causes events to be generated,
   # we need to play those events back into the aggregators
   # and see if they generate more events.
-  # Example: the Auction module emits an auction_phase_started event after seeing a start_game event.
-  # Similarly, it will then emit a company_auction_started event after its own auction_phase_started event.
+  # Example: the Auction module emits a company_auction_started after seeing a auction_phase_started event
   def generate_further_events(banana) do
     events_from_projections =
       Enum.flat_map(banana.aggregator_modules, fn agg_module ->
