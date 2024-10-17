@@ -181,7 +181,25 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   end
 
   describe "submit_bid -> bid_rejected when" do
-    test "not in auction phase"
+    test "not in auction phase", context do
+      # ARRANGE
+      game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
+
+      # ACT
+      # we put a lot of bad data into the command, but those must not be the cause of the rejection.
+      wrong_player = context.one_round |> Enum.drop(1) |> Enum.random()
+      game = Banana.handle_command(game, Messages.submit_bid(wrong_player, :blue, 0))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "bid_rejected")
+
+      assert event.payload == %{
+               player_id: wrong_player,
+               company_id: :blue,
+               amount: 0,
+               reason: "no auction in progress"
+             }
+    end
 
     test "insufficient funds", context do
       # ARRANGE
