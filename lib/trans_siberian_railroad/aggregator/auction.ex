@@ -86,21 +86,32 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   #########################################################
 
   handle_event "auction_phase_started", ctx do
-    case ctx.projection.state_machine do
-      [] ->
-        :ok
+    payload = ctx.payload
+    %{phase_number: phase_number, starting_bidder: starting_bidder} = payload
 
-      [current_phase | _] ->
-        Logger.warning("Auction phase already started: #{inspect(current_phase)}")
-    end
-
-    %{phase_number: phase_number, starting_bidder: starting_bidder} = ctx.payload
+    # TODO reimplement
+    # TODO It's finally time to store each step of the projection.
+    # Rebuilding it each time as I've been doing means that well-meaning warnings like this one
+    # outpuut to the screen more that once (WAY more than once!!!)
+    # if Enum.any?(ctx.projection.state_machine) do
+    #   Logger.warning("""
+    #   Auction phase already started
+    #   Current projection:
+    #   #{inspect(ctx.projection, pretty: true)}
+    #   Event payload:
+    #   #{inspect(payload, pretty: true)}
+    #   """)
+    # end
 
     auction_phase =
       {:auction_phase,
        phase_number: phase_number,
        starting_bidder: starting_bidder,
-       remaining_companies: ~w(red blue green yellow)a}
+       remaining_companies:
+         case phase_number do
+           1 -> ~w(red blue green yellow)a
+           2 -> ~w(black white)a
+         end}
 
     [state_machine: [auction_phase]]
   end

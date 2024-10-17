@@ -4,6 +4,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Banana
   alias TransSiberianRailroad.Messages
+  alias TransSiberianRailroad.Metadata
 
   setup :start_game
 
@@ -60,21 +61,36 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   end
 
   # TODO test the order of phase 2 company auctions
-  test "The order of phase 1 company auctions is :red, :blue, :green, :yellow", context do
-    # ARRANGE: see :start_game setup
+  for {phase_number, companies} <- [{1, ~w/red blue green yellow/a}, {2, ~w/black white/a}] do
+    # for companies <- [~w/red blue green yellow/a] do
+    test "The order of phase 1 company auctions is #{inspect(companies)}", context do
+      # ARRANGE: see :start_game setup
+      companies = unquote(companies)
+      phase_number = unquote(phase_number)
+      game = context.game
+      starting_bidder = context.start_player
+      metadata = Metadata.from_events(game.events)
 
-    # ACT
-    game =
-      Banana.handle_commands(
-        context.game,
-        for company <- ~w/red blue green yellow/a,
-            player_id <- context.one_round do
-          Messages.pass_on_company(player_id, company)
-        end
-      )
+      game =
+        Banana.handle_event(
+          game,
+          Messages.auction_phase_started(phase_number, starting_bidder, metadata)
+        )
 
-    # ASSERT
-    assert filter_events_by_name(game.events, "company_not_opened") |> length() == 4
+      # ACT
+      game =
+        Banana.handle_commands(
+          game,
+          for company <- companies,
+              player_id <- context.one_round do
+            Messages.pass_on_company(player_id, company)
+          end
+        )
+
+      # ASSERT
+      assert filter_events_by_name(game.events, "company_not_opened") |> length() ==
+               length(companies)
+    end
   end
 
   test "auction phase ends if all companies are passed on", context do
