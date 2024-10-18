@@ -1,7 +1,7 @@
 defmodule TransSiberianRailroad.Aggregator.MainTest do
   use ExUnit.Case
   import TransSiberianRailroad.GameTestHelpers
-  alias TransSiberianRailroad.Banana
+  alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Messages
 
   setup context do
@@ -17,21 +17,20 @@ defmodule TransSiberianRailroad.Aggregator.MainTest do
     # ARRANGE
     player_count = Enum.random(3..5)
     start_player = Enum.random(1..player_count)
-    player_who_requested_game_start = Enum.random(1..player_count)
 
     commands =
       [
         Messages.initialize_game(),
         add_player_commands(player_count),
         Messages.set_start_player(start_player),
-        Messages.start_game(player_who_requested_game_start)
+        Messages.start_game()
       ]
 
     # ACT
-    game = Banana.handle_commands(commands)
+    game = Game.handle_commands(commands)
 
     # ASSERT
-    assert fetch_single_event!(game.events, "start_player_selected").payload.start_player ==
+    assert fetch_single_event!(game.events, "start_player_set").payload.start_player ==
              start_player
   end
 
@@ -42,18 +41,17 @@ defmodule TransSiberianRailroad.Aggregator.MainTest do
     # ARRANGE
     player_count = Enum.random(3..5)
     player_order = Enum.shuffle(1..player_count)
-    player_who_requested_game_start = Enum.random(1..player_count)
 
     commands =
       [
         Messages.initialize_game(),
         add_player_commands(player_count),
         Messages.set_player_order(player_order),
-        Messages.start_game(player_who_requested_game_start)
+        Messages.start_game()
       ]
 
     # ACT
-    game = Banana.handle_commands(commands)
+    game = Game.handle_commands(commands)
 
     # ASSERT
     assert fetch_single_event!(game.events, "player_order_set").payload.player_order ==
@@ -69,4 +67,8 @@ defmodule TransSiberianRailroad.Aggregator.MainTest do
     # ASSERT
     assert fetch_single_event!(events, "auction_phase_started")
   end
+
+  test "the player who won the last stock in the initial auction is the start player"
+  test "player and company balances may never be negative"
+  test "all events have incrementing sequence numbers"
 end

@@ -1,74 +1,65 @@
 defmodule TransSiberianRailroad.Projection do
   @moduledoc """
-  Aggregators each define a projection,
-  where we rip through the events and build up the current state.
+  A projection is a read model of the domain events.
+  It takes a list of those events and reduces them into a single struct.
+  This internals of this struct should never be public knowledge.
+  It exists only to allow that struct's module to make decisions about what new events to emit.
+
+  This module *could* have been part of TransSiberianRailroad.Aggregator,
+  but the projection concerns are atomic enough that it justified its own module.
+  Plus, perhaps in the future, we'll want to project events into read models that are used
+  e.g. to power the front end.
   """
 
   require TransSiberianRailroad.Messages, as: Messages
+  alias TransSiberianRailroad.Event
 
-  # TODO mv to bottom
-  defmacro defreaction(projection, do: block) do
-    {function_name, _, _} = projection
-
-    quote do
-      @__reactions__ Function.capture(__MODULE__, unquote(function_name), 1)
-      # TODO this shouldn't be public
-      def(unquote(projection), do: unquote(block))
-    end
-  end
-
-  defmacro __using__(opts) do
-    # TODO refactor stuff until this just always gets injected
-    apple =
-      unless opts[:exclude_apple] do
-        quote do
-          defp apple(projection, event_name, payload) do
-            unquote(__MODULE__).__handle_event__(__MODULE__, projection, event_name, payload)
-          end
-        end
-      end
-
+  defmacro __using__(_opts) do
     quote do
       @before_compile unquote(__MODULE__)
-      Module.register_attribute(__MODULE__, :__handled_event_names__, accumulate: true)
-      Module.register_attribute(__MODULE__, :__reactions__, accumulate: true)
-
-      import TransSiberianRailroad.Projection,
-        only: [handle_event: 3, command_handler: 3, defreaction: 2]
-
-      @impl true
-      # TODO all aggregators should use this
-      # TODO but better yet, if all aggregators move to being structs,
-      # then I can implement a protocol instead.
-      def put_version(%{last_version: _} = projection, sequence_number) do
-        %{projection | last_version: sequence_number}
-      end
-
-      unquote(apple)
+      Module.register_attribute(__MODULE__, :handle_event_names, accumulate: true)
+      import TransSiberianRailroad.Projection, only: [handle_event: 3, version_field: 0]
     end
   end
 
-  defmacro __before_compile__(_env) do
-    quote do
-      @impl true
-      def init(), do: %__MODULE__{}
+  def project(projection_mod, events \\ []) do
+    initial_projection = struct!(projection_mod)
 
-      # TODO rm
-      def handled_event_names(), do: @__handled_event_names__
-      def reaction_fns(), do: @__reactions__
-      # TODO rm
-      defp grapefruit(_command_name, _ctx), do: nil
+    events
+    |> Enum.sort(Event)
+    |> Enum.reduce(initial_projection, &handle_one_event(&2, &1))
+  end
+
+  def handle_one_event(%projection_mod{} = projection, %Event{} = event) do
+    projection = put_version(projection, event)
+    %Event{name: event_name, payload: payload} = event
+
+    if event_name in projection_mod.__handled_event_names__() do
+      ctx = %{
+        projection: projection,
+        payload: payload
+      }
+
+      fields = projection_mod.__handle_event__(event_name, ctx)
+      struct!(projection, fields)
+    else
+      projection
     end
   end
 
-  # This is a macro ONLY because I want to accumulate the event names
+  #########################################################
+  # Event Handling
+  #########################################################
+
+  @doc """
+  This is how projection modules define event handlers.
+  """
   defmacro handle_event(event_name, ctx, do: block) do
-    # TODO unrequire
     unless Messages.valid_event_name?(event_name) do
       raise """
-      #{__MODULE__}.handle_event expects an event name already declared in Messages.
+      handle_event/3 expects an event name already declared in #{inspect(Messages)}.
 
-      name: #{event_name}
+      name: #{inspect(event_name)}
 
       valid names:
       #{inspect(Messages.event_names())}
@@ -76,35 +67,45 @@ defmodule TransSiberianRailroad.Projection do
     end
 
     quote do
-      @__handled_event_names__ unquote(event_name)
-      # TODO I don't want this to be public
-      def handle_event3(unquote(event_name), unquote(ctx)) do
+      @handle_event_names unquote(event_name)
+      def __handle_event__(unquote(event_name), unquote(ctx)) do
         unquote(block)
       end
     end
   end
 
-  def __handle_event__(mod, projection, event_name, payload) do
-    if event_name in mod.handled_event_names() do
-      ctx = %{
-        projection: projection,
-        payload: payload
-      }
-
-      fields = mod.handle_event3(event_name, ctx)
-      struct!(projection, fields)
-    else
-      projection
-    end
-  end
-
-  # TODO rename
-  defmacro command_handler(command_name, ctx, do: block) do
+  defmacro __before_compile__(_env) do
     quote do
-      # TODO silly name here
-      defp grapefruit(unquote(command_name), unquote(ctx)) do
-        unquote(block)
-      end
+      def __handled_event_names__(), do: @handle_event_names
     end
+  end
+
+  #########################################################
+  # Versioning
+  #########################################################
+
+  defmacro version_field() do
+    quote do
+      field :__version__, non_neg_integer(), required: false
+    end
+  end
+
+  def fetch_version!(%_{__version__: version}), do: version
+
+  defp put_version(
+         %_{__version__: version} = projection,
+         %Event{sequence_number: sequence_number} = event
+       ) do
+    unless is_nil(version) or version < sequence_number do
+      require Logger
+
+      Logger.warning("""
+      Version mismatch
+      #{inspect(projection, pretty: true)}
+      #{inspect(event, pretty: true)}
+      """)
+    end
+
+    struct!(projection, __version__: sequence_number)
   end
 end

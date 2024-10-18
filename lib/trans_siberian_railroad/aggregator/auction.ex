@@ -2,13 +2,29 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   @moduledoc """
   This module handles all the events and commands related to the auctioning
   of rail companies to players.
+
+  This aggregator waits for the `auction_phase_started` event to start the auction phase.
+  But IT decides when to end the auction phase. It does this by looking at the state of the auction.
+  When all companies have been auctioned off, it emits the `auction_phase_ended` event.
+
+  There are two auction phases in the game:
+  - in phase 1, we auction off the red, blue, green, and yellow companies
+  - in phase 2, we auction off the black and white companies
+
+  For each of these company auctions, players take turns bidding or passing on the company.
+  It's the first company stock certificate that's up for bid.
+  To bid, you have to bid at least 8 and more than any amount anyone else has bid on that company so far.
+  Eventually, one of two things happens:
+  - all players pass on the company. The company is removed from the game.
+  - only one player is left. That player wins the company and pays the amount they bid for it. They get the company's stock certificate.
+    The company is now "open".
   """
 
-  use TypedStruct
   use TransSiberianRailroad.Aggregator
+  use TransSiberianRailroad.Projection
+  use TypedStruct
   require Logger
   alias TransSiberianRailroad.Aggregator.Players
-  alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Metadata
   alias TransSiberianRailroad.Player
@@ -17,14 +33,11 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # PROJECTION
   #########################################################
 
-  use TransSiberianRailroad.Projection
-
   typedstruct opaque: true do
-    field :last_version, non_neg_integer()
+    version_field()
     field :player_order, [Player.id()]
-    # TODO testing property: a player's and company's balance may never be negative.
     field :player_money_balances, %{Player.id() => integer()}, default: %{}
-    field :state_machine, [term()], default: []
+    field :state_machine, [{:atom, Keyword.t()}], default: []
   end
 
   #########################################################
@@ -33,9 +46,10 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   handle_event("player_order_set", ctx, do: [player_order: ctx.payload.player_order])
 
+  # We keep track of players' money because they need to pay for companies they win in auctions.
   handle_event "money_transferred", ctx do
-    player_money_balances = ctx.projection.player_money_balances
     transfers = ctx.payload.transfers
+    player_money_balances = ctx.projection.player_money_balances
 
     new_player_money_balances =
       Enum.reduce(transfers, player_money_balances, fn
@@ -54,27 +68,12 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   #########################################################
 
   handle_event "auction_phase_started", ctx do
-    payload = ctx.payload
-    %{phase_number: phase_number, starting_bidder: starting_bidder} = payload
-
-    # TODO reimplement
-    # TODO It's finally time to store each step of the projection.
-    # Rebuilding it each time as I've been doing means that well-meaning warnings like this one
-    # outpuut to the screen more that once (WAY more than once!!!)
-    # if Enum.any?(ctx.projection.state_machine) do
-    #   Logger.warning("""
-    #   Auction phase already started
-    #   Current projection:
-    #   #{inspect(ctx.projection, pretty: true)}
-    #   Event payload:
-    #   #{inspect(payload, pretty: true)}
-    #   """)
-    # end
+    %{phase_number: phase_number, start_bidder: start_bidder} = ctx.payload
 
     auction_phase =
       {:auction_phase,
        phase_number: phase_number,
-       starting_bidder: starting_bidder,
+       start_bidder: start_bidder,
        remaining_companies:
          case phase_number do
            1 -> ~w(red blue green yellow)a
@@ -84,23 +83,19 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     [state_machine: [auction_phase]]
   end
 
-  # TODO design a macro called... maybe_react
   defreaction maybe_start_company_auction(%__MODULE__{} = auction) do
     with [{:auction_phase, kv}] <- auction.state_machine,
          [next_company | _] <- Keyword.fetch!(kv, :remaining_companies) do
-      starting_bidder = Keyword.fetch!(kv, :starting_bidder)
+      start_bidder = Keyword.fetch!(kv, :start_bidder)
       metadata = Metadata.from_aggregator(auction)
-      Messages.company_auction_started(starting_bidder, next_company, metadata)
+      Messages.company_auction_started(start_bidder, next_company, metadata)
     else
       _ -> nil
     end
   end
 
-  # TODO if I return an invalid key, currently I get a very unhelpful error message,
-  # one that doesn't mention the line the failed.
-  # I expect to get a message that at least points me to the function or return value in this file.
   handle_event "company_auction_started", ctx do
-    %{starting_bidder: starting_bidder, company: company} = ctx.payload
+    %{start_bidder: start_bidder, company: company} = ctx.payload
 
     remove_company_from_list = fn list ->
       Enum.reject(list, fn
@@ -111,12 +106,12 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
     state_machine =
       ctx.projection.state_machine
-      |> put_in([:auction_phase, :starting_bidder], starting_bidder)
+      |> put_in([:auction_phase, :start_bidder], start_bidder)
       |> update_in([:auction_phase, :remaining_companies], remove_company_from_list)
 
     company_auction =
       with player_order = ctx.projection.player_order,
-           player_ids = Players.player_order_once_around_the_table(player_order, starting_bidder),
+           player_ids = Players.player_order_once_around_the_table(player_order, start_bidder),
            bidders = Enum.map(player_ids, &{&1, nil}) do
         {:company_auction, company: company, bidders: bidders}
       end
@@ -128,32 +123,41 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # handle players passing on a company
   #########################################################
 
+  handle_command "pass_on_company", ctx do
+    %{passing_player: passing_player, company: company} = ctx.payload
+    auction = ctx.projection
+    metadata = Metadata.from_aggregator(auction)
+
+    validate_current_company = fn auction, company ->
+      with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
+           ^company <- Keyword.fetch!(kv, :company) do
+        :ok
+      else
+        {:error, reason} -> {:error, reason}
+        _current_company -> {:error, "incorrect company"}
+      end
+    end
+
+    with :ok <- validate_current_bidder(auction, passing_player),
+         :ok <- validate_current_company.(auction, company) do
+      Messages.company_passed(passing_player, company, metadata)
+    else
+      {:error, reason} ->
+        Messages.company_pass_rejected(passing_player, company, reason, metadata)
+    end
+  end
+
   handle_event "company_passed", ctx do
-    %{player_id: player_id} = ctx.payload
+    %{passing_player: passing_player} = ctx.payload
 
     state_machine =
       ctx.projection.state_machine
-      |> update_in([:company_auction, :bidders], fn [{^player_id, _} | rest] -> rest end)
+      |> update_in([:company_auction, :bidders], fn [{^passing_player, _} | rest] -> rest end)
 
     [state_machine: state_machine]
   end
 
-  command_handler("pass_on_company", ctx) do
-    auction = ctx.projection
-    %{player_id: player_id, company_id: company_id} = ctx.payload
-    metadata = Metadata.from_aggregator(auction)
-
-    with :ok <- validate_current_bidder(auction, player_id),
-         :ok <- validate_current_company(auction, company_id) do
-      Messages.company_passed(player_id, company_id, metadata)
-    else
-      {:error, reason} ->
-        Messages.company_pass_rejected(player_id, company_id, reason, metadata)
-    end
-  end
-
-  # If all players pass on a company, the company auction ends, and the company is removed from the game
-  defreaction maybe_not_open_company(auction) do
+  defreaction maybe_all_players_passed_on_company(auction) do
     with [{:company_auction, kv} | _] <- auction.state_machine,
          [] <- Keyword.fetch!(kv, :bidders) do
       company = Keyword.fetch!(kv, :company)
@@ -173,10 +177,8 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # handle players bidding on a company
   #########################################################
 
-  # TODO test property: all events have incrementing sequence numbers
-  # TODO the command (and event) names should be validated.
-  command_handler("submit_bid", ctx) do
-    %{player_id: bidder, company_id: company_id, amount: amount} = ctx.payload
+  handle_command "submit_bid", ctx do
+    %{bidder: bidder, company: company, amount: amount} = ctx.payload
     auction = ctx.projection
 
     validate_balance = fn ->
@@ -187,6 +189,10 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       else
         :ok
       end
+    end
+
+    validate_company = fn kv ->
+      if Keyword.fetch!(kv, :company) == company, do: :ok, else: {:error, "incorrect company"}
     end
 
     validate_increasing_bid = fn kv ->
@@ -203,18 +209,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       if current_bid < amount, do: :ok, else: {:error, "bid must be higher than the current bid"}
     end
 
-    validate_min_bid =
-      if amount < 8,
-        do: {:error, "bid must be at least 8"},
-        else: :ok
-
-    # TODO this should be used by the pass command too
-    validate_company = fn kv ->
-      case Keyword.fetch!(kv, :company) do
-        ^company_id -> :ok
-        _incorrect_company -> {:error, "incorrect company"}
-      end
-    end
+    validate_min_bid = if amount < 8, do: {:error, "bid must be at least 8"}, else: :ok
 
     metadata = Metadata.from_aggregator(auction)
 
@@ -224,43 +219,39 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
          :ok <- validate_min_bid,
          :ok <- validate_increasing_bid.(kv),
          :ok <- validate_balance.() do
-      Messages.company_bid(bidder, company_id, amount, metadata)
+      Messages.company_bid(bidder, company, amount, metadata)
     else
-      {:error, reason} -> Messages.bid_rejected(bidder, company_id, amount, reason, metadata)
+      {:error, reason} -> Messages.bid_rejected(bidder, company, amount, reason, metadata)
     end
   end
 
-  # TODO rename "bid_submitted"?
   handle_event "company_bid", ctx do
-    %{player_id: bidder, amount: amount} = ctx.payload
+    %{bidder: bidder, amount: amount} = ctx.payload
 
-    state_machine = ctx.projection.state_machine
-
-    # TODO combine with above
     state_machine =
-      update_in(state_machine, [:company_auction, :bidders], fn [{^bidder, _} | rest] ->
+      ctx.projection.state_machine
+      |> update_in([:company_auction, :bidders], fn [{^bidder, _} | rest] ->
         rest ++ [{bidder, amount}]
       end)
 
     [state_machine: state_machine]
   end
 
-  defreaction maybe_open_company(auction) do
+  defreaction maybe_player_won_company_auction(auction) do
     with [{:company_auction, kv} | _] <- auction.state_machine,
          # There's only one bidder left
          [{auction_winner, amount}] <- Keyword.fetch!(kv, :bidders),
          # That player's already made at least one bid
          true <- is_integer(amount) do
       company = Keyword.fetch!(kv, :company)
-      metadata = Metadata.from_aggregator(auction)
+      metadata = &Metadata.from_aggregator(auction, &1)
 
       [
-        # TODO rename auction_winner
-        Messages.player_won_company_auction(auction_winner, company, amount, metadata),
+        Messages.player_won_company_auction(auction_winner, company, amount, metadata.(0)),
         Messages.money_transferred(
           %{auction_winner => -amount, company => amount},
           "Player #{auction_winner} won the auction for #{company}'s opening share",
-          Metadata.from_aggregator(auction, 0)
+          metadata.(1)
         )
       ]
     else
@@ -269,12 +260,11 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   end
 
   handle_event "player_won_company_auction", ctx do
-    [_company_auction | state_machine] = ctx.projection.state_machine
-    # TODO be consistent with player vs player_id
     %{auction_winner: auction_winner, company: company, bid_amount: amount} = ctx.payload
+    [_company_auction | state_machine] = ctx.projection.state_machine
 
     setting_stock_price =
-      {:setting_stock_price, player_id: auction_winner, company: company, max_price: amount}
+      {:setting_stock_price, auction_winner: auction_winner, company: company, max_price: amount}
 
     [state_machine: [setting_stock_price | state_machine]]
   end
@@ -284,23 +274,18 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # - must happen after a company opens
   #########################################################
 
-  # TODO rm parens
-  # TODO rename
-  command_handler("set_starting_stock_price", ctx) do
+  handle_command "set_starting_stock_price", ctx do
+    %{auction_winner: auction_winner, company: company, price: price} = ctx.payload
     auction = ctx.projection
-    %{player_id: player_id, company_id: company_id, price: price} = ctx.payload
     metadata = Metadata.from_aggregator(auction)
 
-    validate_current_company = fn kv ->
-      case Keyword.fetch!(kv, :company) do
-        ^company_id -> :ok
-        _incorrect_company -> {:error, "incorrect company"}
-      end
+    validate_company = fn kv ->
+      if Keyword.fetch!(kv, :company) == company, do: :ok, else: {:error, "incorrect company"}
     end
 
     validate_bid_winner = fn kv ->
-      case Keyword.fetch!(kv, :player_id) do
-        ^player_id -> :ok
+      case Keyword.fetch!(kv, :auction_winner) do
+        ^auction_winner -> :ok
         _ -> {:error, "incorrect player"}
       end
     end
@@ -319,24 +304,23 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     end
 
     with {:ok, kv} <- fetch_substate_kv(auction, :setting_stock_price),
-         :ok <- validate_current_company.(kv),
          :ok <- validate_bid_winner.(kv),
+         :ok <- validate_company.(kv),
          :ok <- validate_stock_price.(kv) do
-      Messages.starting_stock_price_set(player_id, company_id, price, metadata)
+      Messages.starting_stock_price_set(auction_winner, company, price, metadata)
     else
       {:error, reason} ->
-        Messages.starting_stock_price_rejected(player_id, company_id, price, reason, metadata)
+        Messages.starting_stock_price_rejected(auction_winner, company, price, reason, metadata)
     end
   end
 
   handle_event "starting_stock_price_set", ctx do
-    # TODO be consistent with extracting payload first
-    %{player_id: player_to_start_next_company_auction} = ctx.payload
+    %{auction_winner: player_to_start_next_company_auction} = ctx.payload
 
     auction_phase_kv =
       ctx.projection.state_machine
       |> Keyword.fetch!(:auction_phase)
-      |> Keyword.replace!(:starting_bidder, player_to_start_next_company_auction)
+      |> Keyword.replace!(:start_bidder, player_to_start_next_company_auction)
 
     [state_machine: [{:auction_phase, auction_phase_kv}]]
   end
@@ -364,43 +348,38 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # CONVERTERS
   #########################################################
 
-  defp fetch_substate(auction) do
-    case auction.state_machine do
-      [] -> {:error, "no auction in progress"}
-      [_auction_phase] -> {:error, "no substate"}
-      [substate, _auction_phase] -> {:ok, substate}
-    end
-  end
-
   defp fetch_substate_kv(auction, substate_name)
        when substate_name in ~w(company_auction setting_stock_price)a do
-    with {:ok, substate} <- fetch_substate(auction),
+    fetch_substate = fn auction ->
+      case auction.state_machine do
+        [] -> {:error, "no auction in progress"}
+        [_auction_phase] -> {:error, "no substate"}
+        [substate, _auction_phase] -> {:ok, substate}
+      end
+    end
+
+    with {:ok, substate} <- fetch_substate.(auction),
          {^substate_name, kv} <- substate do
       {:ok, kv}
     else
-      {:error, reason} ->
-        {:error, reason}
-
-      {_substate_name, _kv} ->
-        # TODO rename "incorrect substate"
-        {:error, "not in the correct phase of the auction"}
-    end
-  end
-
-  defp fetch_current_bidder(auction) do
-    with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
-         [current_bidder_tuple | _] <- Keyword.fetch!(kv, :bidders) do
-      {player_id, _bid} = current_bidder_tuple
-      {:ok, player_id}
-    else
       {:error, reason} -> {:error, reason}
-      [] -> {:error, "no current bidder"}
+      {_substate_name, _kv} -> {:error, "incorrect subphase"}
     end
   end
 
-  defp validate_current_bidder(auction, player_id) do
-    case fetch_current_bidder(auction) do
-      {:ok, ^player_id} ->
+  defp validate_current_bidder(auction, bidder) do
+    current_bidder =
+      with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
+           [current_bidder_tuple | _] <- Keyword.fetch!(kv, :bidders) do
+        {bidder, _bid} = current_bidder_tuple
+        {:ok, bidder}
+      else
+        {:error, reason} -> {:error, reason}
+        [] -> {:error, "no current bidder"}
+      end
+
+    case current_bidder do
+      {:ok, ^bidder} ->
         :ok
 
       {:ok, _current_player} ->
@@ -409,31 +388,5 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       {:error, reason} ->
         {:error, reason}
     end
-  end
-
-  defp validate_current_company(auction, company_id) do
-    with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
-         ^company_id <- Keyword.fetch!(kv, :company) do
-      :ok
-    else
-      {:error, reason} -> {:error, reason}
-      # TODO remove the current company from the message
-      current_company -> {:error, "#{inspect(current_company)} is the current company"}
-    end
-  end
-
-  #########################################################
-  # GLUE
-  #########################################################
-
-  # TODO rm
-  def events_from_projection(auction) do
-    Enum.find_value(reaction_fns(), & &1.(auction))
-  end
-
-  # TODO rm
-  @spec handle_command(t(), String.t(), map()) :: Event.t()
-  defp handle_command(projection, command_name, payload) do
-    grapefruit(command_name, %{projection: projection, payload: payload})
   end
 end

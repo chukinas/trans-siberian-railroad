@@ -19,7 +19,7 @@ defmodule TransSiberianRailroad.Aggregator.Players do
   use TransSiberianRailroad.Projection
 
   typedstruct do
-    field :last_version, non_neg_integer()
+    version_field()
     field :players, [Player.t()], default: []
   end
 
@@ -50,8 +50,9 @@ defmodule TransSiberianRailroad.Aggregator.Players do
   # REDUCERS (command handlers)
   #########################################################
 
-  defp handle_command(projection, "add_player", payload) do
-    %{player_name: player_name} = payload
+  handle_command "add_player", ctx do
+    %{player_name: player_name} = ctx.payload
+    projection = ctx.projection
     player_id = length(projection.players) + 1
     metadata = Metadata.from_aggregator(projection)
 
@@ -59,7 +60,8 @@ defmodule TransSiberianRailroad.Aggregator.Players do
       Messages.player_added(player_id, player_name, metadata)
     else
       Messages.player_rejected(
-        "'#{player_name}' cannot join the game. There are already 5 players.",
+        player_name,
+        "There are already 5 players",
         metadata
       )
     end

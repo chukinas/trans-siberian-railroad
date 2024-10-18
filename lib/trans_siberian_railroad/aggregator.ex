@@ -1,8 +1,9 @@
 defmodule TransSiberianRailroad.Aggregator do
   @moduledoc """
-  ## Notes
-  - make a note somewhere on difference between aggregator and metadata
-  - TODO move any projection stuff out to Projection
+  An aggregator is responsible for emitting new events.
+  It does this by building a projection from the current events list, then:
+  - handling commands that may have been issued by the user or the game itself, or
+  - emitting new events ("reactions") based on that current projection.
   """
 
   alias TransSiberianRailroad.Event
@@ -10,75 +11,101 @@ defmodule TransSiberianRailroad.Aggregator do
   defmacro __using__(_) do
     quote do
       @mod TransSiberianRailroad.Aggregator
-      @behaviour @mod
       @before_compile @mod
-
-      @spec project(TransSiberianRailroad.Event.t()) :: t()
-      def project(events) do
-        {projection, _} = @mod.__state__(events, &init/0, &put_version/2, &apple/3)
-        projection
-      end
-
-      # TODO this is getting kinda out of date
-      @spec state(TransSiberianRailroad.Event.t()) :: {t(), [TransSiberianRailroad.Event.t()]}
-      def state(events) do
-        @mod.__state__(events, &init/0, &put_version/2, &apple/3)
-      end
-
-      # TODO this is too much injected code. Extract
-      def strawberry(events, %TransSiberianRailroad.Command{name: command_name, payload: payload}) do
-        new_events =
-          events
-          |> project()
-          |> handle_command(command_name, payload)
-          |> List.wrap()
-          # TODO this is the third repeat of this line. Clean it up.
-          |> Enum.reject(&is_nil/1)
-
-        # TODO temp ensure all these are actual events
-        for event <- new_events do
-          case event do
-            %Event{} -> :ok
-            _ -> raise "Expected an Event, got: #{inspect(event)}"
-          end
-        end
-
-        new_events
-      end
+      import TransSiberianRailroad.Aggregator, only: [defreaction: 2, handle_command: 3]
+      unquote(accumulate_command_names())
+      unquote(accumulate_reactions())
     end
-  end
-
-  @type agg() :: term()
-
-  @callback init() :: agg()
-  @callback put_version(agg(), non_neg_integer()) :: agg()
-
-  def __state__(events, init_fn, put_version_fn, handle_event_fn) do
-    # TODO this should be part of the Events module
-    events = Event.sort(events)
-
-    aggregator =
-      Enum.reduce(events, init_fn.(), fn event, aggregator ->
-        %Event{
-          name: event_name,
-          payload: payload,
-          sequence_number: sequence_number
-        } = event
-
-        aggregator
-        |> put_version_fn.(sequence_number)
-        |> handle_event_fn.(event_name, payload)
-      end)
-
-    {aggregator, []}
   end
 
   defmacro __before_compile__(_) do
     quote do
-      # Fallbacks
-      def events_from_projection(_projection), do: nil
-      defp handle_command(_projection, _unhandled_command_name, _unhandled_payload), do: nil
-      defp apple(projection, _unhandled_event_name, _unhandled_payload), do: projection
+      unquote(inject_handle_command_names_fn())
+      unquote(inject_reactions_fn())
     end
+  end
+
+  #########################################################
+  # Command Handling
+  #########################################################
+
+  defp accumulate_command_names() do
+    quote do
+      Module.register_attribute(__MODULE__, :handled_command_names, accumulate: true)
+    end
+  end
+
+  # Really, the only reason to have this macro is:
+  # 1. To accumulate the command names (if needed)
+  # 2. To be able to spread these calls throughout a projection module
+  #    so the message flow can be more easily understood
+  defmacro handle_command(command_name, ctx, do: block) do
+    quote do
+      @handled_command_names unquote(command_name)
+      def __handle_command__(unquote(command_name), unquote(ctx)) do
+        unquote(block)
+      end
+    end
+  end
+
+  defp inject_handle_command_names_fn() do
+    quote do
+      def __handled_command_names__(), do: @handled_command_names
+    end
+  end
+
+  def handle_one_command(projection, command) do
+    %projection_mod{} = projection
+    %TransSiberianRailroad.Command{name: command_name, payload: payload} = command
+
+    if command_name in projection_mod.__handled_command_names__() do
+      projection_mod.__handle_command__(command_name, %{projection: projection, payload: payload})
+      |> List.wrap()
+      |> Enum.reject(&is_nil/1)
+    else
+      []
+    end
+  end
+
+  #########################################################
+  # Reactions
+  #########################################################
+
+  defp accumulate_reactions() do
+    quote do
+      Module.register_attribute(__MODULE__, :__reactions__, accumulate: true)
+    end
+  end
+
+  defmacro defreaction(projection, do: block) do
+    {function_name, _, _} = projection
+
+    quote do
+      @__reactions__ Function.capture(__MODULE__, unquote(function_name), 1)
+      # TODO privatize
+      def(unquote(projection), do: unquote(block))
+    end
+  end
+
+  defp inject_reactions_fn() do
+    quote do
+      def events_from_projection(projection) do
+        Enum.find_value(@__reactions__, & &1.(projection))
+      end
+    end
+  end
+
+  def reactions(%mod{} = projection) do
+    events =
+      mod.events_from_projection(projection)
+      |> List.wrap()
+      |> Enum.reject(&is_nil/1)
+
+    Enum.each(events, fn
+      %Event{} -> :ok
+      event -> raise "Expected only Events from #{inspect(mod)}, got: #{inspect(event)}"
+    end)
+
+    events
   end
 end

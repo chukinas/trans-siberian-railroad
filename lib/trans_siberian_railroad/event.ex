@@ -34,6 +34,7 @@ defmodule TransSiberianRailroad.Event do
 
     def inspect(event, opts) do
       payload = Map.to_list(event.payload || %{})
+      payload = [{:v, event.sequence_number} | payload]
       concat(["#Event.#{event.name}<", Inspect.List.inspect(payload, opts), ">"])
     end
   end
@@ -46,7 +47,11 @@ defmodule TransSiberianRailroad.Event do
     }
   end
 
-  def sort(events) do
-    Enum.sort_by(events, & &1.sequence_number)
+  def compare(event1, event2) do
+    case event1.sequence_number - event2.sequence_number do
+      n when n > 0 -> :gt
+      n when n < 0 -> :lt
+      _ -> :eq
+    end
   end
 end

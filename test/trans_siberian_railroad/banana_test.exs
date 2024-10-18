@@ -1,18 +1,18 @@
 defmodule TransSiberianRailroad.BananaTest do
   use ExUnit.Case
-  alias TransSiberianRailroad.Banana
+  alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Messages
 
-  test "banana has some fields" do
-    assert %{commands: [], events: [], aggregator_modules: _} = Banana.init()
+  test "game has some fields" do
+    assert %{commands: [], events: [], aggregators: _} = Game.init()
   end
 
   test "smoke test" do
     command = Messages.initialize_game()
 
     assert %{events: events} =
-             Banana.init()
-             |> Banana.handle_command(command)
+             Game.init()
+             |> Game.handle_one_command(command)
 
     assert length(events) == 1
   end
