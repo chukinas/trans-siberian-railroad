@@ -415,6 +415,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
       :ok
     else
       {:error, reason} -> {:error, reason}
+      # TODO remove the current company from the message
       current_company -> {:error, "#{inspect(current_company)} is the current company"}
     end
   end
