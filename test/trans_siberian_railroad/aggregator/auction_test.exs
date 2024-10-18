@@ -35,6 +35,77 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     assert event.payload == %{company: :red, starting_bidder: context.start_player}
   end
 
+  # TODO unify language with the bid_rejected tests
+  describe "pass_on_company -> company_pass_rejected when" do
+    @tag :no_start_game_setup
+    test "auction not in progress (like before the game starts)" do
+      # ARRANGE
+      game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
+
+      # ACT
+      game = Banana.handle_command(game, Messages.pass_on_company(1, :red))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "company_pass_rejected")
+      assert event.payload == %{player_id: 1, company_id: :red, reason: "no auction in progress"}
+    end
+
+    test "auction not in progress (e.g. after end of the first auction phase)", context do
+      # ARRANGE
+      game =
+        Banana.handle_commands(
+          context.game,
+          for company <- ~w/red blue green yellow/a,
+              player_id <- context.one_round do
+            Messages.pass_on_company(player_id, company)
+          end
+        )
+
+      # ACT
+      game = Banana.handle_command(game, Messages.pass_on_company(1, :red))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "company_pass_rejected")
+      assert event.payload == %{player_id: 1, company_id: :red, reason: "no auction in progress"}
+    end
+
+    test "incorrect auction subphase"
+
+    test "player is not current bidder", context do
+      # ARRANGE
+      wrong_player = context.one_round |> Enum.drop(1) |> Enum.random()
+
+      # ACT
+      game = Banana.handle_command(context.game, Messages.pass_on_company(wrong_player, :red))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "company_pass_rejected")
+
+      assert event.payload == %{
+               player_id: wrong_player,
+               company_id: :red,
+               reason: "incorrect player"
+             }
+    end
+
+    test "company not the current company", context do
+      # ARRANGE
+      start_player = context.start_player
+
+      # ACT
+      game = Banana.handle_command(context.game, Messages.pass_on_company(start_player, :blue))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "company_pass_rejected")
+
+      assert event.payload == %{
+               player_id: start_player,
+               company_id: :blue,
+               reason: ":red is the current company"
+             }
+    end
+  end
+
   describe "If all players pass on a company," do
     setup context do
       game =
@@ -116,76 +187,6 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
     # ASSERT
     assert fetch_single_event!(game.events, "auction_phase_ended")
-  end
-
-  describe "passing in an auction is rejected when" do
-    setup :start_game
-
-    @tag :no_start_game_setup
-    test "auction not in progress (like before the game starts)" do
-      # ARRANGE
-      game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
-
-      # ACT
-      game = Banana.handle_command(game, Messages.pass_on_company(1, :red))
-
-      # ASSERT
-      assert event = fetch_single_event!(game.events, "company_pass_rejected")
-      assert event.payload == %{player_id: 1, company_id: :red, reason: "no auction in progress"}
-    end
-
-    test "auction not in progress (e.g. after end of the first auction phase)", context do
-      # ARRANGE
-      game =
-        Banana.handle_commands(
-          context.game,
-          for company <- ~w/red blue green yellow/a,
-              player_id <- context.one_round do
-            Messages.pass_on_company(player_id, company)
-          end
-        )
-
-      # ACT
-      game = Banana.handle_command(game, Messages.pass_on_company(1, :red))
-
-      # ASSERT
-      assert event = fetch_single_event!(game.events, "company_pass_rejected")
-      assert event.payload == %{player_id: 1, company_id: :red, reason: "no auction in progress"}
-    end
-
-    test "company not the current company", context do
-      # ARRANGE
-      start_player = context.start_player
-
-      # ACT
-      game = Banana.handle_command(context.game, Messages.pass_on_company(start_player, :blue))
-
-      # ASSERT
-      assert event = fetch_single_event!(game.events, "company_pass_rejected")
-
-      assert event.payload == %{
-               player_id: start_player,
-               company_id: :blue,
-               reason: ":red is the current company"
-             }
-    end
-
-    test "player is not current bidder", context do
-      # ARRANGE
-      wrong_player = context.one_round |> Enum.drop(1) |> Enum.random()
-
-      # ACT
-      game = Banana.handle_command(context.game, Messages.pass_on_company(wrong_player, :red))
-
-      # ASSERT
-      assert event = fetch_single_event!(game.events, "company_pass_rejected")
-
-      assert event.payload == %{
-               player_id: wrong_player,
-               company_id: :red,
-               reason: "incorrect player"
-             }
-    end
   end
 
   describe "submit_bid -> bid_rejected when" do
