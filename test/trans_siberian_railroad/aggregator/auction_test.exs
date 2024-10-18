@@ -35,6 +35,43 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     assert event.payload == %{company: :red, starting_bidder: context.start_player}
   end
 
+  for {phase_number, companies} <- [{1, ~w/red blue green yellow/a}, {2, ~w/black white/a}] do
+    test "Phase #{phase_number} companies are auction in this order: #{inspect(companies)}",
+         context do
+      # ARRANGE
+      # We'll start the game, which kicks off the phase-1 auction.
+      # But then we'll "cheat" and re-issue an auction_phase_started event with the phase_number we care about for this test.
+      expected_companies = unquote(companies)
+
+      game =
+        with do
+          phase_number = unquote(phase_number)
+          game = context.game
+          starting_bidder = context.start_player
+          metadata = Metadata.from_events(game.events)
+          command = Messages.auction_phase_started(phase_number, starting_bidder, metadata)
+          Banana.handle_event(game, command)
+        end
+
+      # ACT
+      game =
+        Banana.handle_commands(
+          game,
+          for company <- expected_companies,
+              player_id <- context.one_round do
+            Messages.pass_on_company(player_id, company)
+          end
+        )
+
+      # ASSERT
+      actual_companies =
+        filter_events_by_name(game.events, "company_not_opened", asc: true)
+        |> Enum.map(& &1.payload.company_id)
+
+      assert actual_companies == expected_companies
+    end
+  end
+
   # TODO unify language with the bid_rejected tests
   describe "pass_on_company -> company_pass_rejected when" do
     @tag :no_start_game_setup
@@ -155,39 +192,6 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
                filter_events_by_name(context.game.events, "company_auction_started")
 
       assert %{company: :blue, starting_bidder: ^start_player} = blue_auction.payload
-    end
-  end
-
-  # TODO test the order of phase 2 company auctions
-  for {phase_number, companies} <- [{1, ~w/red blue green yellow/a}, {2, ~w/black white/a}] do
-    # for companies <- [~w/red blue green yellow/a] do
-    test "The order of phase 1 company auctions is #{inspect(companies)}", context do
-      # ARRANGE: see :start_game setup
-      companies = unquote(companies)
-      phase_number = unquote(phase_number)
-      game = context.game
-      starting_bidder = context.start_player
-      metadata = Metadata.from_events(game.events)
-
-      game =
-        Banana.handle_event(
-          game,
-          Messages.auction_phase_started(phase_number, starting_bidder, metadata)
-        )
-
-      # ACT
-      game =
-        Banana.handle_commands(
-          game,
-          for company <- companies,
-              player_id <- context.one_round do
-            Messages.pass_on_company(player_id, company)
-          end
-        )
-
-      # ASSERT
-      assert filter_events_by_name(game.events, "company_not_opened") |> length() ==
-               length(companies)
     end
   end
 
