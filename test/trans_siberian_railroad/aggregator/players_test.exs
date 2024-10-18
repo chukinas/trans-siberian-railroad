@@ -62,7 +62,7 @@ defmodule TransSiberianRailroad.PlayersTest do
         commands = [
           Messages.initialize_game(),
           add_player_commands(player_count),
-          Messages.start_game(Enum.random(1..player_count))
+          Messages.start_game()
         ]
 
         # ACT

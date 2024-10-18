@@ -1,5 +1,4 @@
 defmodule TransSiberianRailroad.GameTestHelpers do
-  alias TransSiberianRailroad.Aggregator.Companies
   alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Banana
   alias TransSiberianRailroad.Event
@@ -13,7 +12,6 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     player_count = context[:player_count] || Enum.random(3..5)
     start_player = context[:starting_player] || Enum.random(1..player_count)
     player_order = Enum.to_list(context[:player_order] || Enum.shuffle(1..player_count))
-    player_who_requested_game_start = Enum.random(1..player_count)
     one_round = Players.player_order_once_around_the_table(player_order, start_player)
 
     game =
@@ -22,7 +20,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
         add_player_commands(player_count),
         Messages.set_start_player(start_player),
         Messages.set_player_order(player_order),
-        Messages.start_game(player_who_requested_game_start)
+        Messages.start_game()
       ])
 
     {:ok,
@@ -63,11 +61,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   end
 
   def starting_player(events) do
-    fetch_single_event_payload!(events, "start_player_selected").start_player
-  end
-
-  def get_active_companies(events) do
-    Companies.state(events) |> Companies.get_active()
+    fetch_single_event_payload!(events, "start_player_set").start_player
   end
 
   def fetch_single_event_payload!(events, event_name) do

@@ -13,6 +13,11 @@ defmodule TransSiberianRailroad.Aggregator do
       @behaviour @mod
       @before_compile @mod
 
+      import TransSiberianRailroad.Aggregator, only: [defreaction: 2]
+      alias TransSiberianRailroad.Event
+
+      Module.register_attribute(__MODULE__, :__reactions__, accumulate: true)
+
       @spec project(TransSiberianRailroad.Event.t()) :: t()
       def project(events) do
         {projection, _} = @mod.__state__(events, &init/0, &put_version/2, &apple/3)
@@ -23,6 +28,12 @@ defmodule TransSiberianRailroad.Aggregator do
       @spec state(TransSiberianRailroad.Event.t()) :: {t(), [TransSiberianRailroad.Event.t()]}
       def state(events) do
         @mod.__state__(events, &init/0, &put_version/2, &apple/3)
+      end
+
+      # TODO I don't like that this is the same name as the macro
+      @spec handle_command(t(), String.t(), map()) :: Event.t()
+      defp handle_command(projection, command_name, payload) do
+        grapefruit(command_name, %{projection: projection, payload: payload})
       end
 
       # TODO this is too much injected code. Extract
@@ -73,11 +84,23 @@ defmodule TransSiberianRailroad.Aggregator do
     {aggregator, []}
   end
 
+  # TODO mv to bottom
+  defmacro defreaction(projection, do: block) do
+    {function_name, _, _} = projection
+
+    quote do
+      @__reactions__ Function.capture(__MODULE__, unquote(function_name), 1)
+      # TODO this shouldn't be public
+      def(unquote(projection), do: unquote(block))
+    end
+  end
+
   defmacro __before_compile__(_) do
     quote do
-      # Fallbacks
-      def events_from_projection(_projection), do: nil
-      defp handle_command(_projection, _unhandled_command_name, _unhandled_payload), do: nil
+      def events_from_projection(projection),
+        do: Enum.find_value(@__reactions__, & &1.(projection))
+
+      defp grapefruit(_command_name, _ctx), do: nil
       defp apple(projection, _unhandled_event_name, _unhandled_payload), do: projection
     end
   end

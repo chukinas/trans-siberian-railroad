@@ -36,7 +36,6 @@ defmodule TransSiberianRailroad.Banana do
       default: [
         TransSiberianRailroad.Aggregator.Main,
         TransSiberianRailroad.Aggregator.Players,
-        TransSiberianRailroad.Aggregator.Companies,
         TransSiberianRailroad.Aggregator.Auction
       ]
   end

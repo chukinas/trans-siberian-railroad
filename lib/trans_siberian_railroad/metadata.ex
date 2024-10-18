@@ -2,6 +2,8 @@ defmodule TransSiberianRailroad.Metadata do
   # TODO moduledoc
   alias TransSiberianRailroad.Event
 
+  @type t() :: Keyword.t()
+
   # TODO make a note somewhere of whether version is 0-based or 1-based
   # TODO this current only works for Auction. Need to generalize.
   def from_aggregator(%{last_version: version}, offset \\ 0) do

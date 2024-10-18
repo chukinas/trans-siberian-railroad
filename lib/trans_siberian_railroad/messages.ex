@@ -5,16 +5,13 @@ defmodule TransSiberianRailroad.Messages do
 
   ## Notes
   - add defevent and defcommand macros to cut down on boilerplate
-  - TODO: somehow make the event metadata optional?
+  - make the event metadata optional?
   """
 
   require TransSiberianRailroad.Metadata, as: Metadata
   require TransSiberianRailroad.Player, as: Player
   require TransSiberianRailroad.RailCompany, as: Company
   alias TransSiberianRailroad.Event
-
-  # TODO
-  @type metadata() :: term()
 
   #########################################################
   # - Local boilerplate reduction
@@ -26,13 +23,15 @@ defmodule TransSiberianRailroad.Messages do
   Module.register_attribute(__MODULE__, :event_names, accumulate: true)
 
   defmacrop command(fields) do
-    # TODO accumulate command names
-    quote do
-      name =
-        with {name, _arity} = __ENV__.function do
-          to_string(name)
-        end
+    name =
+      with {name, _arity} = __CALLER__.function do
+        to_string(name)
+      end
 
+    Module.put_attribute(__MODULE__, :command_names, name)
+
+    quote do
+      name = unquote(name)
       payload = Map.new(unquote(fields))
       %TransSiberianRailroad.Command{name: name, payload: payload}
     end
@@ -59,15 +58,16 @@ defmodule TransSiberianRailroad.Messages do
   # Moving money between players, bank, and companies is
   # such a common operation that it's all handled via this
   # single event.
+  # This is one of the few (only?) messages that can be
+  # issued by any Aggregator.
   #########################################################
 
   @type entity() :: Player.id() | Company.id() | :bank
   @type amount() :: integer()
-  @spec money_transferred(%{entity() => amount()}, String.t(), metadata()) :: Event.t()
+  @spec money_transferred(%{entity() => amount()}, String.t(), Metadata.t()) :: Event.t()
   def money_transferred(%{} = transfers, reason, metadata)
       when is_binary(reason) and Metadata.is(metadata) do
-    # TODO validate the transfers
-    # 0 = transfers |> Map.values() |> Enum.sum()
+    0 = transfers |> Map.values() |> Enum.sum()
     event(transfers: transfers, reason: reason)
   end
 
@@ -84,8 +84,13 @@ defmodule TransSiberianRailroad.Messages do
     command(game_id: game_id)
   end
 
-  def game_initialized(game_id, metadata) when is_binary(game_id) do
+  def game_initialized(game_id, metadata) do
     event(game_id: game_id)
+  end
+
+  # TODO test
+  def game_initialization_rejected(game_id, reason, metadata) do
+    event(game_id: game_id, reason: reason)
   end
 
   #########################################################
@@ -97,30 +102,36 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   def player_added(player_id, player_name, metadata)
-      when is_integer(player_id) and is_binary(player_name) do
+      when Player.is_id(player_id) and is_binary(player_name) do
     event(player_id: player_id, player_name: player_name)
   end
 
-  def player_rejected(reason, metadata) when is_binary(reason) do
-    event(reason: reason)
+  def player_rejected(player_name, reason, metadata) when is_binary(reason) do
+    event(player_name: player_name, reason: reason)
   end
 
   #########################################################
   # SETUP - player order and starting player
   #########################################################
 
+  # TODO test payload
   # TODO unify the language
-  # starting_player -> start_player
   # set or selected
-  def set_start_player(starting_player) when is_integer(starting_player) do
-    command(starting_player: starting_player)
+  def set_start_player(start_player) when Player.is_id(start_player) do
+    command(start_player: start_player)
   end
 
-  def start_player_selected(start_player, metadata) when is_integer(start_player) do
+  def start_player_set(start_player, metadata) when Player.is_id(start_player) do
     event(start_player: start_player)
   end
 
   def set_player_order(player_order) when is_list(player_order) do
+    for player <- player_order do
+      unless Player.is_id(player) do
+        raise ArgumentError, "player_order must be a list of integers"
+      end
+    end
+
     command(player_order: player_order)
   end
 
@@ -139,19 +150,15 @@ defmodule TransSiberianRailroad.Messages do
   # Starting Game
   #########################################################
 
-  def start_game(player_id) when is_integer(player_id) do
-    command(player_id: player_id)
+  def start_game() do
+    command([])
   end
 
-  # TODO rename player_id to something more descriptive.
-  # It only matters because we want a record of the player who "pressed the start button".
-  # It's not about the player who goes first.
-  # This bit of data belongs in the metadata instead.
-  def game_started(player_id, starting_money, metadata) when is_integer(player_id) do
-    event(player_id: player_id, starting_money: starting_money)
+  def game_started(metadata) do
+    event([])
   end
 
-  def game_not_started(reason, metadata) when is_binary(reason) do
+  def game_start_rejected(reason, metadata) when is_binary(reason) do
     event(reason: reason)
   end
 
@@ -159,12 +166,14 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - open and close an auction phase
   #########################################################
 
-  def auction_phase_started(phase_number, starting_bidder, metadata)
-      when phase_number in 1..2 and starting_bidder in 1..5 do
-    event(phase_number: phase_number, starting_bidder: starting_bidder)
+  defguardp is_phase_number(phase_number) when phase_number in 1..2
+
+  def auction_phase_started(phase_number, start_bidder, metadata)
+      when is_phase_number(phase_number) and Player.is_id(start_bidder) do
+    event(phase_number: phase_number, start_bidder: start_bidder)
   end
 
-  def auction_phase_ended(phase_number, metadata) do
+  def auction_phase_ended(phase_number, metadata) when is_phase_number(phase_number) do
     event(phase_number: phase_number)
   end
 
@@ -178,9 +187,10 @@ defmodule TransSiberianRailroad.Messages do
   This can result in either "player_won_company_auction" (a player won the share)
   or "all_players_passed_on_company" (no player bid on the share).
   """
-  @spec company_auction_started(Player.id(), Company.id(), metadata()) :: Event.t()
-  def company_auction_started(starting_bidder, company, metadata) do
-    event(starting_bidder: starting_bidder, company: company)
+  @spec company_auction_started(Player.id(), Company.id(), Metadata.t()) :: Event.t()
+  def company_auction_started(start_bidder, company, metadata)
+      when Player.is_id(start_bidder) and Company.is_id(company) do
+    event(start_bidder: start_bidder, company: company)
   end
 
   @doc """
@@ -203,61 +213,60 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - players pass on a company
   #########################################################
 
-  def pass_on_company(player_id, company_id) when is_integer(player_id) and is_atom(company_id) do
-    command(player_id: player_id, company_id: company_id)
+  def pass_on_company(passing_player, company)
+      when Player.is_id(passing_player) and Company.is_id(company) do
+    command(passing_player: passing_player, company: company)
   end
 
-  # TODO replace is_atom with a more specific guard
-  def company_passed(player_id, company_id, metadata)
-      when is_integer(player_id) and is_atom(company_id) do
-    event(player_id: player_id, company_id: company_id)
+  def company_passed(passing_player, company, metadata)
+      when Player.is_id(passing_player) and Company.is_id(company) do
+    event(passing_player: passing_player, company: company)
   end
 
-  def company_pass_rejected(player_id, company_id, reason, metadata)
-      when is_integer(player_id) and is_atom(company_id) and is_binary(reason) do
-    event(player_id: player_id, company_id: company_id, reason: reason)
+  def company_pass_rejected(passing_player, company, reason, metadata)
+      when Player.is_id(passing_player) and Company.is_id(company) and is_binary(reason) do
+    event(passing_player: passing_player, company: company, reason: reason)
   end
 
   #########################################################
   # Auctioning - players bid on a company
   #########################################################
 
-  def submit_bid(player_id, company_id, amount)
-      when Player.is_id(player_id) and Company.is_id(company_id) and is_integer(amount) do
-    command(player_id: player_id, company_id: company_id, amount: amount)
+  def submit_bid(bidder, company, amount)
+      when Player.is_id(bidder) and Company.is_id(company) and is_integer(amount) do
+    command(bidder: bidder, company: company, amount: amount)
+  end
+
+  # TODO rename "bid_submitted"?
+  def company_bid(bidder, company, amount, metadata)
+      when Player.is_id(bidder) and Company.is_id(company) and is_integer(amount) do
+    event(bidder: bidder, company: company, amount: amount)
   end
 
   # TODO be consistent withe use of "company" in these message names
-  def bid_rejected(player_id, company_id, amount, reason, metadata)
-      when Player.is_id(player_id) and Company.is_id(company_id) and is_binary(reason) do
-    event(player_id: player_id, company_id: company_id, amount: amount, reason: reason)
-  end
-
-  # TODO rename company_bid
-  # TODO add :amount field
-  def company_bid(player_id, company_id, amount, metadata)
-      when Player.is_id(player_id) and Company.is_id(company_id) and is_integer(amount) do
-    event(player_id: player_id, company_id: company_id, amount: amount)
+  def bid_rejected(bidder, company, amount, reason, metadata)
+      when Player.is_id(bidder) and Company.is_id(company) and is_binary(reason) do
+    event(bidder: bidder, company: company, amount: amount, reason: reason)
   end
 
   #########################################################
   # Auctioning - set starting stock price
   #########################################################
 
-  def set_starting_stock_price(bidder, company_id, price)
-      when Player.is_id(bidder) and is_atom(company_id) and is_integer(price) do
-    command(player_id: bidder, company_id: company_id, price: price)
+  def set_starting_stock_price(auction_winner, company, price)
+      when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(price) do
+    command(auction_winner: auction_winner, company: company, price: price)
   end
 
-  def starting_stock_price_set(player_id, company_id, price, metadata)
-      when Player.is_id(player_id) and Company.is_id(company_id) and is_integer(price) do
-    event(player_id: player_id, company_id: company_id, price: price)
+  def starting_stock_price_set(auction_winner, company, price, metadata)
+      when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(price) do
+    event(auction_winner: auction_winner, company: company, price: price)
   end
 
   # TODO be consistent with the order of reject vs success events
-  def starting_stock_price_rejected(player_id, company_id, price, reason, metadata)
-      when Player.is_id(player_id) and Company.is_id(company_id) and is_binary(reason) do
-    event(player_id: player_id, company_id: company_id, price: price, reason: reason)
+  def starting_stock_price_rejected(auction_winner, company, price, reason, metadata)
+      when Player.is_id(auction_winner) and Company.is_id(company) and is_binary(reason) do
+    event(auction_winner: auction_winner, company: company, price: price, reason: reason)
   end
 
   #########################################################
@@ -265,6 +274,7 @@ defmodule TransSiberianRailroad.Messages do
   # These must remain at the bottom of the module
   #########################################################
 
+  # TODO are these all used?
   def valid_command_name?(name), do: name in @command_names
   def valid_event_name?(name), do: name in @event_names
 
