@@ -227,6 +227,7 @@ defmodule TransSiberianRailroad.Messages do
     command(player_id: player_id, company_id: company_id, amount: amount)
   end
 
+  # TODO be consistent withe use of "company" in these message names
   def bid_rejected(player_id, company_id, amount, reason, metadata)
       when Player.is_id(player_id) and Company.is_id(company_id) and is_binary(reason) do
     event(player_id: player_id, company_id: company_id, amount: amount, reason: reason)
@@ -253,6 +254,7 @@ defmodule TransSiberianRailroad.Messages do
     event(player_id: player_id, company_id: company_id, price: price)
   end
 
+  # TODO be consistent with the order of reject vs success events
   def starting_stock_price_rejected(player_id, company_id, price, reason, metadata)
       when Player.is_id(player_id) and Company.is_id(company_id) and is_binary(reason) do
     event(player_id: player_id, company_id: company_id, price: price, reason: reason)
