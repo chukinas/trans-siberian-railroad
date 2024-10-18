@@ -1,13 +1,43 @@
 defmodule TransSiberianRailroad.GameTestHelpers do
   alias TransSiberianRailroad.Aggregator.Companies
   alias TransSiberianRailroad.Aggregator.Players
+  alias TransSiberianRailroad.Banana
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
+
+  #########################################################
+  # Setups
+  #########################################################
+
+  def start_game(context) do
+    player_count = Enum.random(3..5)
+    start_player = context[:starting_player] || Enum.random(1..player_count)
+    player_order = Enum.shuffle(1..player_count)
+    player_who_requested_game_start = Enum.random(1..player_count)
+    one_round = Players.player_order_once_around_the_table(player_order, start_player)
+
+    game =
+      Banana.handle_commands([
+        Messages.initialize_game(),
+        add_player_commands(player_count),
+        Messages.set_start_player(start_player),
+        Messages.set_player_order(player_order),
+        Messages.start_game(player_who_requested_game_start)
+      ])
+
+    {:ok,
+     game: game,
+     start_player: start_player,
+     player_count: player_count,
+     player_order: player_order,
+     one_round: one_round}
+  end
 
   #########################################################
   # Commands
   #########################################################
 
+  # TODO still used?
   def add_player_commands(player_count) when player_count in 1..6 do
     [
       Messages.add_player("Alice"),

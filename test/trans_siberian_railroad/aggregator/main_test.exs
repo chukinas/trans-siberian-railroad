@@ -4,6 +4,12 @@ defmodule TransSiberianRailroad.Aggregator.MainTest do
   alias TransSiberianRailroad.Banana
   alias TransSiberianRailroad.Messages
 
+  setup context do
+    if context[:start_game],
+      do: start_game(context),
+      else: :ok
+  end
+
   test "initialize_game -> game_initialized only if it's the first event"
   test "initialize_game -> game_initialization_rejected when game already initialized"
 
@@ -52,5 +58,15 @@ defmodule TransSiberianRailroad.Aggregator.MainTest do
     # ASSERT
     assert fetch_single_event!(game.events, "player_order_set").payload.player_order ==
              player_order
+  end
+
+  @tag :start_game
+  test "game_started -> auction_phase_started", context do
+    # ARRANGE/ACT: see :start_game setup
+    events = context.game.events
+    assert fetch_single_event!(events, "game_started")
+
+    # ASSERT
+    assert fetch_single_event!(events, "auction_phase_started")
   end
 end
