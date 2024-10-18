@@ -12,7 +12,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   def start_game(context) do
     player_count = context[:player_count] || Enum.random(3..5)
     start_player = context[:starting_player] || Enum.random(1..player_count)
-    player_order = Enum.shuffle(1..player_count)
+    player_order = Enum.to_list(context[:player_order] || Enum.shuffle(1..player_count))
     player_who_requested_game_start = Enum.random(1..player_count)
     one_round = Players.player_order_once_around_the_table(player_order, start_player)
 

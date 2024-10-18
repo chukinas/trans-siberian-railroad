@@ -6,16 +6,18 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   alias TransSiberianRailroad.Metadata
 
   setup context do
-    if Map.get(context, :start_game, true),
+    if context[:start_game],
       do: start_game(context),
       else: :ok
   end
 
   setup context do
-    if Map.get(context, :auction_off_company, false),
+    if context[:auction_off_company],
       do: auction_off_company(context),
       else: :ok
   end
+
+  @moduletag :start_game
 
   test "auction_phase_started -> company_auction_started", context do
     # ARRANGE/ACT: see :start_game setup
@@ -359,7 +361,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   end
 
   describe "player_won_company_auction" do
-    setup :auction_off_company
+    @describetag :auction_off_company
 
     test "-> auction_winner is charged the winning bid amount", context do
       # ARRANGE: see :start_game
@@ -408,11 +410,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
-  # TODO If this was the last company, it ends the auction phase.
   describe "set_starting_stock_price -> starting_stock_price_rejected when" do
-    setup :auction_off_company
+    @describetag :auction_off_company
 
     @tag start_game: false
+    @tag auction_off_company: false
     test "not in auction phase" do
       # ARRANGE
       game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
@@ -431,16 +433,13 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
+    @tag auction_off_company: false
     test "incorrect auction subphase", context do
       # ARRANGE: see :start_game setup
 
       # ACT
-      game =
-        Banana.handle_command(
-          # TODO I don't like that the setup runs the auction when I don't need it.
-          context.game_prior_to_bidding,
-          Messages.set_starting_stock_price(1, :red, 10)
-        )
+      command = Messages.set_starting_stock_price(1, :red, 10)
+      game = Banana.handle_command(context.game, command)
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
@@ -546,7 +545,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   end
 
   describe "starting_stock_price_set" do
-    setup :auction_off_company
+    @describetag :auction_off_company
 
     test "starts the next company's auction begins", context do
       # ARRANGE
@@ -585,13 +584,40 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert event = get_latest_event_by_name(game.events, "company_passed")
       assert event.payload == %{company_id: :blue, player_id: 2}
     end
+
+    @tag auction_off_company: false
+    test "-> auction_phase_ended when it's the last company", context do
+      # ARRANGE
+      # All players pass on all companies except for the last player on the last company
+      auction_winner = Enum.at(context.one_round, -1)
+
+      commands =
+        for company <- ~w/red blue green yellow/a,
+            player <- context.one_round do
+          Messages.pass_on_company(player, company)
+        end
+
+      commands =
+        List.update_at(commands, -1, fn _command ->
+          Messages.submit_bid(auction_winner, :yellow, 8)
+        end)
+
+      game = Banana.handle_commands(context.game, commands)
+
+      # ACT
+      command = Messages.set_starting_stock_price(auction_winner, :yellow, 8)
+      game = Banana.handle_command(game, command)
+      assert fetch_single_event!(game.events, "starting_stock_price_set")
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "auction_phase_ended")
+      assert event.payload == %{phase_number: 1}
+    end
   end
 
   #########################################################
   # HELPERS
   #########################################################
-
-  defp auction_off_company(context) when not is_map_key(context, :game), do: :ok
 
   defp auction_off_company(context) do
     # capture state before applying the bids and passing
