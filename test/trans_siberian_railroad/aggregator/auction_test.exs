@@ -192,24 +192,32 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
       assert %{company: :blue, starting_bidder: ^start_player} = blue_auction.payload
     end
-  end
 
-  # TODO move into above block
-  test "auction phase ends if all companies are passed on", context do
-    # ARRANGE: see :start_game setup
-
-    # ACT
-    game =
-      Banana.handle_commands(
-        context.game,
-        for company <- ~w/red blue green yellow/a,
+    test "-> auction_phase_ended when it's the last company", context do
+      # ARRANGE
+      # The setup has already passed on :red, so we'll pass on the next two companies,
+      # leaving just yellow to be auctioned off.
+      # We haven't ended the auction phase yet.
+      commands =
+        for company <- ~w/blue green/a,
             player_id <- context.one_round do
           Messages.pass_on_company(player_id, company)
         end
-      )
 
-    # ASSERT
-    assert fetch_single_event!(game.events, "auction_phase_ended")
+      game = Banana.handle_commands(context.game, commands)
+      assert [] = filter_events_by_name(game.events, "auction_phase_ended")
+
+      # ACT
+      commands =
+        for player_id <- context.one_round do
+          Messages.pass_on_company(player_id, :yellow)
+        end
+
+      game = Banana.handle_commands(game, commands)
+
+      # ASSERT
+      assert fetch_single_event!(game.events, "auction_phase_ended")
+    end
   end
 
   describe "submit_bid -> bid_rejected when" do
