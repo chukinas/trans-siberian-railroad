@@ -57,14 +57,13 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
       # ASSERT
       actual_companies =
-        filter_events_by_name(game.events, "company_not_opened", asc: true)
-        |> Enum.map(& &1.payload.company_id)
+        filter_events_by_name(game.events, "all_players_passed_on_company", asc: true)
+        |> Enum.map(& &1.payload.company)
 
       assert actual_companies == expected_companies
     end
   end
 
-  # TODO unify language with the bid_rejected tests
   describe "pass_on_company -> company_pass_rejected when" do
     @tag start_game: false
     test "not in auction phase (like before the game starts)" do
@@ -154,6 +153,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
+  # TOOD reword describe
+  # TODO bring together all related tests into this describe block
+  # TODO test that this event results in the next company auction starting
   describe "If all players pass_on_company," do
     setup context do
       game =
@@ -171,8 +173,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ARRANGE/ACT: see :game_start + above setup
 
       # ASSERT
-      assert event = fetch_single_event!(context.game.events, "company_not_opened")
-      assert event.payload == %{company_id: :red}
+      assert event = fetch_single_event!(context.game.events, "all_players_passed_on_company")
+      assert event.payload == %{company: :red}
     end
 
     test "the next company auction begins with the same starting bidder", context do

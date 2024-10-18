@@ -176,24 +176,23 @@ defmodule TransSiberianRailroad.Messages do
   Begin the bidding for the first share of a company.
 
   This can result in either "company_opened" (a player won the share)
-  or "company_not_opened" (no player bid on the share).
+  or "all_players_passed_on_company" (no player bid on the share).
   """
   @spec company_auction_started(Player.id(), Company.id(), metadata()) :: Event.t()
   def company_auction_started(starting_bidder, company, metadata) do
     event(starting_bidder: starting_bidder, company: company)
   end
 
-  # TODO add is_company guard
   @doc """
   This and "company_opened" both end the company auction started by "company_auction_started".
   """
-  def company_not_opened(company_id, metadata) when is_atom(company_id) do
-    event(company_id: company_id)
+  def all_players_passed_on_company(company, metadata) when Company.is_id(company) do
+    event(company: company)
   end
 
   # TODO add is_player guard
   @doc """
-  This and "company_not_opened" both end the company auction started by "company_auction_started".
+  This and "all_players_passed_on_company" both end the company auction started by "company_auction_started".
   """
   def company_opened(company_id, player_id, bid_amount, metadata)
       when is_atom(company_id) and is_integer(bid_amount) and bid_amount >= 8 do

@@ -158,13 +158,13 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
          [] <- Keyword.fetch!(kv, :bidders) do
       company = Keyword.fetch!(kv, :company)
       metadata = Metadata.from_aggregator(auction)
-      Messages.company_not_opened(company, metadata)
+      Messages.all_players_passed_on_company(company, metadata)
     else
       _ -> nil
     end
   end
 
-  handle_event "company_not_opened", ctx do
+  handle_event "all_players_passed_on_company", ctx do
     [_company_auction | state_machine] = ctx.projection.state_machine
     [state_machine: state_machine]
   end
