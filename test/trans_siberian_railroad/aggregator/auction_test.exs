@@ -387,7 +387,25 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "the only valid next command is to set starting stock price"
+    test "has only set_starting_stock_price as a valid followup command", context do
+      # ARRANGE: see :start_game
+      auction_winner = context.auction_winner
+
+      # ACT
+      # We expect the first two to fail; the third to succeed.
+      commands = [
+        Messages.pass_on_company(auction_winner, :blue),
+        Messages.submit_bid(auction_winner, :blue, 8),
+        Messages.set_starting_stock_price(auction_winner, :red, 8)
+      ]
+
+      game = Banana.handle_commands(context.game, commands)
+
+      # ASSERT
+      assert fetch_single_event!(game.events, "company_pass_rejected")
+      assert fetch_single_event!(game.events, "bid_rejected")
+      assert fetch_single_event!(game.events, "starting_stock_price_set")
+    end
   end
 
   # TODO If this was the last company, it ends the auction phase.
