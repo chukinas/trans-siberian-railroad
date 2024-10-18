@@ -75,7 +75,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   # TODO unify language with the bid_rejected tests
   describe "pass_on_company -> company_pass_rejected when" do
     @tag :no_start_game_setup
-    test "auction not in progress (like before the game starts)" do
+    test "not in auction phase (like before the game starts)" do
       # ARRANGE
       game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
 
@@ -87,7 +87,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert event.payload == %{player_id: 1, company_id: :red, reason: "no auction in progress"}
     end
 
-    test "auction not in progress (e.g. after end of the first auction phase)", context do
+    test "not in auction phase (e.g. after end of the first auction phase)", context do
       # ARRANGE
       game =
         Banana.handle_commands(
@@ -126,7 +126,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "player is not current bidder", context do
+    test "incorrect bidder", context do
       # ARRANGE
       wrong_player = context.one_round |> Enum.drop(1) |> Enum.random()
 
@@ -144,7 +144,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "company not the current company", context do
+    test "incorrect company", context do
       # ARRANGE
       start_player = context.start_player
 
@@ -234,7 +234,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
 
     @tag :auction_off_company
-    test "not in correct auction subphase", context do
+    test "incorrect auction subphase", context do
       # ARRANGE
       bid_winner = context.bid_winner
 
@@ -253,7 +253,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "incorrect player", context do
+    test "incorrect bidder", context do
       # ARRANGE
       start_player = context.start_player
       incorrect_player = context.one_round |> Enum.reject(&(&1 == start_player)) |> Enum.random()
@@ -387,7 +387,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     setup :auction_off_company
 
     @tag :no_start_game_setup
-    test "not in an auction phase" do
+    test "not in auction phase" do
       # ARRANGE
       game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
 
@@ -405,7 +405,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "not in the correct auction substate", context do
+    test "incorrect auction subphase", context do
       # ARRANGE: see :start_game setup
 
       # ACT
@@ -427,7 +427,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "not the current bidder", context do
+    test "incorrect bidder", context do
       # ARRANGE: see :start_game setup
 
       # ACT
@@ -453,7 +453,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "not the correct company", context do
+    test "incorrect company", context do
       # ARRANGE: see :start_game setup
 
       # ACT
@@ -495,7 +495,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
 
     @tag winning_bid_amount: 16
-    test "the price is some other invalid amount", context do
+    test "invalid amount", context do
       # ARRANGE: see :start_game setup
 
       # ACT
