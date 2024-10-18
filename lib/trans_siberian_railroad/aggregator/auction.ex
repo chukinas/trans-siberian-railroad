@@ -382,6 +382,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
         {:error, reason}
 
       {_substate_name, _kv} ->
+        # TODO rename "incorrect substate"
         {:error, "not in the correct phase of the auction"}
     end
   end
