@@ -153,10 +153,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
-  # TOOD reword describe
-  # TODO bring together all related tests into this describe block
-  # TODO test that this event results in the next company auction starting
-  describe "If all players pass_on_company," do
+  describe "all_players_passed_on_company" do
     setup context do
       game =
         Banana.handle_commands(
@@ -166,18 +163,26 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
           end
         )
 
+      assert fetch_single_event!(game.events, "all_players_passed_on_company")
+
       {:ok, game: game}
     end
 
-    test "that company auction ends", context do
+    test "-> company_auction_started with the next company", context do
       # ARRANGE/ACT: see :game_start + above setup
 
       # ASSERT
-      assert event = fetch_single_event!(context.game.events, "all_players_passed_on_company")
-      assert event.payload == %{company: :red}
+      # Check the companies who have had their auctions started so far.
+      expected_companies = ~w/red blue/a
+
+      actual_companies =
+        filter_events_by_name(context.game.events, "company_auction_started", asc: true)
+        |> Enum.map(& &1.payload.company)
+
+      assert expected_companies == actual_companies
     end
 
-    test "the next company auction begins with the same starting bidder", context do
+    test "-> company_auction_started with the same start bidder", context do
       # ARRANGE/ACT: see :game_start + above setup
       start_player = context.start_player
 
@@ -189,6 +194,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
+  # TODO move into above block
   test "auction phase ends if all companies are passed on", context do
     # ARRANGE: see :start_game setup
 
