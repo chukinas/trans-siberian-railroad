@@ -1,28 +1,20 @@
 defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   use ExUnit.Case
   import TransSiberianRailroad.GameTestHelpers
-  alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Banana
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Metadata
 
-  setup :start_game
-
   setup context do
-    if context[:auction_off_company] do
-      auction_off_company(context)
-    else
-      :ok
-    end
+    if Map.get(context, :start_game, true),
+      do: start_game(context),
+      else: :ok
   end
 
-  test "game_started -> auction_phase_started", context do
-    # ARRANGE/ACT: see :start_game setup
-    events = context.game.events
-    assert fetch_single_event!(events, "game_started")
-
-    # ASSERT
-    assert fetch_single_event!(events, "auction_phase_started")
+  setup context do
+    if Map.get(context, :auction_off_company, false),
+      do: auction_off_company(context),
+      else: :ok
   end
 
   test "auction_phase_started -> company_auction_started", context do
@@ -74,7 +66,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
   # TODO unify language with the bid_rejected tests
   describe "pass_on_company -> company_pass_rejected when" do
-    @tag :no_start_game_setup
+    @tag start_game: false
     test "not in auction phase (like before the game starts)" do
       # ARRANGE
       game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
@@ -386,7 +378,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   describe "set_starting_stock_price -> starting_stock_price_rejected when" do
     setup :auction_off_company
 
-    @tag :no_start_game_setup
+    @tag start_game: false
     test "not in auction phase" do
       # ARRANGE
       game = Banana.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
@@ -564,32 +556,6 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   #########################################################
   # HELPERS
   #########################################################
-
-  defp start_game(%{no_start_game_setup: true}), do: :ok
-
-  defp start_game(context) do
-    player_count = Enum.random(3..5)
-    start_player = context[:starting_player] || Enum.random(1..player_count)
-    player_order = Enum.shuffle(1..player_count)
-    player_who_requested_game_start = Enum.random(1..player_count)
-    one_round = Players.player_order_once_around_the_table(player_order, start_player)
-
-    game =
-      Banana.handle_commands([
-        Messages.initialize_game(),
-        add_player_commands(player_count),
-        Messages.set_start_player(start_player),
-        Messages.set_player_order(player_order),
-        Messages.start_game(player_who_requested_game_start)
-      ])
-
-    {:ok,
-     game: game,
-     start_player: start_player,
-     player_count: player_count,
-     player_order: player_order,
-     one_round: one_round}
-  end
 
   defp auction_off_company(context) when not is_map_key(context, :game), do: :ok
 
