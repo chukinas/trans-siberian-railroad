@@ -248,17 +248,18 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   defreaction maybe_open_company(auction) do
     with [{:company_auction, kv} | _] <- auction.state_machine,
          # There's only one bidder left
-         [{player_id, amount}] <- Keyword.fetch!(kv, :bidders),
+         [{auction_winner, amount}] <- Keyword.fetch!(kv, :bidders),
          # That player's already made at least one bid
          true <- is_integer(amount) do
       company = Keyword.fetch!(kv, :company)
       metadata = Metadata.from_aggregator(auction)
 
       [
-        Messages.company_opened(company, player_id, amount, metadata),
+        # TODO rename auction_winner
+        Messages.player_won_company_auction(auction_winner, company, amount, metadata),
         Messages.money_transferred(
-          %{player_id => -amount, company => amount},
-          "Player #{player_id} won the auction for #{company}'s opening share",
+          %{auction_winner => -amount, company => amount},
+          "Player #{auction_winner} won the auction for #{company}'s opening share",
           Metadata.from_aggregator(auction, 0)
         )
       ]
@@ -267,13 +268,13 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     end
   end
 
-  handle_event "company_opened", ctx do
+  handle_event "player_won_company_auction", ctx do
     [_company_auction | state_machine] = ctx.projection.state_machine
     # TODO be consistent with player vs player_id
-    %{player_id: player, company_id: company, bid_amount: amount} = ctx.payload
+    %{auction_winner: auction_winner, company: company, bid_amount: amount} = ctx.payload
 
     setting_stock_price =
-      {:setting_stock_price, player_id: player, company: company, max_price: amount}
+      {:setting_stock_price, player_id: auction_winner, company: company, max_price: amount}
 
     [state_machine: [setting_stock_price | state_machine]]
   end
