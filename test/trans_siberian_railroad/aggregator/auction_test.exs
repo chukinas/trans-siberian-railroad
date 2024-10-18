@@ -69,21 +69,40 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert event.payload == %{player_id: 1, company_id: :red, reason: "no auction in progress"}
     end
 
-    test "incorrect auction subphase"
+    @tag :auction_off_company
+    test "incorrect auction subphase", context do
+      # ARRANGE
+      # We've now auctioned off a company and are waiting for the bid winner to set the starting stock price.
+      # It's no one's turn to pass on a company.
+      bid_winner = context.bid_winner
+
+      # ACT
+      game = Banana.handle_command(context.game, Messages.pass_on_company(bid_winner, :red))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "company_pass_rejected")
+
+      assert event.payload == %{
+               player_id: bid_winner,
+               company_id: :red,
+               reason: "not in the correct phase of the auction"
+             }
+    end
 
     test "player is not current bidder", context do
       # ARRANGE
       wrong_player = context.one_round |> Enum.drop(1) |> Enum.random()
 
       # ACT
-      game = Banana.handle_command(context.game, Messages.pass_on_company(wrong_player, :red))
+      # Both player and company are invalid here, but the player is the cause of the rejection.
+      game = Banana.handle_command(context.game, Messages.pass_on_company(wrong_player, :blue))
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "company_pass_rejected")
 
       assert event.payload == %{
                player_id: wrong_player,
-               company_id: :red,
+               company_id: :blue,
                reason: "incorrect player"
              }
     end
@@ -106,7 +125,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
-  describe "If all players pass on a company," do
+  describe "If all players pass_on_company," do
     setup context do
       game =
         Banana.handle_commands(
