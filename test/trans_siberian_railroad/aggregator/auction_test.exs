@@ -102,16 +102,16 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ARRANGE
       # We've now auctioned off a company and are waiting for the bid winner to set the starting stock price.
       # It's no one's turn to pass on a company.
-      bid_winner = context.bid_winner
+      auction_winner = context.auction_winner
 
       # ACT
-      game = Banana.handle_command(context.game, Messages.pass_on_company(bid_winner, :red))
+      game = Banana.handle_command(context.game, Messages.pass_on_company(auction_winner, :red))
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "company_pass_rejected")
 
       assert event.payload == %{
-               player_id: bid_winner,
+               player_id: auction_winner,
                company_id: :red,
                reason: "not in the correct phase of the auction"
              }
@@ -244,10 +244,12 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     @tag :auction_off_company
     test "incorrect auction subphase", context do
       # ARRANGE
-      bid_winner = context.bid_winner
+      auction_winner = context.auction_winner
 
       # ACT
-      incorrect_player = context.one_round |> Enum.reject(&(&1 == bid_winner)) |> Enum.random()
+      incorrect_player =
+        context.one_round |> Enum.reject(&(&1 == auction_winner)) |> Enum.random()
+
       game = Banana.handle_command(context.game, Messages.submit_bid(incorrect_player, :black, 0))
 
       # ASSERT
@@ -336,9 +338,6 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    # TODO this shouldn't be a test, but rather, a guard
-    # test "amount not an integer"
-
     test "insufficient funds", context do
       # ARRANGE
       start_player = context.start_player
@@ -359,31 +358,31 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
-  describe "when a player wins an auction" do
+  describe "player_won_company_auction" do
     setup :auction_off_company
 
-    test "the player is charged the winning bid amount", context do
+    test "-> auction_winner is charged the winning bid amount", context do
       # ARRANGE: see :start_game
-      bid_winner = context.bid_winner
-      start_bidder_money = current_money(context.game_prior_to_bidding, bid_winner)
+      auction_winner = context.auction_winner
+      start_bidder_money = current_money(context.game_prior_to_bidding, auction_winner)
 
       # ACT: see this descibe block's setup
 
       # ASSERT
-      current_bidder_money = current_money(context.game, bid_winner)
+      current_bidder_money = current_money(context.game, auction_winner)
       assert current_bidder_money == start_bidder_money - context.amount
     end
 
-    test "that company's auction closes", context do
+    test "-> company_auction_started with next company", context do
       # ARRANGE: see :start_game
       # ACT: see this descibe block's setup
 
       # ASSERT
-      assert event = fetch_single_event!(context.game.events, "company_opened")
+      assert event = fetch_single_event!(context.game.events, "player_won_company_auction")
 
       assert event.payload == %{
-               company_id: :red,
-               player_id: context.bid_winner,
+               company: :red,
+               auction_winner: context.auction_winner,
                bid_amount: context.amount
              }
     end
@@ -391,6 +390,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     test "the only valid next command is to set starting stock price"
   end
 
+  # TODO If this was the last company, it ends the auction phase.
   describe "set_starting_stock_price -> starting_stock_price_rejected when" do
     setup :auction_off_company
 
@@ -441,7 +441,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ACT
       incorrect_player =
         context.one_round
-        |> Enum.reject(&(&1 == context.bid_winner))
+        |> Enum.reject(&(&1 == context.auction_winner))
         |> Enum.random()
 
       game =
@@ -483,19 +483,19 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ARRANGE: see :start_game setup
 
       # ACT
-      bid_winner = context.bid_winner
+      auction_winner = context.auction_winner
 
       game =
         Banana.handle_command(
           context.game,
-          Messages.set_starting_stock_price(bid_winner, :red, 50)
+          Messages.set_starting_stock_price(auction_winner, :red, 50)
         )
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
 
       assert event.payload == %{
-               player_id: bid_winner,
+               player_id: auction_winner,
                company_id: :red,
                price: 50,
                reason: "price exceeds winning bid"
@@ -507,19 +507,19 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ARRANGE: see :start_game setup
 
       # ACT
-      bid_winner = context.bid_winner
+      auction_winner = context.auction_winner
 
       game =
         Banana.handle_command(
           context.game,
-          Messages.set_starting_stock_price(bid_winner, :red, 9)
+          Messages.set_starting_stock_price(auction_winner, :red, 9)
         )
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
 
       assert event.payload == %{
-               player_id: bid_winner,
+               player_id: auction_winner,
                company_id: :red,
                price: 9,
                reason: "not one of the valid stock prices"
@@ -538,7 +538,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game =
         Banana.handle_command(
           game,
-          Messages.set_starting_stock_price(context.bid_winner, :red, 8)
+          Messages.set_starting_stock_price(context.auction_winner, :red, 8)
         )
 
       # ASSERT
@@ -547,7 +547,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
 
     @tag start_player: 1
-    @tag bid_winner: 2
+    @tag auction_winner: 2
     test "The player who wins the first auction starts the second auction", context do
       # ARRANGE
       game =
@@ -578,14 +578,14 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   defp auction_off_company(context) do
     # capture state before applying the bids and passing
     game_prior_to_bidding = context.game
-    bid_winner = context[:bid_winner] || Enum.random(context.one_round)
+    auction_winner = context[:auction_winner] || Enum.random(context.one_round)
     amount = context[:winning_bid_amount] || 8
 
     game =
       Banana.handle_commands(
         context.game,
         for player_id <- context.one_round do
-          if player_id == bid_winner do
+          if player_id == auction_winner do
             Messages.submit_bid(player_id, :red, amount)
           else
             Messages.pass_on_company(player_id, :red)
@@ -595,7 +595,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
     {:ok,
      game_prior_to_bidding: game_prior_to_bidding,
-     bid_winner: bid_winner,
+     auction_winner: auction_winner,
      amount: amount,
      game: game}
   end
