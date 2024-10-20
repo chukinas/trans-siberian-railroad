@@ -1,8 +1,8 @@
 defmodule TransSiberianRailroad.Aggregator.Main do
+  # TODO moduledoc
   use TransSiberianRailroad.Aggregator
   use TypedStruct
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Metadata
 
   @starting_money_by_player_count %{
     3 => 48,
@@ -50,19 +50,19 @@ defmodule TransSiberianRailroad.Aggregator.Main do
   handle_command "set_start_player", ctx do
     # TODO validate
     start_player = ctx.payload.start_player
-    Messages.start_player_set(start_player, Metadata.from_aggregator(ctx.projection))
+    Messages.start_player_set(start_player, Projection.next_metadata(ctx.projection))
   end
 
   handle_command "set_player_order", ctx do
     # TODO validate
     player_order = ctx.payload.player_order
-    Messages.player_order_set(player_order, Metadata.from_aggregator(ctx.projection))
+    Messages.player_order_set(player_order, Projection.next_metadata(ctx.projection))
   end
 
   handle_command "start_game", ctx do
     main = ctx.projection
     player_count = main.player_count
-    metadata = &Metadata.from_aggregator(main, &1)
+    metadata = &Projection.next_metadata(main, &1)
 
     if player_count in 3..5 do
       player_ids = 1..player_count

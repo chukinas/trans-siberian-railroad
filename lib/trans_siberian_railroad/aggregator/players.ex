@@ -7,16 +7,14 @@ defmodule TransSiberianRailroad.Aggregator.Players do
   """
 
   use TransSiberianRailroad.Aggregator
+  use TransSiberianRailroad.Projection
   use TypedStruct
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Metadata
   alias TransSiberianRailroad.Player
 
   #########################################################
   # PROJECTION
   #########################################################
-
-  use TransSiberianRailroad.Projection
 
   typedstruct do
     version_field()
@@ -54,7 +52,7 @@ defmodule TransSiberianRailroad.Aggregator.Players do
     %{player_name: player_name} = ctx.payload
     projection = ctx.projection
     player_id = length(projection.players) + 1
-    metadata = Metadata.from_aggregator(projection)
+    metadata = Projection.next_metadata(projection)
 
     if player_id <= 5 do
       Messages.player_added(player_id, player_name, metadata)

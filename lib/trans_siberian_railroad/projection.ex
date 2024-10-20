@@ -13,9 +13,11 @@ defmodule TransSiberianRailroad.Projection do
 
   require TransSiberianRailroad.Messages, as: Messages
   alias TransSiberianRailroad.Event
+  alias TransSiberianRailroad.Metadata
 
   defmacro __using__(_opts) do
     quote do
+      alias unquote(__MODULE__)
       @before_compile unquote(__MODULE__)
       Module.register_attribute(__MODULE__, :handle_event_names, accumulate: true)
       import TransSiberianRailroad.Projection, only: [handle_event: 3, version_field: 0]
@@ -92,6 +94,7 @@ defmodule TransSiberianRailroad.Projection do
     end
   end
 
+  # TODO needed?
   def fetch_version!(%_{__version__: version}), do: version
 
   defp put_version(
@@ -109,5 +112,10 @@ defmodule TransSiberianRailroad.Projection do
     end
 
     struct!(projection, __version__: sequence_number)
+  end
+
+  def next_metadata(projection, offset \\ 0) do
+    version = fetch_version!(projection)
+    Metadata.new(version + 1 + offset)
   end
 end

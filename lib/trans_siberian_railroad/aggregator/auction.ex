@@ -26,7 +26,6 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   require Logger
   alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Metadata
   alias TransSiberianRailroad.Player
 
   #########################################################
@@ -87,7 +86,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     with [{:auction_phase, kv}] <- auction.state_machine,
          [next_company | _] <- Keyword.fetch!(kv, :remaining_companies) do
       start_bidder = Keyword.fetch!(kv, :start_bidder)
-      metadata = Metadata.from_aggregator(auction)
+      metadata = Projection.next_metadata(auction)
       Messages.company_auction_started(start_bidder, next_company, metadata)
     else
       _ -> nil
@@ -126,7 +125,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   handle_command "pass_on_company", ctx do
     %{passing_player: passing_player, company: company} = ctx.payload
     auction = ctx.projection
-    metadata = Metadata.from_aggregator(auction)
+    metadata = Projection.next_metadata(auction)
 
     validate_current_company = fn auction, company ->
       with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
@@ -161,7 +160,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     with [{:company_auction, kv} | _] <- auction.state_machine,
          [] <- Keyword.fetch!(kv, :bidders) do
       company = Keyword.fetch!(kv, :company)
-      metadata = Metadata.from_aggregator(auction)
+      metadata = Projection.next_metadata(auction)
       Messages.all_players_passed_on_company(company, metadata)
     else
       _ -> nil
@@ -211,7 +210,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
     validate_min_bid = if amount < 8, do: {:error, "bid must be at least 8"}, else: :ok
 
-    metadata = Metadata.from_aggregator(auction)
+    metadata = Projection.next_metadata(auction)
 
     with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
          :ok <- validate_current_bidder(auction, bidder),
@@ -244,7 +243,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
          # That player's already made at least one bid
          true <- is_integer(amount) do
       company = Keyword.fetch!(kv, :company)
-      metadata = &Metadata.from_aggregator(auction, &1)
+      metadata = &Projection.next_metadata(auction, &1)
 
       [
         Messages.player_won_company_auction(auction_winner, company, amount, metadata.(0)),
@@ -277,7 +276,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   handle_command "set_starting_stock_price", ctx do
     %{auction_winner: auction_winner, company: company, price: price} = ctx.payload
     auction = ctx.projection
-    metadata = Metadata.from_aggregator(auction)
+    metadata = Projection.next_metadata(auction)
 
     validate_company = fn kv ->
       if Keyword.fetch!(kv, :company) == company, do: :ok, else: {:error, "incorrect company"}
@@ -333,7 +332,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     with [{:auction_phase, kv}] <- auction.state_machine,
          [] <- Keyword.fetch!(kv, :remaining_companies) do
       phase_number = Keyword.fetch!(kv, :phase_number)
-      metadata = Metadata.from_aggregator(auction)
+      metadata = Projection.next_metadata(auction)
       Messages.auction_phase_ended(phase_number, metadata)
     else
       _ -> nil
