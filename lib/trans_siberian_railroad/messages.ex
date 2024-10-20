@@ -2,10 +2,6 @@ defmodule TransSiberianRailroad.Messages do
   @moduledoc """
   This module contains **all** the constructors for `TransSiberianRailroad.Command`
   and `TransSiberianRailroad.Event`.
-
-  ## Notes
-  - add defevent and defcommand macros to cut down on boilerplate
-  - make the event metadata optional?
   """
 
   require TransSiberianRailroad.Metadata, as: Metadata
@@ -88,7 +84,6 @@ defmodule TransSiberianRailroad.Messages do
     event(game_id: game_id)
   end
 
-  # TODO test
   def game_initialization_rejected(game_id, reason, metadata) do
     event(game_id: game_id, reason: reason)
   end
@@ -114,9 +109,6 @@ defmodule TransSiberianRailroad.Messages do
   # SETUP - player order and starting player
   #########################################################
 
-  # TODO test payload
-  # TODO unify the language
-  # set or selected
   def set_start_player(start_player) when Player.is_id(start_player) do
     command(start_player: start_player)
   end
@@ -135,7 +127,6 @@ defmodule TransSiberianRailroad.Messages do
     command(player_order: player_order)
   end
 
-  # TODO replace set with selected?
   def player_order_set(player_order, metadata) when is_list(player_order) do
     for player_id <- player_order do
       if player_id not in 1..5 do
@@ -237,13 +228,11 @@ defmodule TransSiberianRailroad.Messages do
     command(bidder: bidder, company: company, amount: amount)
   end
 
-  # TODO rename "bid_submitted"?
-  def company_bid(bidder, company, amount, metadata)
+  def bid_submitted(bidder, company, amount, metadata)
       when Player.is_id(bidder) and Company.is_id(company) and is_integer(amount) do
     event(bidder: bidder, company: company, amount: amount)
   end
 
-  # TODO be consistent withe use of "company" in these message names
   def bid_rejected(bidder, company, amount, reason, metadata)
       when Player.is_id(bidder) and Company.is_id(company) and is_binary(reason) do
     event(bidder: bidder, company: company, amount: amount, reason: reason)
@@ -263,7 +252,6 @@ defmodule TransSiberianRailroad.Messages do
     event(auction_winner: auction_winner, company: company, price: price)
   end
 
-  # TODO be consistent with the order of reject vs success events
   def starting_stock_price_rejected(auction_winner, company, price, reason, metadata)
       when Player.is_id(auction_winner) and Company.is_id(company) and is_binary(reason) do
     event(auction_winner: auction_winner, company: company, price: price, reason: reason)
@@ -274,12 +262,6 @@ defmodule TransSiberianRailroad.Messages do
   # These must remain at the bottom of the module
   #########################################################
 
-  # TODO are these all used?
-  def valid_command_name?(name), do: name in @command_names
-  def valid_event_name?(name), do: name in @event_names
-
+  def command_names(), do: @command_names
   def event_names(), do: @event_names
-
-  # defguard is_command_name(name) when name in @command_names
-  # defguard is_event_name(name) when name in @event_names
 end

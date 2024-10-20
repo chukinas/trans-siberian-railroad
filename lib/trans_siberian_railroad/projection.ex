@@ -55,14 +55,16 @@ defmodule TransSiberianRailroad.Projection do
   This is how projection modules define event handlers.
   """
   defmacro handle_event(event_name, ctx, do: block) do
-    unless Messages.valid_event_name?(event_name) do
+    valid_event_names = Messages.event_names()
+
+    unless event_name in valid_event_names do
       raise """
       handle_event/3 expects an event name already declared in #{inspect(Messages)}.
 
       name: #{inspect(event_name)}
 
       valid names:
-      #{inspect(Messages.event_names())}
+      #{inspect(valid_event_names)}
       """
     end
 

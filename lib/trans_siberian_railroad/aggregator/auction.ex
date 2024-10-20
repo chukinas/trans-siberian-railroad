@@ -219,13 +219,13 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
          :ok <- validate_min_bid,
          :ok <- validate_increasing_bid.(kv),
          :ok <- validate_balance.() do
-      Messages.company_bid(bidder, company, amount, metadata)
+      Messages.bid_submitted(bidder, company, amount, metadata)
     else
       {:error, reason} -> Messages.bid_rejected(bidder, company, amount, reason, metadata)
     end
   end
 
-  handle_event "company_bid", ctx do
+  handle_event "bid_submitted", ctx do
     %{bidder: bidder, amount: amount} = ctx.payload
 
     state_machine =

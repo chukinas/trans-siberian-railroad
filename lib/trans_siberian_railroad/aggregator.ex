@@ -6,6 +6,7 @@ defmodule TransSiberianRailroad.Aggregator do
   - emitting new events ("reactions") based on that current projection.
   """
 
+  alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Event
 
   defmacro __using__(_) do
@@ -40,6 +41,19 @@ defmodule TransSiberianRailroad.Aggregator do
   # 2. To be able to spread these calls throughout a projection module
   #    so the message flow can be more easily understood
   defmacro handle_command(command_name, ctx, do: block) do
+    valid_command_names = Messages.command_names()
+
+    unless command_name in valid_command_names do
+      raise """
+      handle_command/3 expects an command name already declared in #{inspect(Messages)}.
+
+      name: #{inspect(command_name)}
+
+      valid names:
+      #{inspect(valid_command_names)}
+      """
+    end
+
     quote do
       @handled_command_names unquote(command_name)
       def __handle_command__(unquote(command_name), unquote(ctx)) do

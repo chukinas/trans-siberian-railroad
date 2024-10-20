@@ -11,7 +11,11 @@ defmodule TransSiberianRailroad.Aggregator.MainTest do
   end
 
   test "initialize_game -> game_initialized only if it's the first event"
-  test "initialize_game -> game_initialization_rejected when game already initialized"
+
+  describe "initialize_game -> game_initialization_rejected" do
+    # TODO when else
+    test "when game already initialized"
+  end
 
   test "set_start_player is an optional command" do
     # ARRANGE
