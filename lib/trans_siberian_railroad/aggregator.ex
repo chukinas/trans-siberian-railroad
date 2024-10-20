@@ -6,8 +6,9 @@ defmodule TransSiberianRailroad.Aggregator do
   - emitting new events ("reactions") based on that current projection.
   """
 
-  alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Event
+  alias TransSiberianRailroad.Messages
+  alias TransSiberianRailroad.Projection
 
   defmacro __using__(_) do
     quote do
@@ -73,7 +74,10 @@ defmodule TransSiberianRailroad.Aggregator do
     %TransSiberianRailroad.Command{name: command_name, payload: payload} = command
 
     if command_name in projection_mod.__handled_command_names__() do
-      projection_mod.__handle_command__(command_name, %{projection: projection, payload: payload})
+      next_metadata = Projection.next_metadata(projection)
+      ctx = %{projection: projection, payload: payload, next_metadata: next_metadata}
+
+      projection_mod.__handle_command__(command_name, ctx)
       |> List.wrap()
       |> Enum.reject(&is_nil/1)
     else
@@ -96,7 +100,6 @@ defmodule TransSiberianRailroad.Aggregator do
 
     quote do
       @__reactions__ Function.capture(__MODULE__, unquote(function_name), 1)
-      # TODO privatize
       def(unquote(projection), do: unquote(block))
     end
   end

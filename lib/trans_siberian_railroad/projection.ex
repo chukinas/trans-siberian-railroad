@@ -90,28 +90,16 @@ defmodule TransSiberianRailroad.Projection do
 
   defmacro version_field() do
     quote do
-      field :__version__, non_neg_integer(), required: false
+      field :__version__, non_neg_integer(), required: true, default: 0
     end
   end
 
   # TODO needed?
   def fetch_version!(%_{__version__: version}), do: version
 
-  defp put_version(
-         %_{__version__: version} = projection,
-         %Event{sequence_number: sequence_number} = event
-       ) do
-    unless is_nil(version) or version < sequence_number do
-      require Logger
-
-      Logger.warning("""
-      Version mismatch
-      #{inspect(projection, pretty: true)}
-      #{inspect(event, pretty: true)}
-      """)
-    end
-
-    struct!(projection, __version__: sequence_number)
+  defp put_version(%_{__version__: current_version} = projection, %Event{version: next_version})
+       when current_version + 1 == next_version do
+    struct!(projection, __version__: next_version)
   end
 
   def next_metadata(projection, offset \\ 0) do

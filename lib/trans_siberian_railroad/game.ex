@@ -101,30 +101,20 @@ defmodule TransSiberianRailroad.Game do
 
   # Update each aggregator and push the event on the events list
   defp update_with_new_event(game, %Event{} = event) do
-    last_event =
-      case game.events do
-        [] -> nil
-        [last_event | _] -> last_event
-      end
-
     current_version =
-      case last_event do
-        nil -> -1
-        event -> event.sequence_number
+      case game.events do
+        [] -> 0
+        [last_event | _] -> last_event.version
       end
 
-    if event.sequence_number == current_version + 1 do
+    expected_next_version = current_version + 1
+
+    if event.version == expected_next_version do
       :ok
     else
       require Logger
 
-      Logger.warning("""
-      Version mismatch
-      last event
-      #{inspect(last_event)}
-      new event
-      #{inspect(event)}
-      """)
+      Logger.warning("Expected #{inspect(event)} to have a version of #{expected_next_version}")
     end
 
     game

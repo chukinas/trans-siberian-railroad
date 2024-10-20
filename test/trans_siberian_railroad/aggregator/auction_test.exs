@@ -46,7 +46,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
             game = context.game
             start_bidder = context.start_player
             [last_event | _] = game.events
-            metadata = Metadata.new(last_event.sequence_number + 1)
+            metadata = Metadata.new(last_event.version + 1)
             event = Messages.auction_phase_started(phase_number, start_bidder, metadata)
             Game.handle_event(game, event)
         end

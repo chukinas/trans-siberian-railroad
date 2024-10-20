@@ -4,6 +4,9 @@ defmodule TransSiberianRailroad.Event do
   In other words, a collection of game events fully describes the state of a game.
   The game state can be 100% reconstructed from the events.
 
+  The version (number) is a one-indexed number (`t:pos_integer/0`) that represents the order in which the events were created.
+  [Aggregators](`TransSiberianRailroad.Aggregator`) start off with a version though of 0 so we're always working with non-negative integers.
+
   ## Notes
   - Add a trace_id to the struct.
     Since events are typically (always?) created in response to a command,
@@ -26,7 +29,7 @@ defmodule TransSiberianRailroad.Event do
   typedstruct enforce: true do
     field :name, String.t()
     field :payload, nil | map(), default: nil
-    field :sequence_number, non_neg_integer()
+    field :version, pos_integer()
   end
 
   defimpl Inspect do
@@ -34,7 +37,7 @@ defmodule TransSiberianRailroad.Event do
 
     def inspect(event, opts) do
       payload = Map.to_list(event.payload || %{})
-      payload = [{:v, event.sequence_number} | payload]
+      payload = [{:v, event.version} | payload]
       concat(["#Event.#{event.name}<", Inspect.List.inspect(payload, opts), ">"])
     end
   end
@@ -43,12 +46,12 @@ defmodule TransSiberianRailroad.Event do
     %__MODULE__{
       name: name,
       payload: payload,
-      sequence_number: Keyword.fetch!(metadata, :sequence_number)
+      version: Keyword.fetch!(metadata, :version)
     }
   end
 
   def compare(event1, event2) do
-    case event1.sequence_number - event2.sequence_number do
+    case event1.version - event2.version do
       n when n > 0 -> :gt
       n when n < 0 -> :lt
       _ -> :eq
