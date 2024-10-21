@@ -94,16 +94,12 @@ defmodule TransSiberianRailroad.Projection do
     end
   end
 
-  # TODO needed?
-  def fetch_version!(%_{__version__: version}), do: version
-
   defp put_version(%_{__version__: current_version} = projection, %Event{version: next_version})
        when current_version + 1 == next_version do
     struct!(projection, __version__: next_version)
   end
 
-  def next_metadata(projection, offset \\ 0) do
-    version = fetch_version!(projection)
+  def next_metadata(%_{__version__: version}, offset \\ 0) do
     Metadata.new(version + 1 + offset)
   end
 end

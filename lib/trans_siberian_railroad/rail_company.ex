@@ -6,6 +6,10 @@ defmodule TransSiberianRailroad.RailCompany do
   can have that company build track, which is paid for by the company.
   Building track increases a company's income,
   which increases the dividends payout to stockholders.
+
+  This module will be heavily modified in the future, or removed entirely.
+  This is because since its originally creation, all the event generation is now
+  based entirely on internal aggregator state.
   """
 
   use TypedStruct
@@ -15,7 +19,6 @@ defmodule TransSiberianRailroad.RailCompany do
   @all_ids @phase_1_ids ++ @phase_2_ids
   @type id() :: :red | :blue | :green | :yellow | :black | :white
 
-  # TODO rm :waiting
   # An :active company is either private or public (calculated).
   @type state() :: :unauctioned | :waiting | :up_for_auction | :rejected | :active | :nationalized
 
@@ -71,7 +74,6 @@ defmodule TransSiberianRailroad.RailCompany do
   end
 
   def nationalized?(%__MODULE__{}) do
-    # TODO
     false
   end
 
