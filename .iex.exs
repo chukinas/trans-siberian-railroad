@@ -1,0 +1,3 @@
+alias TransSiberianRailroad.Projection
+alias TransSiberianRailroad.Aggregator.Auction
+import TransSiberianRailroad.Messages
