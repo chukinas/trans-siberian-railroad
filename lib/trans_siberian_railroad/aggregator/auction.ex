@@ -22,8 +22,6 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
-  use TypedStruct
-  require Logger
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Player
   alias TransSiberianRailroad.Players

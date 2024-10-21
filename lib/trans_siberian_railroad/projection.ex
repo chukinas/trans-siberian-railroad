@@ -17,6 +17,7 @@ defmodule TransSiberianRailroad.Projection do
 
   defmacro __using__(_opts) do
     quote do
+      use TypedStruct
       alias unquote(__MODULE__)
       @before_compile unquote(__MODULE__)
       Module.register_attribute(__MODULE__, :handle_event_names, accumulate: true)
