@@ -258,6 +258,14 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
+  # Player Turn
+  #########################################################
+
+  def player_turn_started(player, metadata) when Player.is_id(player) do
+    event(player: player)
+  end
+
+  #########################################################
   # Player Action #3: Pass
   #########################################################
 

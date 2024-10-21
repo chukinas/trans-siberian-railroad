@@ -4,6 +4,26 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
   alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Messages
 
+  # TODO this is repeated from auction_test.exs
+  setup context do
+    if context[:start_game],
+      do: start_game(context),
+      else: :ok
+  end
+
+  setup context do
+    if context[:auction_off_company],
+      do: auction_off_company(context),
+      else: :ok
+  end
+
+  # TODO there has to be a better way of doing this
+  setup context do
+    if context[:random_first_auction_phase],
+      do: random_first_auction_phase(context),
+      else: :ok
+  end
+
   describe "pass_rejected when" do
     test "not a player turn (e.g. setup)" do
       # ARRANGE
@@ -23,6 +43,23 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
     end
 
     test "not a player turn (e.g. end-of-turn sequence)"
-    test "incorrect player"
+
+    @tag :start_game
+    @tag :random_first_auction_phase
+    test "incorrect player", context do
+      # ARRANGE
+      correct_player = context.start_player
+      assert [] = Enum.filter(context.game.events, &String.contains?(&1.name, "reject"))
+
+      # ACT
+      incorrect_player =
+        context.one_round |> Enum.reject(&(&1 == correct_player)) |> Enum.random()
+
+      game = Game.handle_one_command(context.game, Messages.pass(incorrect_player))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "pass_rejected")
+      assert event.payload == %{passing_player: incorrect_player, reason: "incorrect player"}
+    end
   end
 end
