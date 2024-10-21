@@ -1,3 +1,3 @@
 alias TransSiberianRailroad.Projection
-alias TransSiberianRailroad.Aggregator.{Auction, Players}
+alias TransSiberianRailroad.Aggregator.Auction
 import TransSiberianRailroad.Messages

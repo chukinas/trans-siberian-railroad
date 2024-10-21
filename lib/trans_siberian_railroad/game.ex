@@ -25,6 +25,8 @@ defmodule TransSiberianRailroad.Game do
 
   use TypedStruct
   alias TransSiberianRailroad.Aggregator
+  alias TransSiberianRailroad.Aggregator.Main
+  alias TransSiberianRailroad.Aggregator.Auction
   alias TransSiberianRailroad.Command
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Projection
@@ -32,17 +34,7 @@ defmodule TransSiberianRailroad.Game do
   typedstruct enforce: true do
     field :commands, [Command.t()], default: []
     field :events, [Event.t()], default: []
-
-    field :aggregators, [term()],
-      default:
-        Enum.map(
-          [
-            TransSiberianRailroad.Aggregator.Main,
-            TransSiberianRailroad.Aggregator.Players,
-            TransSiberianRailroad.Aggregator.Auction
-          ],
-          &Projection.project/1
-        )
+    field :aggregators, [term()], default: Enum.map([Main, Auction], &Projection.project/1)
   end
 
   #########################################################

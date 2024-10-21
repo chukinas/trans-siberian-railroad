@@ -24,9 +24,9 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   use TransSiberianRailroad.Projection
   use TypedStruct
   require Logger
-  alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Player
+  alias TransSiberianRailroad.Players
 
   #########################################################
   # PROJECTION
@@ -110,7 +110,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
     company_auction =
       with player_order = ctx.projection.player_order,
-           player_ids = Players.player_order_once_around_the_table(player_order, start_bidder),
+           player_ids = Players.one_round(player_order, start_bidder),
            bidders = Enum.map(player_ids, &{&1, nil}) do
         {:company_auction, company: company, bidders: bidders}
       end

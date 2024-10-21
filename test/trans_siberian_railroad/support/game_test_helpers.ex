@@ -1,8 +1,8 @@
 defmodule TransSiberianRailroad.GameTestHelpers do
-  alias TransSiberianRailroad.Aggregator.Players
   alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
+  alias TransSiberianRailroad.Players
 
   #########################################################
   # Setups
@@ -12,7 +12,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     player_count = context[:player_count] || Enum.random(3..5)
     start_player = context[:starting_player] || Enum.random(1..player_count)
     player_order = Enum.to_list(context[:player_order] || Enum.shuffle(1..player_count))
-    one_round = Players.player_order_once_around_the_table(player_order, start_player)
+    one_round = Players.one_round(player_order, start_player)
 
     game =
       Game.handle_commands([
@@ -35,7 +35,6 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   # Commands
   #########################################################
 
-  # TODO still used?
   def add_player_commands(player_count) when player_count in 1..6 do
     [
       Messages.add_player("Alice"),
@@ -84,5 +83,22 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
   def get_latest_event_by_name(events, event_name) do
     Enum.find(events, &(&1.name == event_name))
+  end
+
+  #########################################################
+  # Money
+  #########################################################
+
+  def current_money(game, player_id) do
+    Enum.reduce(game.events, 0, fn event, balance ->
+      case event.name do
+        "money_transferred" ->
+          amount = Map.get(event.payload.transfers, player_id, 0)
+          balance + amount
+
+        _ ->
+          balance
+      end
+    end)
   end
 end

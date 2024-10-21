@@ -44,6 +44,20 @@ defmodule TransSiberianRailroad.Aggregator.Main do
   # Adding Players
   #########################################################
 
+  handle_command "add_player", ctx do
+    %{player_name: player_name} = ctx.payload
+    projection = ctx.projection
+    player_id = projection.player_count + 1
+    metadata = ctx.next_metadata
+
+    if player_id <= 5 do
+      Messages.player_added(player_id, player_name, metadata)
+    else
+      reason = "There are already 5 players"
+      Messages.player_rejected(player_name, reason, metadata)
+    end
+  end
+
   handle_event "player_added", ctx do
     new_player_count = ctx.projection.player_count + 1
     [player_count: new_player_count]

@@ -666,17 +666,4 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
      amount: amount,
      game: game}
   end
-
-  defp current_money(game, player_id) do
-    Enum.reduce(game.events, 0, fn event, balance ->
-      case event.name do
-        "money_transferred" ->
-          amount = Map.get(event.payload.transfers, player_id, 0)
-          balance + amount
-
-        _ ->
-          balance
-      end
-    end)
-  end
 end
