@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.Main do
+defmodule TransSiberianRailroad.Aggregator.Setup do
   @moduledoc """
   The main orchestrating aggregator for the game.
   """
@@ -34,8 +34,14 @@ defmodule TransSiberianRailroad.Aggregator.Main do
 
   handle_command "initialize_game", ctx do
     %{game_id: game_id} = ctx.payload
+    metadata = ctx.next_metadata
 
-    Messages.game_initialized(game_id, ctx.next_metadata)
+    if ctx.projection.game_id do
+      reason = "Game already initialized"
+      Messages.game_initialization_rejected(game_id, reason, metadata)
+    else
+      Messages.game_initialized(game_id, metadata)
+    end
   end
 
   handle_event("game_initialized", ctx, do: [game_id: ctx.payload.game_id])
@@ -49,12 +55,12 @@ defmodule TransSiberianRailroad.Aggregator.Main do
     projection = ctx.projection
     player_id = projection.player_count + 1
     metadata = ctx.next_metadata
+    reject = &Messages.player_rejected(player_name, &1, metadata)
 
-    if player_id <= 5 do
-      Messages.player_added(player_id, player_name, metadata)
-    else
-      reason = "There are already 5 players"
-      Messages.player_rejected(player_name, reason, metadata)
+    cond do
+      projection.player_order_set -> reject.("player order already set")
+      player_id > 5 -> reject.("There are already 5 players")
+      true -> Messages.player_added(player_id, player_name, metadata)
     end
   end
 

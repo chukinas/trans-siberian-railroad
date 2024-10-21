@@ -1,5 +1,4 @@
-# TODO rename Agg.Setup
-defmodule TransSiberianRailroad.Aggregator.MainTest do
+defmodule TransSiberianRailroad.Aggregator.SetupTest do
   use ExUnit.Case
   import TransSiberianRailroad.GameTestHelpers
   alias TransSiberianRailroad.Game
@@ -28,7 +27,23 @@ defmodule TransSiberianRailroad.Aggregator.MainTest do
   end
 
   describe "add_player -> player_rejected" do
-    # TODO test that player_rejected also happens before game init and after game start
+    test "when already player_order_set" do
+      # ARRANGE
+      game =
+        Game.handle_commands([
+          Messages.initialize_game(),
+          add_player_commands(3),
+          Messages.set_player_order([1, 2, 3])
+        ])
+
+      # ACT
+      game = Game.handle_one_command(game, Messages.add_player("David"))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "player_rejected")
+      assert event.payload.player_name == "David"
+    end
+
     test "when there are already 5 players" do
       # ARRANGE - add 5 players. Game is now full.
       commands = [Messages.initialize_game() | add_player_commands(5)]
@@ -43,9 +58,15 @@ defmodule TransSiberianRailroad.Aggregator.MainTest do
     end
   end
 
-  describe "initialize_game -> game_initialization_rejected" do
-    # TODO when else
-    test "when game already initialized"
+  test "initialize_game -> game_initialization_rejected when game already initialized" do
+    # ARRANGE
+    game = Game.handle_commands([Messages.initialize_game()])
+
+    # ACT
+    game = Game.handle_one_command(game, Messages.initialize_game())
+
+    # ASSERT
+    assert fetch_single_event!(game.events, "game_initialization_rejected")
   end
 
   test "set_start_player is an optional command" do
