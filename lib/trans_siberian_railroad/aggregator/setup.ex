@@ -4,7 +4,6 @@ defmodule TransSiberianRailroad.Aggregator.Setup do
   """
 
   use TransSiberianRailroad.Aggregator
-  use TypedStruct
   alias TransSiberianRailroad.Messages
 
   @starting_money_by_player_count %{

@@ -388,12 +388,16 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ARRANGE: see :start_game
       auction_winner = context.auction_winner
       start_bidder_money = current_money(context.game_prior_to_bidding, auction_winner)
+      game = context.game
 
       # ACT: see this descibe block's setup
 
       # ASSERT
-      current_bidder_money = current_money(context.game, auction_winner)
+      current_bidder_money = current_money(game, auction_winner)
       assert current_bidder_money == start_bidder_money - context.amount
+
+      assert event = get_latest_event_by_name(game.events, "money_transferred")
+      assert event.payload.reason == "First company stock auctioned off"
     end
 
     test "-> company_auction_started with next company", context do
@@ -636,34 +640,5 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert event = fetch_single_event!(game.events, "auction_phase_ended")
       assert event.payload == %{phase_number: 1}
     end
-  end
-
-  #########################################################
-  # HELPERS
-  #########################################################
-
-  defp auction_off_company(context) do
-    # capture state before applying the bids and passing
-    game_prior_to_bidding = context.game
-    auction_winner = context[:auction_winner] || Enum.random(context.one_round)
-    amount = context[:winning_bid_amount] || 8
-
-    game =
-      Game.handle_commands(
-        context.game,
-        for player_id <- context.one_round do
-          if player_id == auction_winner do
-            Messages.submit_bid(player_id, :red, amount)
-          else
-            Messages.pass_on_company(player_id, :red)
-          end
-        end
-      )
-
-    {:ok,
-     game_prior_to_bidding: game_prior_to_bidding,
-     auction_winner: auction_winner,
-     amount: amount,
-     game: game}
   end
 end

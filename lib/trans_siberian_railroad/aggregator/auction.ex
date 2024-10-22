@@ -22,8 +22,6 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
-  use TypedStruct
-  require Logger
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Player
   alias TransSiberianRailroad.Players
@@ -247,9 +245,10 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
       [
         Messages.player_won_company_auction(auction_winner, company, amount, metadata.(0)),
+        # TODO the reason is too specific. Rm the player and company ids
         Messages.money_transferred(
           %{auction_winner => -amount, company => amount},
-          "Player #{auction_winner} won the auction for #{company}'s opening share",
+          "First company stock auctioned off",
           metadata.(1)
         )
       ]

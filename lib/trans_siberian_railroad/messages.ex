@@ -258,6 +258,39 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
+  # Player Turn
+  #########################################################
+
+  def player_turn_started(player, metadata) when Player.is_id(player) do
+    event(player: player)
+  end
+
+  #########################################################
+  # Player Action #3: Pass
+  #########################################################
+
+  def pass(passing_player) when Player.is_id(passing_player) do
+    command(passing_player: passing_player)
+  end
+
+  def passed(passing_player, metadata) when Player.is_id(passing_player) do
+    event(passing_player: passing_player)
+  end
+
+  def pass_rejected(passing_player, reason, metadata)
+      when Player.is_id(passing_player) and is_binary(reason) do
+    event(passing_player: passing_player, reason: reason)
+  end
+
+  #########################################################
+  # End of Turn Sequence
+  #########################################################
+
+  def end_of_turn_sequence_started(metadata) do
+    event([])
+  end
+
+  #########################################################
   # Message name guards
   # These must remain at the bottom of the module
   #########################################################
