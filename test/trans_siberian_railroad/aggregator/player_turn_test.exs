@@ -24,6 +24,62 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       else: :ok
   end
 
+  #########################################################
+  # Player Action Option #1A: Buy Single Stock
+  #########################################################
+
+  describe "purchase_single_stock -> single_stock_purchase_rejected" do
+    @tag :start_game
+    test "when not a player turn (e.g. auction phase)", context do
+      # ARRANGE
+      game = context.game
+      refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
+
+      # ACT
+      # TODO I think I like the wording "wrong player" and "wrong company" better?
+      incorrect_player =
+        context.one_round |> Enum.reject(&(&1 == context.start_player)) |> Enum.random()
+
+      incorrect_company = :black
+      incorrect_price = 76
+
+      game =
+        Game.handle_one_command(
+          game,
+          Messages.purchase_single_stock(incorrect_player, incorrect_company, incorrect_price)
+        )
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
+
+      assert event.payload == %{
+               purchasing_player: incorrect_player,
+               company: incorrect_company,
+               price: incorrect_price,
+               reason: "not a player turn"
+             }
+    end
+
+    test "when not a player turn (e.g. end-of-turn sequence)"
+    test "incorrect player"
+    test "insufficient funds"
+    test "company not active"
+    test "company stock already all sold off"
+    test "company has been nationalized"
+    test "incorrect price"
+  end
+
+  describe "purchase_single_stock -> single_stock_purchased" do
+    test "-> money_transferred"
+    test "-> stock_transferred"
+    test "-> end_of_turn_sequence_started"
+  end
+
+  #########################################################
+  # Player Action Option #3: Pass
+  #########################################################
+
+  # TODO follow the naming conventions above
   describe "pass_rejected when" do
     test "not a player turn (e.g. setup)" do
       # ARRANGE

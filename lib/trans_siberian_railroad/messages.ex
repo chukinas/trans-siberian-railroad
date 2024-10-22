@@ -266,7 +266,27 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
-  # Player Action #3: Pass
+  # Player Action Option #1A: Buy Single Stock
+  #########################################################
+
+  def purchase_single_stock(purchasing_player, company, price)
+      when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) do
+    command(purchasing_player: purchasing_player, company: company, price: price)
+  end
+
+  def single_stock_purchased(purchasing_player, company, price, metadata)
+      when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) do
+    event(purchasing_player: purchasing_player, company: company, price: price)
+  end
+
+  def single_stock_purchase_rejected(purchasing_player, company, price, reason, metadata)
+      when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) and
+             is_binary(reason) do
+    event(purchasing_player: purchasing_player, company: company, price: price, reason: reason)
+  end
+
+  #########################################################
+  # Player Action Option #3: Pass
   #########################################################
 
   def pass(passing_player) when Player.is_id(passing_player) do
