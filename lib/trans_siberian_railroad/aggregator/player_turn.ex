@@ -5,6 +5,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
+  require TransSiberianRailroad.Player, as: Player
+  alias TransSiberianRailroad.RailCompany, as: Company
   alias TransSiberianRailroad.Messages
 
   #########################################################
@@ -13,6 +15,9 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
   typedstruct opaque: true do
     version_field()
+
+    field :player_money_balances, %{(Player.id() | Company.id()) => non_neg_integer()},
+      default: %{}
 
     @start_player ~w/awaiting_end_of_first_auction_phase start_player/a
     field :state_machine, [{:atom, Keyword.t()}],
@@ -33,6 +38,26 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     %{auction_winner: auction_winner} = ctx.payload
     state_machine = put_in(ctx.projection.state_machine, @start_player, auction_winner)
     [state_machine: state_machine]
+  end
+
+  #########################################################
+  # Money
+  #########################################################
+
+  handle_event "money_transferred", ctx do
+    transfers = ctx.payload.transfers
+    player_money_balances = ctx.projection.player_money_balances
+
+    new_player_money_balances =
+      Enum.reduce(transfers, player_money_balances, fn
+        {entity, amount}, balances when Player.is_id(entity) ->
+          Map.update(balances, entity, amount, &(&1 + amount))
+
+        _, balances ->
+          balances
+      end)
+
+    [player_money_balances: new_player_money_balances]
   end
 
   #########################################################
@@ -74,7 +99,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     projection = ctx.projection
 
     with :ok <- validate_player_turn(projection),
-         :ok <- validate_current_player(projection, purchasing_player) do
+         :ok <- validate_current_player(projection, purchasing_player),
+         :ok <- validate_funds(projection, purchasing_player, price) do
       transfers = %{purchasing_player => -price, company => price}
       reason = "single stock purchased"
 
@@ -129,6 +155,14 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     case get_current_player(projection) do
       ^player -> :ok
       _ -> {:error, "incorrect player"}
+    end
+  end
+
+  defp validate_funds(projection, player, price) do
+    case Map.get(projection.player_money_balances, player) do
+      nil -> {:error, "player does not exist"}
+      balance when is_integer(balance) and balance >= price -> :ok
+      _ -> {:error, "insufficient funds"}
     end
   end
 

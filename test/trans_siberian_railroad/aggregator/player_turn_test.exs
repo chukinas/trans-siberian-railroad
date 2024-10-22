@@ -64,7 +64,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
     test "when not a player turn (e.g. end-of-turn sequence)"
 
     @tag :random_first_auction_phase
-    test "incorrect player", context do
+    test "incorrect player (not start player)", context do
       # ARRANGE
       correct_player = context.start_player
       assert [] = Enum.filter(context.game.events, &String.contains?(&1.name, "reject"))
@@ -91,7 +91,49 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
              }
     end
 
-    test "insufficient funds"
+    test "incorrect player (not second player)"
+
+    test "insufficient funds", context do
+      # ARRANGE
+      # Only one player (start player) wins an auction for all his money.
+      # He then sets the starting stock price at the same amount.
+      game = context.game
+      start_player = context.start_player
+      winning_bid = current_money(game, start_player)
+      only_auctioned_company = :yellow
+
+      commands =
+        for company <- ~w/red blue green yellow/a,
+            player <- context.one_round do
+          if player == start_player and company == only_auctioned_company do
+            Messages.submit_bid(start_player, only_auctioned_company, winning_bid)
+          else
+            Messages.pass_on_company(player, company)
+          end
+        end
+
+      commands = [
+        commands,
+        Messages.set_starting_stock_price(start_player, only_auctioned_company, winning_bid)
+      ]
+
+      game = Game.handle_commands(game, commands)
+
+      # ACT
+      command = Messages.purchase_single_stock(start_player, only_auctioned_company, winning_bid)
+      game = Game.handle_one_command(game, command)
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
+
+      assert event.payload == %{
+               purchasing_player: start_player,
+               company: only_auctioned_company,
+               price: winning_bid,
+               reason: "insufficient funds"
+             }
+    end
+
     test "company not active"
     test "company stock already all sold off"
     test "company has been nationalized"

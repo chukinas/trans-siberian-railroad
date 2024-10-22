@@ -22,8 +22,8 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
+  require TransSiberianRailroad.Player, as: Player
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Player
   alias TransSiberianRailroad.Players
 
   #########################################################
@@ -33,7 +33,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   typedstruct opaque: true do
     version_field()
     field :player_order, [Player.id()]
-    field :player_money_balances, %{Player.id() => integer()}, default: %{}
+    field :player_money_balances, %{Player.id() => non_neg_integer()}, default: %{}
     field :state_machine, [{:atom, Keyword.t()}], default: []
   end
 
@@ -50,7 +50,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
     new_player_money_balances =
       Enum.reduce(transfers, player_money_balances, fn
-        {entity, amount}, balances when is_integer(entity) ->
+        {entity, amount}, balances when Player.is_id(entity) ->
           Map.update(balances, entity, amount, &(&1 + amount))
 
         _, balances ->
