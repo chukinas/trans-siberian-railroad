@@ -24,12 +24,14 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       else: :ok
   end
 
+  @incorrect_price 76
   #########################################################
   # Player Action Option #1A: Buy Single Stock
   #########################################################
 
   describe "purchase_single_stock -> single_stock_purchase_rejected" do
-    @tag :start_game
+    @describetag :start_game
+
     test "when not a player turn (e.g. auction phase)", context do
       # ARRANGE
       game = context.game
@@ -37,17 +39,16 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
 
       # ACT
       # TODO I think I like the wording "wrong player" and "wrong company" better?
+      # TODO extract function
       incorrect_player =
         context.one_round |> Enum.reject(&(&1 == context.start_player)) |> Enum.random()
 
       incorrect_company = :black
-      incorrect_price = 76
 
-      game =
-        Game.handle_one_command(
-          game,
-          Messages.purchase_single_stock(incorrect_player, incorrect_company, incorrect_price)
-        )
+      command =
+        Messages.purchase_single_stock(incorrect_player, incorrect_company, @incorrect_price)
+
+      game = Game.handle_one_command(context.game, command)
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
@@ -55,13 +56,41 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       assert event.payload == %{
                purchasing_player: incorrect_player,
                company: incorrect_company,
-               price: incorrect_price,
+               price: @incorrect_price,
                reason: "not a player turn"
              }
     end
 
     test "when not a player turn (e.g. end-of-turn sequence)"
-    test "incorrect player"
+
+    @tag :random_first_auction_phase
+    test "incorrect player", context do
+      # ARRANGE
+      correct_player = context.start_player
+      assert [] = Enum.filter(context.game.events, &String.contains?(&1.name, "reject"))
+
+      # ACT
+      incorrect_player =
+        context.one_round |> Enum.reject(&(&1 == correct_player)) |> Enum.random()
+
+      incorrect_company = :black
+
+      command =
+        Messages.purchase_single_stock(incorrect_player, incorrect_company, @incorrect_price)
+
+      game = Game.handle_one_command(context.game, command)
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
+
+      assert event.payload == %{
+               purchasing_player: incorrect_player,
+               company: incorrect_company,
+               price: @incorrect_price,
+               reason: "incorrect player"
+             }
+    end
+
     test "insufficient funds"
     test "company not active"
     test "company stock already all sold off"
