@@ -62,4 +62,21 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       assert event.payload == %{passing_player: incorrect_player, reason: "incorrect player"}
     end
   end
+
+  describe "passed" do
+    @tag :start_game
+    @tag :random_first_auction_phase
+    test "-> end_of_turn_sequence_started", context do
+      # ARRANGE
+      game = context.game
+      refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
+
+      # ACT
+      game = Game.handle_one_command(game, Messages.pass(context.start_player))
+
+      # ASSERT
+      assert fetch_single_event!(game.events, "passed")
+      assert fetch_single_event!(game.events, "end_of_turn_sequence_started")
+    end
+  end
 end

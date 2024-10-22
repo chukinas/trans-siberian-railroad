@@ -74,8 +74,15 @@ defmodule TransSiberianRailroad.Aggregator do
     %TransSiberianRailroad.Command{name: command_name, payload: payload} = command
 
     if command_name in projection_mod.__handled_command_names__() do
-      next_metadata = Projection.next_metadata(projection)
-      ctx = %{projection: projection, payload: payload, next_metadata: next_metadata}
+      metadata = &Projection.next_metadata(projection, &1)
+      next_metadata = metadata.(0)
+
+      ctx = %{
+        projection: projection,
+        payload: payload,
+        next_metadata: next_metadata,
+        metadata: metadata
+      }
 
       projection_mod.__handle_command__(command_name, ctx)
       |> List.wrap()

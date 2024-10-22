@@ -283,6 +283,14 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
+  # End of Turn Sequence
+  #########################################################
+
+  def end_of_turn_sequence_started(metadata) do
+    event([])
+  end
+
+  #########################################################
   # Message name guards
   # These must remain at the bottom of the module
   #########################################################

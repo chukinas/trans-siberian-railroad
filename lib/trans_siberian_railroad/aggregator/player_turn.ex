@@ -104,7 +104,13 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
           "not a player turn"
       end
 
-    metadata = ctx.next_metadata
-    Messages.pass_rejected(passing_player, reason, metadata)
+    if reason do
+      Messages.pass_rejected(passing_player, reason, ctx.metadata.(0))
+    else
+      [
+        Messages.passed(passing_player, ctx.metadata.(0)),
+        Messages.end_of_turn_sequence_started(ctx.metadata.(1))
+      ]
+    end
   end
 end
