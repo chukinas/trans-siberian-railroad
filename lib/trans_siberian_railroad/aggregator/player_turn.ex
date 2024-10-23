@@ -19,6 +19,9 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     field :player_money_balances, %{(Player.id() | Company.id()) => non_neg_integer()},
       default: %{}
 
+    # If a company is not in this map, it never had its first stock auctioned off
+    field :companies, %{Company.id() => :active | :nationalized}, default: %{}
+
     @start_player ~w/awaiting_end_of_first_auction_phase start_player/a
     field :state_machine, [{:atom, Keyword.t()}],
       default: [awaiting_end_of_first_auction_phase: [start_player: nil]]
@@ -35,9 +38,10 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   end
 
   handle_event "player_won_company_auction", ctx do
-    %{auction_winner: auction_winner} = ctx.payload
+    %{auction_winner: auction_winner, company: company} = ctx.payload
+    companies = Map.put(ctx.projection.companies, company, :active)
     state_machine = put_in(ctx.projection.state_machine, @start_player, auction_winner)
-    [state_machine: state_machine]
+    [companies: companies, state_machine: state_machine]
   end
 
   #########################################################
@@ -100,6 +104,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
     with :ok <- validate_player_turn(projection),
          :ok <- validate_current_player(projection, purchasing_player),
+         :ok <- validate_active_company(projection, company),
          :ok <- validate_funds(projection, purchasing_player, price) do
       transfers = %{purchasing_player => -price, company => price}
       reason = "single stock purchased"
@@ -155,6 +160,14 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     case get_current_player(projection) do
       ^player -> :ok
       _ -> {:error, "incorrect player"}
+    end
+  end
+
+  defp validate_active_company(projection, company) do
+    case Map.get(projection.companies, company) do
+      nil -> {:error, "company was never active"}
+      :active -> :ok
+      :nationalized -> {:error, "company nationalized"}
     end
   end
 

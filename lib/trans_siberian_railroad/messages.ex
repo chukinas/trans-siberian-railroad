@@ -193,6 +193,8 @@ defmodule TransSiberianRailroad.Messages do
 
   @doc """
   This and "all_players_passed_on_company" both end the company auction started by "company_auction_started".
+
+  At this point, the company is "Open".
   """
   def player_won_company_auction(auction_winner, company, bid_amount, metadata)
       when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(bid_amount) and

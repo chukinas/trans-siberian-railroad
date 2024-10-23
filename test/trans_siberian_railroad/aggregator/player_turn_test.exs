@@ -93,6 +93,47 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
 
     test "incorrect player (not second player)"
 
+    test "company not active", context do
+      # ARRANGE
+      # Only yellow gets auctioned off
+      game = context.game
+      start_player = context.start_player
+      winning_bid = current_money(game, start_player)
+      only_auctioned_company = :yellow
+
+      commands =
+        for company <- ~w/red blue green yellow/a,
+            player <- context.one_round do
+          if player == start_player and company == only_auctioned_company do
+            Messages.submit_bid(start_player, only_auctioned_company, winning_bid)
+          else
+            Messages.pass_on_company(player, company)
+          end
+        end
+
+      commands = [
+        commands,
+        Messages.set_starting_stock_price(start_player, only_auctioned_company, winning_bid)
+      ]
+
+      game = Game.handle_commands(game, commands)
+
+      # ACT
+      attempted_company = :red
+      command = Messages.purchase_single_stock(start_player, attempted_company, winning_bid)
+      game = Game.handle_one_command(game, command)
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
+
+      assert event.payload == %{
+               purchasing_player: start_player,
+               company: attempted_company,
+               price: winning_bid,
+               reason: "company was never active"
+             }
+    end
+
     test "insufficient funds", context do
       # ARRANGE
       # Only one player (start player) wins an auction for all his money.
@@ -134,7 +175,6 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
              }
     end
 
-    test "company not active"
     test "company stock already all sold off"
     test "company has been nationalized"
     test "incorrect price"
