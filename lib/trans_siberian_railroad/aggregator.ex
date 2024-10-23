@@ -71,10 +71,17 @@ defmodule TransSiberianRailroad.Aggregator do
 
   def handle_one_command(projection, command) do
     %projection_mod{} = projection
-    %TransSiberianRailroad.Command{name: command_name, payload: payload} = command
+
+    %TransSiberianRailroad.Command{name: command_name, payload: payload, trace_id: trace_id} =
+      command
 
     if command_name in projection_mod.__handled_command_names__() do
-      metadata = &Projection.next_metadata(projection, &1)
+      metadata = fn offset ->
+        projection
+        |> Projection.next_metadata(offset)
+        |> Keyword.put(:trace_id, trace_id)
+      end
+
       next_metadata = metadata.(0)
 
       ctx = %{
@@ -87,6 +94,15 @@ defmodule TransSiberianRailroad.Aggregator do
       projection_mod.__handle_command__(command_name, ctx)
       |> List.wrap()
       |> Enum.reject(&is_nil/1)
+      |> case do
+        [fun | _] = message_builders when is_function(fun, 1) ->
+          message_builders
+          |> Enum.with_index()
+          |> Enum.map(fn {build_msg, idx} -> build_msg.(metadata.(idx)) end)
+
+        events ->
+          events
+      end
     else
       []
     end

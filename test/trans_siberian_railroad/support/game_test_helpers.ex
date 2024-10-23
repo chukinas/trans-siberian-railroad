@@ -71,7 +71,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
   def start_game(context) do
     player_count = context[:player_count] || Enum.random(3..5)
-    start_player = context[:starting_player] || Enum.random(1..player_count)
+    start_player = context[:start_player] || Enum.random(1..player_count)
     player_order = Enum.to_list(context[:player_order] || Enum.shuffle(1..player_count))
     one_round = Players.one_round(player_order, start_player)
 
@@ -138,14 +138,6 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   # State (Events) Converters
   #########################################################
 
-  def player_order(events) do
-    fetch_single_event_payload!(events, "player_order_set").player_order
-  end
-
-  def starting_player(events) do
-    fetch_single_event_payload!(events, "start_player_set").start_player
-  end
-
   def fetch_single_event_payload!(events, event_name) do
     fetch_single_event!(events, event_name).payload
   end
@@ -170,6 +162,34 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
   def get_latest_event_by_name(events, event_name) do
     Enum.find(events, &(&1.name == event_name))
+  end
+
+  def group_messages_by_trace(game) do
+    get_events_by_trace =
+      with events_by_trace = Enum.group_by(game.events, & &1.trace_id) do
+        fn trace_id ->
+          events_by_trace[trace_id]
+          |> List.wrap()
+          |> Enum.sort_by(& &1.version)
+        end
+      end
+
+    grouped_messages =
+      game.commands
+      |> Enum.reverse()
+      |> Enum.map(fn command ->
+        trace_id = command.trace_id
+        events = get_events_by_trace.(trace_id)
+        {trace_id, [command | events]}
+      end)
+
+    Enum.chunk_by(grouped_messages, fn {_trace_id, messages} ->
+      !!Enum.find(messages, &String.contains?(&1.name, "reject"))
+    end)
+    |> case do
+      [no_rejections, [first_rejection | _] | _] -> no_rejections ++ [first_rejection]
+      [no_rejections | _] -> no_rejections
+    end
   end
 
   #########################################################

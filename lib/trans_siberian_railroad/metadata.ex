@@ -12,9 +12,7 @@ defmodule TransSiberianRailroad.Metadata do
 
   @type t() :: Keyword.t()
 
-  def new(version) do
-    [version: version]
+  def new(version, trace_id) do
+    [version: version, trace_id: trace_id]
   end
-
-  defguard is(metadata) when is_list(metadata) and length(metadata) == 1
 end

@@ -1,5 +1,6 @@
-defmodule TransSiberianRailroad.BananaTest do
+defmodule TransSiberianRailroad.GameTest do
   use ExUnit.Case
+  import TransSiberianRailroad.GameTestHelpers
   alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Messages
 
@@ -8,13 +9,13 @@ defmodule TransSiberianRailroad.BananaTest do
   end
 
   test "smoke test" do
+    # ACT
     command = Messages.initialize_game()
+    game = Game.handle_commands([command])
 
-    assert %{events: events} =
-             Game.init()
-             |> Game.handle_one_command(command)
-
-    assert length(events) == 1
+    # ASSERT
+    assert event = fetch_single_event!(game.events, "game_initialized")
+    assert %{game_id: _} = event.payload
   end
 
   test "event indexes start at 0"

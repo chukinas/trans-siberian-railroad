@@ -19,7 +19,7 @@ defmodule TransSiberianRailroad.Aggregator.Setup do
   use TransSiberianRailroad.Projection
 
   typedstruct do
-    version_field()
+    projection_fields()
     field :game_id, String.t()
     field :player_count, 0..5, default: 0
     field :start_player, 1..5
@@ -33,13 +33,42 @@ defmodule TransSiberianRailroad.Aggregator.Setup do
 
   handle_command "initialize_game", ctx do
     %{game_id: game_id} = ctx.payload
-    metadata = ctx.next_metadata
+    metadata = ctx.metadata
 
     if ctx.projection.game_id do
       reason = "Game already initialized"
-      Messages.game_initialization_rejected(game_id, reason, metadata)
+      Messages.game_initialization_rejected(game_id, reason, metadata.(0))
     else
-      Messages.game_initialized(game_id, metadata)
+      reason = "game initialization"
+
+      [
+        &Messages.game_initialized(game_id, &1),
+        for company <- ~w/red blue green yellow/a do
+          &Messages.stock_certificates_transferred(
+            company,
+            :bank,
+            company,
+            5,
+            reason,
+            &1
+          )
+        end,
+        for company <- ~w/black white/a do
+          &Messages.stock_certificates_transferred(
+            company,
+            :bank,
+            company,
+            3,
+            reason,
+            &1
+          )
+        end
+      ]
+      |> List.flatten()
+      |> Enum.with_index()
+      |> Enum.map(fn {build_msg, idx} ->
+        build_msg.(metadata.(idx))
+      end)
     end
   end
 
@@ -97,7 +126,7 @@ defmodule TransSiberianRailroad.Aggregator.Setup do
   handle_command "start_game", ctx do
     main = ctx.projection
     player_count = main.player_count
-    metadata = &Projection.next_metadata(main, &1)
+    metadata = ctx.metadata
 
     if player_count in 3..5 do
       player_ids = 1..player_count

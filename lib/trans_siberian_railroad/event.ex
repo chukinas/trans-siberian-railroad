@@ -30,6 +30,7 @@ defmodule TransSiberianRailroad.Event do
     field :name, String.t()
     field :payload, nil | map(), default: nil
     field :version, pos_integer()
+    field :trace_id, Ecto.UUID.t()
   end
 
   defimpl Inspect do
@@ -46,7 +47,12 @@ defmodule TransSiberianRailroad.Event do
     %__MODULE__{
       name: name,
       payload: payload,
-      version: Keyword.fetch!(metadata, :version)
+      version: Keyword.fetch!(metadata, :version),
+      trace_id:
+        case Keyword.fetch!(metadata, :trace_id) do
+          nil -> raise "No trace_id provided for event #{name}"
+          trace_id -> trace_id
+        end
     }
   end
 

@@ -13,4 +13,17 @@ defmodule TransSiberianRailroad.Players do
     |> Stream.drop_while(&(&1 != start_player))
     |> Enum.take(player_count)
   end
+
+  def next_player(player_order, current_player) do
+    player_order
+    |> one_round(current_player)
+    |> Enum.drop(1)
+    |> hd()
+  end
+
+  def previous_player(player_order, current_player) do
+    player_order
+    |> one_round(current_player)
+    |> Enum.at(-1)
+  end
 end

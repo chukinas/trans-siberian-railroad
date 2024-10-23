@@ -25,6 +25,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
   end
 
   @incorrect_price 76
+
   #########################################################
   # Player Action Option #1A: Buy Single Stock
   #########################################################
@@ -175,7 +176,47 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
              }
     end
 
-    test "company stock already all sold off"
+    @tag start_player: 1
+    @tag player_count: 3
+    @tag player_order: [1, 2, 3]
+    test "company stock already all sold off", context do
+      # ARRANGE
+      game =
+        Game.handle_commands(context.game, [
+          for company <- ~w/red blue green yellow/a,
+              player <- context.one_round do
+            if player == 3 and company == :yellow do
+              [
+                Messages.submit_bid(player, company, 8),
+                Messages.set_starting_stock_price(player, company, 8)
+              ]
+            else
+              Messages.pass_on_company(player, company)
+            end
+          end,
+          Messages.purchase_single_stock(3, :yellow, 8),
+          Messages.purchase_single_stock(1, :yellow, 8),
+          Messages.purchase_single_stock(2, :yellow, 8),
+          Messages.purchase_single_stock(3, :yellow, 8)
+        ])
+
+      refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
+
+      # ACT
+      # Now that all red stock have been auctioned and sold off, try to buy one more
+      game = Game.handle_one_command(game, Messages.purchase_single_stock(1, :yellow, 8))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
+
+      assert event.payload == %{
+               purchasing_player: 1,
+               company: :yellow,
+               price: 8,
+               reason: "company has no stock to sell"
+             }
+    end
+
     test "company has been nationalized"
     test "incorrect price"
   end
