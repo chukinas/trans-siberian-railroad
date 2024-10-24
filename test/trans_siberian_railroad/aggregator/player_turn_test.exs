@@ -308,7 +308,32 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
              }
     end
 
-    test "-> stock_transferred"
+    test "-> stock_transferred", context do
+      # ARRANGE
+      game = context.game
+      refute get_latest_event_by_name(game.events, "single_stock_purchased")
+
+      stock_transferred_events =
+        filter_events_by_name(game.events, "stock_certificates_transferred")
+
+      # ACT
+      game = Game.handle_one_command(game, Messages.purchase_single_stock(3, :yellow, 8))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "single_stock_purchased")
+      assert event.payload == %{company: :yellow, price: 8, purchasing_player: 3}
+
+      assert [event | ^stock_transferred_events] =
+               filter_events_by_name(game.events, "stock_certificates_transferred")
+
+      assert event.payload == %{
+               company: :yellow,
+               from: :yellow,
+               to: 3,
+               quantity: 1,
+               reason: "single stock purchased"
+             }
+    end
 
     test "-> end_of_turn_sequence_started", context do
       # ARRANGE
