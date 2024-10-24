@@ -259,9 +259,51 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
   end
 
   describe "purchase_single_stock -> single_stock_purchased" do
+    @describetag start_player: 1
+    @describetag player_count: 3
+    @describetag player_order: [1, 2, 3]
+    @describetag :start_game
+    setup context do
+      # ARRANGE
+      game =
+        Game.handle_commands(context.game, [
+          for company <- ~w/red blue green yellow/a,
+              player <- context.one_round do
+            if player == 3 and company == :yellow do
+              [
+                Messages.submit_bid(player, company, 8),
+                Messages.set_starting_stock_price(player, company, 8)
+              ]
+            else
+              Messages.pass_on_company(player, company)
+            end
+          end
+        ])
+
+      # ASSERT
+      refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
+
+      [game: game]
+    end
+
     test "-> money_transferred"
     test "-> stock_transferred"
-    test "-> end_of_turn_sequence_started"
+
+    test "-> end_of_turn_sequence_started", context do
+      # ARRANGE
+      game = context.game
+      refute get_latest_event_by_name(game.events, "single_stock_purchased")
+      refute get_latest_event_by_name(game.events, "end_of_turn_sequence_started")
+
+      # ACT
+      game = Game.handle_one_command(game, Messages.purchase_single_stock(3, :yellow, 8))
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "single_stock_purchased")
+      assert event.payload == %{company: :yellow, price: 8, purchasing_player: 3}
+      assert event = fetch_single_event!(game.events, "end_of_turn_sequence_started")
+      assert event.payload == %{}
+    end
   end
 
   #########################################################
