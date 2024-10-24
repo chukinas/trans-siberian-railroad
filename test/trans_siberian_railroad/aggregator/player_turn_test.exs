@@ -218,7 +218,44 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
     end
 
     test "company has been nationalized"
-    test "incorrect price"
+
+    @tag start_player: 1
+    @tag player_count: 3
+    @tag player_order: [1, 2, 3]
+    test "does not match current stock price", context do
+      # ARRANGE
+      game =
+        Game.handle_commands(context.game, [
+          for company <- ~w/red blue green yellow/a,
+              player <- context.one_round do
+            if player == 3 and company == :yellow do
+              [
+                Messages.submit_bid(player, company, 8),
+                Messages.set_starting_stock_price(player, company, 8)
+              ]
+            else
+              Messages.pass_on_company(player, company)
+            end
+          end
+        ])
+
+      refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
+
+      # ACT
+      # Now that all red stock have been auctioned and sold off, try to buy one more
+      command = Messages.purchase_single_stock(3, :yellow, 12)
+      game = Game.handle_one_command(game, command)
+
+      # ASSERT
+      assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
+
+      assert event.payload == %{
+               purchasing_player: 3,
+               company: :yellow,
+               price: 12,
+               reason: "does not match current stock price"
+             }
+    end
   end
 
   describe "purchase_single_stock -> single_stock_purchased" do

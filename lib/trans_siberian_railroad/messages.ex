@@ -278,6 +278,12 @@ defmodule TransSiberianRailroad.Messages do
     event(auction_winner: auction_winner, company: company, price: price, reason: reason)
   end
 
+  # owner: nil
+  def stock_price_increased(company, new_price, metadata)
+      when Company.is_id(company) and is_integer(new_price) do
+    event(company: company, price: new_price)
+  end
+
   #########################################################
   # Player Turn
   #########################################################
