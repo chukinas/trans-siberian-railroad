@@ -19,9 +19,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   # PROJECTION
   #########################################################
 
-  typedstruct opaque: true do
-    projection_fields()
-
+  aggregator_typedstruct do
     field :player_order, [Player.id()]
 
     field :fetched_next_player, {:ok, Player.id()} | {:error, String.t()},
@@ -118,8 +116,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   # :companies[company].stock_price
   #########################################################
 
-  handle_event("starting_stock_price_set", ctx, do: stock_price(ctx))
-  handle_event("stock_price_increased", ctx, do: stock_price(ctx))
+  handle_event("stock_value_set", ctx, do: stock_price(ctx))
+  handle_event("stock_value_incremented", ctx, do: stock_price(ctx))
 
   defp stock_price(ctx) do
     %{company: company, price: stock_price} = ctx.payload
@@ -217,6 +215,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
          :ok <- validate_current_player(projection, passing_player) do
       [
         &Messages.passed(passing_player, &1),
+        &Messages.timing_track_incremented(&1),
         &Messages.end_of_turn_sequence_started(&1)
       ]
     else

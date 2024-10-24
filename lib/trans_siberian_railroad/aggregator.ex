@@ -14,16 +14,32 @@ defmodule TransSiberianRailroad.Aggregator do
     quote do
       @mod TransSiberianRailroad.Aggregator
       @before_compile @mod
-      import TransSiberianRailroad.Aggregator, only: [defreaction: 2, handle_command: 3]
+      import TransSiberianRailroad.Aggregator,
+        only: [aggregator_typedstruct: 1, defreaction: 2, handle_command: 3]
+
+      require TransSiberianRailroad.Aggregator, as: Aggregator
       unquote(accumulate_command_names())
       unquote(accumulate_reactions())
+      unquote(accumulate_sent_reactions())
     end
   end
 
   defmacro __before_compile__(_) do
     quote do
-      unquote(inject_handle_command_names_fn())
-      unquote(inject_reactions_fn())
+      unquote(before_compile_commands())
+      unquote(before_compile_reactions())
+      unquote(before_compile_sent_reactions())
+    end
+  end
+
+  defmacro aggregator_typedstruct(do: block) do
+    quote do
+      typedstruct opaque: true do
+        projection_fields()
+
+        unquote(__sent_reactions_field__())
+        unquote(block)
+      end
     end
   end
 
@@ -63,7 +79,7 @@ defmodule TransSiberianRailroad.Aggregator do
     end
   end
 
-  defp inject_handle_command_names_fn() do
+  defp before_compile_commands() do
     quote do
       def __handled_command_names__(), do: @handled_command_names
     end
@@ -76,12 +92,7 @@ defmodule TransSiberianRailroad.Aggregator do
       command
 
     if command_name in projection_mod.__handled_command_names__() do
-      metadata = fn offset ->
-        projection
-        |> Projection.next_metadata(offset)
-        |> Keyword.put(:trace_id, trace_id)
-      end
-
+      metadata = metadata(projection, trace_id)
       next_metadata = metadata.(0)
 
       ctx = %{
@@ -94,17 +105,21 @@ defmodule TransSiberianRailroad.Aggregator do
       projection_mod.__handle_command__(command_name, ctx)
       |> List.wrap()
       |> Enum.reject(&is_nil/1)
-      |> case do
-        [fun | _] = message_builders when is_function(fun, 1) ->
-          message_builders
-          |> Enum.with_index()
-          |> Enum.map(fn {build_msg, idx} -> build_msg.(metadata.(idx)) end)
-
-        events ->
-          events
-      end
+      |> maybe_convert_builders_to_events(metadata)
     else
       []
+    end
+  end
+
+  defp maybe_convert_builders_to_events(message_builders, metadata) do
+    case message_builders do
+      [fun | _] = message_builders when is_function(fun, 1) ->
+        message_builders
+        |> Enum.with_index()
+        |> Enum.map(fn {build_msg, idx} -> build_msg.(metadata.(idx)) end)
+
+      events ->
+        events
     end
   end
 
@@ -127,7 +142,7 @@ defmodule TransSiberianRailroad.Aggregator do
     end
   end
 
-  defp inject_reactions_fn() do
+  defp before_compile_reactions() do
     quote do
       def events_from_projection(projection) do
         Enum.find_value(@__reactions__, & &1.(projection))
@@ -135,11 +150,17 @@ defmodule TransSiberianRailroad.Aggregator do
     end
   end
 
+  @doc """
+  This is how the game interacts with the reactions defined in an aggregator via `defreaction/2`.
+  """
   def reactions(%mod{} = projection) do
+    metadata = metadata(projection)
+
     events =
       mod.events_from_projection(projection)
       |> List.wrap()
       |> Enum.reject(&is_nil/1)
+      |> maybe_convert_builders_to_events(metadata)
 
     Enum.each(events, fn
       %Event{} -> :ok
@@ -147,5 +168,84 @@ defmodule TransSiberianRailroad.Aggregator do
     end)
 
     events
+  end
+
+  #########################################################
+  # Sent Reactions
+  #########################################################
+
+  defp __sent_reactions_field__() do
+    quote do
+      @typep reaction_key() :: {event_name :: String.t(), trace_id :: term()}
+      field :__sent_reactions__, MapSet.t(reaction_key()), default: MapSet.new()
+    end
+  end
+
+  defp accumulate_sent_reactions() do
+    quote do
+      Module.register_attribute(__MODULE__, :__reactive_messages__, accumulate: true)
+    end
+  end
+
+  defp before_compile_sent_reactions() do
+    quote do
+      for event_name <- @__reactive_messages__ do
+        unquote(__MODULE__).maybe_react(event_name)
+      end
+    end
+  end
+
+  @doc """
+  Used by the aggregator in a `handle_event` to keep track of which reactions have been sent.
+  """
+  def reaction_sent(
+        %_{__trace_id__: trace_id, __sent_reactions__: sent_reactions} = _projection,
+        event_name
+      ) do
+    reaction_key = {event_name, trace_id}
+    reactions = MapSet.put(sent_reactions, reaction_key)
+    [__sent_reactions__: reactions]
+  end
+
+  @doc """
+  Used by the aggregator in a `defreaction` to check if a reaction has already been sent.
+  """
+  def validate_unsent(
+        %_{__trace_id__: trace_id, __sent_reactions__: reactions} = _projection,
+        event_name
+      ) do
+    reaction_key = {event_name, trace_id}
+
+    if MapSet.member?(reactions, reaction_key) do
+      {:error, "reaction already sent"}
+    else
+      :ok
+    end
+  end
+
+  def register_reaction(event_name, env) do
+    Module.put_attribute(env.module, :__reactive_messages__, event_name)
+  end
+
+  defmacro maybe_react(event_name) do
+    quote do
+      handle_event unquote(event_name), ctx do
+        unquote(__MODULE__).reaction_sent(ctx.projection, unquote(event_name))
+      end
+    end
+  end
+
+  #########################################################
+  # Metadata
+  #########################################################
+
+  defp metadata(projection), do: metadata(projection, projection.__trace_id__)
+
+  defp metadata(projection, trace_id) do
+    fn offset ->
+      projection
+      |> Projection.next_metadata(offset)
+      |> Keyword.put(:trace_id, trace_id)
+    end
   end
 end

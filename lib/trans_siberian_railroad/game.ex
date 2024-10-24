@@ -139,4 +139,20 @@ defmodule TransSiberianRailroad.Game do
       &Projection.handle_one_event(&1, event)
     )
   end
+
+  defimpl Inspect do
+    def inspect(game, opts) do
+      opts =
+        case game.events do
+          [] ->
+            opts
+
+          [_last_event | _] ->
+            digits = 4
+            Keyword.put(opts, :__game_digits__, digits)
+        end
+
+      Inspect.Map.inspect(game, opts)
+    end
+  end
 end

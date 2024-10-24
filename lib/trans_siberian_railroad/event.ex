@@ -38,8 +38,9 @@ defmodule TransSiberianRailroad.Event do
 
     def inspect(event, opts) do
       payload = Map.to_list(event.payload || %{})
-      payload = [{:v, event.version} | payload]
-      concat(["#Event.#{event.name}<", Inspect.List.inspect(payload, opts), ">"])
+      digits = Map.get(opts, :__game_digits__, 0)
+      version = event.version |> to_string() |> String.pad_leading(digits, "0")
+      concat(["#Event.#{version}.#{event.name}<", Inspect.List.inspect(payload, opts), ">"])
     end
   end
 

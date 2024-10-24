@@ -17,27 +17,80 @@ defmodule TransSiberianRailroad.Aggregator.EndOfTurn do
   # PROJECTION
   #########################################################
 
-  typedstruct opaque: true, enforce: true do
-    projection_fields()
-    field :next_reaction, :end, enforce: false
+  aggregator_typedstruct do
+    field :timing_track, 0..5, default: 0
+    field :reaction_queue, [event_name :: String.t()], default: []
+  end
+
+  #########################################################
+  # Timing track
+  #########################################################
+
+  handle_event "timing_track_reset", _ctx do
+    [timing_track: 0]
+  end
+
+  handle_event "timing_track_incremented", ctx do
+    timing_track = ctx.projection.timing_track + 1
+    timing_track = min(5, timing_track)
+    [timing_track: timing_track]
   end
 
   #########################################################
   # Start and end the sequence
   #########################################################
 
-  handle_event "end_of_turn_sequence_started", _ctx do
-    [next_reaction: :end]
+  @reaction_queue_elements %{
+    "awaiting_dividends" => &Messages.awaiting_dividends/1,
+    "end_of_turn_sequence_ended" => &Messages.end_of_turn_sequence_ended/1
+  }
+
+  for event_name <- Map.keys(@reaction_queue_elements) do
+    Aggregator.register_reaction(event_name, __ENV__)
   end
 
-  defreaction maybe_end_sequence(projection) do
-    if projection.next_reaction == :end do
-      metadata = Projection.next_metadata(projection)
-      Messages.end_of_turn_sequence_ended(metadata)
+  handle_event "end_of_turn_sequence_started", ctx do
+    reaction_queue = ["end_of_turn_sequence_ended"]
+
+    reaction_queue =
+      if ctx.projection.timing_track == 5 do
+        ["awaiting_dividends" | reaction_queue]
+      else
+        reaction_queue
+      end
+
+    [reaction_queue: reaction_queue]
+  end
+
+  defreaction process_reaction_queue(projection) do
+    with [event_name | _] <- projection.reaction_queue,
+         :ok <- Aggregator.validate_unsent(projection, event_name),
+         {:ok, event_builder} <- Map.fetch(@reaction_queue_elements, event_name) do
+      event_builder
+    else
+      :error ->
+        require Logger
+
+        Logger.warning("""
+        The hd element of the reaction queue is not a handled event.
+        #{inspect(projection.reaction_queue)}
+        """)
+
+      _ ->
+        nil
     end
   end
 
-  handle_event "end_of_turn_sequence_ended", _ctx do
-    [next_reaction: nil]
+  handle_event "dividends_paid", ctx do
+    pop_reaction_queue(ctx.projection, "awaiting_dividends")
+  end
+
+  handle_event "end_of_turn_sequence_ended", ctx do
+    pop_reaction_queue(ctx.projection, "end_of_turn_sequence_ended")
+  end
+
+  defp pop_reaction_queue(projection, event_name) do
+    reaction_queue = Enum.reject(projection.reaction_queue, &(&1 == event_name))
+    [reaction_queue: reaction_queue]
   end
 end

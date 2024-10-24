@@ -31,9 +31,12 @@ defmodule TransSiberianRailroad.Messages do
     quote do
       name = unquote(name)
       payload = Map.new(unquote(fields))
-      %TransSiberianRailroad.Command{name: name, payload: payload, trace_id: Ecto.UUID.generate()}
+      trace_id = Ecto.UUID.generate()
+      %TransSiberianRailroad.Command{name: name, payload: payload, trace_id: trace_id}
     end
   end
+
+  Module.register_attribute(__MODULE__, :simple_event, accumulate: true)
 
   defmacrop event(fields) do
     name =
@@ -183,8 +186,19 @@ defmodule TransSiberianRailroad.Messages do
     event(phase_number: phase_number, start_bidder: start_bidder)
   end
 
-  def auction_phase_ended(phase_number, metadata) when is_phase_number(phase_number) do
-    event(phase_number: phase_number)
+  def auction_phase_ended(phase_number, start_player, metadata)
+      when is_phase_number(phase_number) do
+    event(phase_number: phase_number, start_player: start_player)
+  end
+
+  #########################################################
+  # Auctioning - starting player auction turn
+  #########################################################
+
+  def player_auction_turn_started(player, company, min_bid, metadata)
+      when Player.is_id(player) and Company.is_id(company) and is_integer(min_bid) and
+             min_bid >= 8 do
+    event(player: player, company: company, min_bid: min_bid)
   end
 
   #########################################################
@@ -219,6 +233,16 @@ defmodule TransSiberianRailroad.Messages do
       when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(bid_amount) and
              bid_amount >= 8 do
     event(auction_winner: auction_winner, company: company, bid_amount: bid_amount)
+  end
+
+  #########################################################
+  # Auctioning - awaiting next player to bid or pass
+  #########################################################
+
+  def awaiting_bid_or_pass(player, company, min_bid, metadata)
+      when Player.is_id(player) and Company.is_id(company) and is_integer(min_bid) and
+             min_bid >= 8 do
+    event(player: player, company: company, min_bid: min_bid)
   end
 
   #########################################################
@@ -263,23 +287,27 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - set starting stock price
   #########################################################
 
-  def set_starting_stock_price(auction_winner, company, price)
+  def awaiting_set_stock_price(player, company, max_price, metadata)
+      when Player.is_id(player) and Company.is_id(company) and is_integer(max_price) do
+    event(player: player, company: company, max_price: max_price)
+  end
+
+  def set_stock_value(auction_winner, company, price)
       when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(price) do
     command(auction_winner: auction_winner, company: company, price: price)
   end
 
-  def starting_stock_price_set(auction_winner, company, price, metadata)
+  def stock_value_set(auction_winner, company, price, metadata)
       when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(price) do
     event(auction_winner: auction_winner, company: company, price: price)
   end
 
-  def starting_stock_price_rejected(auction_winner, company, price, reason, metadata)
+  def stock_value_rejected(auction_winner, company, price, reason, metadata)
       when Player.is_id(auction_winner) and Company.is_id(company) and is_binary(reason) do
     event(auction_winner: auction_winner, company: company, price: price, reason: reason)
   end
 
-  # owner: nil
-  def stock_price_increased(company, new_price, metadata)
+  def stock_value_incremented(company, new_price, metadata)
       when Company.is_id(company) and is_integer(new_price) do
     event(company: company, price: new_price)
   end
@@ -333,18 +361,36 @@ defmodule TransSiberianRailroad.Messages do
   # End of Turn Sequence
   #########################################################
 
-  def end_of_turn_sequence_started(metadata) do
-    event([])
-  end
+  @simple_event :end_of_turn_sequence_started
+  @simple_event :end_of_turn_sequence_ended
 
-  def end_of_turn_sequence_ended(metadata) do
-    event([])
+  #########################################################
+  # Timing Track
+  #########################################################
+
+  @simple_event :timing_track_reset
+  @simple_event :timing_track_incremented
+
+  #########################################################
+  # Dividends
+  #########################################################
+
+  @simple_event :awaiting_dividends
+
+  @type dividends() :: %{Player.id() => pos_integer()}
+  @spec dividends_paid(dividends(), Metadata.t()) :: Event.t()
+  def dividends_paid(dividends, metadata) do
+    event(dividends: dividends)
   end
 
   #########################################################
   # Message name guards
   # These must remain at the bottom of the module
   #########################################################
+
+  for event_name <- @simple_event do
+    def unquote(event_name)(metadata), do: event([])
+  end
 
   def command_names(), do: @command_names
   def event_names(), do: @event_names

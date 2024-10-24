@@ -25,25 +25,47 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   require TransSiberianRailroad.Player, as: Player
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Players
+  alias TransSiberianRailroad.RailCompany, as: Company
 
   #########################################################
   # PROJECTION
   #########################################################
 
-  typedstruct opaque: true do
-    projection_fields()
+  aggregator_typedstruct do
     field :player_order, [Player.id()]
     field :player_money_balances, %{Player.id() => non_neg_integer()}, default: %{}
-    field :state_machine, [{:atom, Keyword.t()}], default: []
+
+    # auction phase state
+    field :phase_number, 1..2
+    field :start_bidder, Player.id()
+    field :remaining_companies, [Company.id()], default: []
+
+    # current company
+    field :current_company, Company.id()
+    field :bidders, [{Player.id(), nil | non_neg_integer()}], default: []
+    field :awaiting_stock_price, boolean(), default: false
   end
+
+  @clear_company_auction [
+    current_company: nil,
+    bidders: [],
+    awaiting_stock_price: false
+  ]
+
+  @clear_auction [
+                   phase_number: nil,
+                   remaining_companies: [],
+                   start_bidder: nil
+                 ] ++ @clear_company_auction
 
   #########################################################
   # event handlers not specific to the auction
   #########################################################
 
-  handle_event("player_order_set", ctx, do: [player_order: ctx.payload.player_order])
+  handle_event "player_order_set", ctx do
+    [player_order: ctx.payload.player_order]
+  end
 
-  # We keep track of players' money because they need to pay for companies they win in auctions.
   handle_event "money_transferred", ctx do
     transfers = ctx.payload.transfers
     player_money_balances = ctx.projection.player_money_balances
@@ -67,25 +89,23 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   handle_event "auction_phase_started", ctx do
     %{phase_number: phase_number, start_bidder: start_bidder} = ctx.payload
 
-    auction_phase =
-      {:auction_phase,
-       phase_number: phase_number,
-       start_bidder: start_bidder,
-       remaining_companies:
-         case phase_number do
-           1 -> ~w(red blue green yellow)a
-           2 -> ~w(black white)a
-         end}
-
-    [state_machine: [auction_phase]]
+    [
+      # AUCTION PHASE STATE
+      phase_number: phase_number,
+      start_bidder: start_bidder,
+      remaining_companies:
+        case phase_number do
+          1 -> ~w(red blue green yellow)a
+          2 -> ~w(black white)a
+        end
+    ] ++ @clear_company_auction
   end
 
-  defreaction maybe_start_company_auction(%__MODULE__{} = auction) do
-    with [{:auction_phase, kv}] <- auction.state_machine,
-         [next_company | _] <- Keyword.fetch!(kv, :remaining_companies) do
-      start_bidder = Keyword.fetch!(kv, :start_bidder)
-      metadata = Projection.next_metadata(auction)
-      Messages.company_auction_started(start_bidder, next_company, metadata)
+  defreaction maybe_start_company_auction(%__MODULE__{} = projection) do
+    with :ok <- validate_in_between_company_auctions(projection),
+         {:ok, next_company} <- fetch_next_company(projection),
+         {:ok, start_bidder} <- fetch_start_bidder(projection) do
+      &Messages.company_auction_started(start_bidder, next_company, &1)
     else
       _ -> nil
     end
@@ -94,26 +114,43 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   handle_event "company_auction_started", ctx do
     %{start_bidder: start_bidder, company: company} = ctx.payload
 
-    remove_company_from_list = fn list ->
-      Enum.reject(list, fn
-        ^company -> true
-        _ -> false
-      end)
+    [
+      # AUCTION PHASE STATE
+      # :phase_number remains unchanged
+      start_bidder: start_bidder,
+      remaining_companies: Enum.reject(ctx.projection.remaining_companies, &(&1 == company)),
+
+      # COMPANY AUCTION STATE
+      current_company: company,
+      bidders:
+        ctx.projection.player_order
+        |> Players.one_round(start_bidder)
+        |> Enum.map(&{&1, nil}),
+      awaiting_stock_price: false
+    ]
+  end
+
+  #########################################################
+  # awaiting
+  #########################################################
+
+  Aggregator.register_reaction("awaiting_bid_or_pass", __ENV__)
+
+  defreaction maybe_awaiting_bid_or_pass(projection) do
+    with :ok <- Aggregator.validate_unsent(projection, "awaiting_bid_or_pass"),
+         :ok <- validate_bidding_in_progress(projection),
+         {:ok, company} <- fetch_current_company(projection),
+         {:ok, player} <- fetch_current_bidder(projection) do
+      min_bid =
+        case fetch_highest_bid(projection) do
+          {:ok, amount} -> amount + 1
+          {:error, _} -> 8
+        end
+
+      &Messages.awaiting_bid_or_pass(player, company, min_bid, &1)
+    else
+      _ -> nil
     end
-
-    state_machine =
-      ctx.projection.state_machine
-      |> put_in([:auction_phase, :start_bidder], start_bidder)
-      |> update_in([:auction_phase, :remaining_companies], remove_company_from_list)
-
-    company_auction =
-      with player_order = ctx.projection.player_order,
-           player_ids = Players.one_round(player_order, start_bidder),
-           bidders = Enum.map(player_ids, &{&1, nil}) do
-        {:company_auction, company: company, bidders: bidders}
-      end
-
-    [state_machine: [company_auction | state_machine]]
   end
 
   #########################################################
@@ -122,52 +159,36 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   handle_command "pass_on_company", ctx do
     %{passing_player: passing_player, company: company} = ctx.payload
-    auction = ctx.projection
-    metadata = ctx.next_metadata
+    projection = ctx.projection
 
-    validate_current_company = fn auction, company ->
-      with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
-           ^company <- Keyword.fetch!(kv, :company) do
-        :ok
-      else
-        {:error, reason} -> {:error, reason}
-        _current_company -> {:error, "incorrect company"}
-      end
-    end
-
-    with :ok <- validate_current_bidder(auction, passing_player),
-         :ok <- validate_current_company.(auction, company) do
-      Messages.company_passed(passing_player, company, metadata)
+    with :ok <- validate_auction_phase(projection),
+         :ok <- validate_company_auction(projection),
+         :ok <- validate_bidding_in_progress(projection),
+         :ok <- validate_current_bidder(projection, passing_player),
+         :ok <- validate_current_company(projection, company) do
+      &Messages.company_passed(passing_player, company, &1)
     else
-      {:error, reason} ->
-        Messages.company_pass_rejected(passing_player, company, reason, metadata)
+      {:error, reason} -> &Messages.company_pass_rejected(passing_player, company, reason, &1)
     end
   end
 
   handle_event "company_passed", ctx do
     %{passing_player: passing_player} = ctx.payload
-
-    state_machine =
-      ctx.projection.state_machine
-      |> update_in([:company_auction, :bidders], fn [{^passing_player, _} | rest] -> rest end)
-
-    [state_machine: state_machine]
+    bidders = Enum.reject(ctx.projection.bidders, fn {player, _} -> player == passing_player end)
+    [bidders: bidders]
   end
 
-  defreaction maybe_all_players_passed_on_company(auction) do
-    with [{:company_auction, kv} | _] <- auction.state_machine,
-         [] <- Keyword.fetch!(kv, :bidders) do
-      company = Keyword.fetch!(kv, :company)
-      metadata = Projection.next_metadata(auction)
-      Messages.all_players_passed_on_company(company, metadata)
+  defreaction maybe_all_players_passed_on_company(projection) do
+    with :ok <- validate_no_bidders(projection),
+         {:ok, company} <- fetch_current_company(projection) do
+      &Messages.all_players_passed_on_company(company, &1)
     else
       _ -> nil
     end
   end
 
-  handle_event "all_players_passed_on_company", ctx do
-    [_company_auction | state_machine] = ctx.projection.state_machine
-    [state_machine: state_machine]
+  handle_event "all_players_passed_on_company", _ctx do
+    @clear_company_auction
   end
 
   #########################################################
@@ -176,88 +197,50 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   handle_command "submit_bid", ctx do
     %{bidder: bidder, company: company, amount: amount} = ctx.payload
-    auction = ctx.projection
+    projection = ctx.projection
 
-    validate_balance = fn ->
-      player_money_balance = auction.player_money_balances[bidder] || 0
-
-      if player_money_balance < amount do
-        {:error, "insufficient funds"}
-      else
-        :ok
-      end
-    end
-
-    validate_company = fn kv ->
-      if Keyword.fetch!(kv, :company) == company, do: :ok, else: {:error, "incorrect company"}
-    end
-
-    validate_increasing_bid = fn kv ->
-      current_bid =
-        Keyword.fetch!(kv, :bidders)
-        |> Enum.reduce(0, fn {_player, bid}, max_bid ->
-          if is_integer(bid) do
-            max(bid, max_bid)
-          else
-            max_bid
-          end
-        end)
-
-      if current_bid < amount, do: :ok, else: {:error, "bid must be higher than the current bid"}
-    end
-
-    validate_min_bid = if amount < 8, do: {:error, "bid must be at least 8"}, else: :ok
-    metadata = ctx.next_metadata
-
-    with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
-         :ok <- validate_current_bidder(auction, bidder),
-         :ok <- validate_company.(kv),
-         :ok <- validate_min_bid,
-         :ok <- validate_increasing_bid.(kv),
-         :ok <- validate_balance.() do
-      Messages.bid_submitted(bidder, company, amount, metadata)
+    with :ok <- validate_auction_phase(projection),
+         :ok <- validate_company_auction(projection),
+         :ok <- validate_bidding_in_progress(projection),
+         :ok <- validate_current_bidder(projection, bidder),
+         :ok <- validate_current_company(projection, company),
+         :ok <- validate_min_bid(amount),
+         :ok <- validate_increasing_bid(projection, amount),
+         :ok <- validate_balance(projection, bidder, amount) do
+      &Messages.bid_submitted(bidder, company, amount, &1)
     else
-      {:error, reason} -> Messages.bid_rejected(bidder, company, amount, reason, metadata)
+      {:error, reason} -> &Messages.bid_rejected(bidder, company, amount, reason, &1)
     end
   end
 
   handle_event "bid_submitted", ctx do
     %{bidder: bidder, amount: amount} = ctx.payload
 
-    state_machine =
-      ctx.projection.state_machine
-      |> update_in([:company_auction, :bidders], fn [{^bidder, _} | rest] ->
-        rest ++ [{bidder, amount}]
-      end)
-
-    [state_machine: state_machine]
+    [
+      # CURRENT COMPANY STATE
+      # :current_company remains unchanged
+      bidders:
+        with [{^bidder, _} | rest] = ctx.projection.bidders do
+          rest ++ [{bidder, amount}]
+        end,
+      awaiting_stock_price: false
+    ]
   end
 
-  defreaction maybe_player_won_company_auction(auction) do
-    with [{:company_auction, kv} | _] <- auction.state_machine,
-         # There's only one bidder left
-         [{auction_winner, amount}] <- Keyword.fetch!(kv, :bidders),
-         # That player's already made at least one bid
-         true <- is_integer(amount) do
-      company = Keyword.fetch!(kv, :company)
-      metadata = &Projection.next_metadata(auction, &1)
-      reason = "First company stock auctioned off"
+  defreaction maybe_player_won_company_auction(projection) do
+    with :ok <- validate_auction_phase(projection),
+         false <- projection.awaiting_stock_price,
+         :ok <- validate_company_auction(projection),
+         {:ok, company} <- fetch_current_company(projection),
+         {:ok, auction_winner} <- fetch_single_bidder(projection),
+         {:ok, amount} <- fetch_highest_bid(projection) do
+      reason = "company stock auctioned off"
 
       [
-        Messages.player_won_company_auction(auction_winner, company, amount, metadata.(0)),
-        Messages.stock_certificates_transferred(
-          company,
-          company,
-          auction_winner,
-          1,
-          reason,
-          metadata.(1)
-        ),
-        Messages.money_transferred(
-          %{auction_winner => -amount, company => amount},
-          reason,
-          metadata.(2)
-        )
+        &Messages.player_won_company_auction(auction_winner, company, amount, &1),
+        &Messages.stock_certificates_transferred(company, company, auction_winner, 1, reason, &1),
+        &Messages.money_transferred(%{auction_winner => -amount, company => amount}, reason, &1),
+        &Messages.awaiting_set_stock_price(auction_winner, company, amount, &1)
       ]
     else
       _ -> nil
@@ -266,12 +249,11 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   handle_event "player_won_company_auction", ctx do
     %{auction_winner: auction_winner, company: company, bid_amount: amount} = ctx.payload
-    [_company_auction | state_machine] = ctx.projection.state_machine
+    [current_company: company, bidders: [{auction_winner, amount}]]
+  end
 
-    setting_stock_price =
-      {:setting_stock_price, auction_winner: auction_winner, company: company, max_price: amount}
-
-    [state_machine: [setting_stock_price | state_machine]]
+  handle_event "awaiting_set_stock_price", _ctx do
+    [awaiting_stock_price: true]
   end
 
   #########################################################
@@ -279,119 +261,294 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # - must happen after a company opens
   #########################################################
 
-  handle_command "set_starting_stock_price", ctx do
+  handle_command "set_stock_value", ctx do
     %{auction_winner: auction_winner, company: company, price: price} = ctx.payload
-    auction = ctx.projection
-    metadata = ctx.next_metadata
+    projection = ctx.projection
 
-    validate_company = fn kv ->
-      if Keyword.fetch!(kv, :company) == company, do: :ok, else: {:error, "incorrect company"}
-    end
-
-    validate_bid_winner = fn kv ->
-      case Keyword.fetch!(kv, :auction_winner) do
-        ^auction_winner -> :ok
-        _ -> {:error, "incorrect player"}
-      end
-    end
-
-    validate_stock_price = fn kv ->
-      cond do
-        Keyword.fetch!(kv, :max_price) < price ->
-          {:error, "price exceeds winning bid"}
-
-        price not in TransSiberianRailroad.StockValue.stock_value_spaces() ->
-          {:error, "not one of the valid stock prices"}
-
-        true ->
-          :ok
-      end
-    end
-
-    with {:ok, kv} <- fetch_substate_kv(auction, :setting_stock_price),
-         :ok <- validate_bid_winner.(kv),
-         :ok <- validate_company.(kv),
-         :ok <- validate_stock_price.(kv) do
-      Messages.starting_stock_price_set(auction_winner, company, price, metadata)
+    with :ok <- validate_auction_phase(projection),
+         :ok <- validate_awaiting_stock_price_set(projection),
+         :ok <- validate_bid_winner(projection, auction_winner),
+         :ok <- validate_current_company(projection, company),
+         :ok <- validate_stock_price_not_exceeds_bid(projection, price),
+         :ok <- validate_stock_price_is_valid_spot_on_board(price) do
+      &Messages.stock_value_set(auction_winner, company, price, &1)
     else
       {:error, reason} ->
-        Messages.starting_stock_price_rejected(auction_winner, company, price, reason, metadata)
+        &Messages.stock_value_rejected(auction_winner, company, price, reason, &1)
     end
   end
 
-  handle_event "starting_stock_price_set", ctx do
+  handle_event "stock_value_set", ctx do
     %{auction_winner: player_to_start_next_company_auction} = ctx.payload
-
-    auction_phase_kv =
-      ctx.projection.state_machine
-      |> Keyword.fetch!(:auction_phase)
-      |> Keyword.replace!(:start_bidder, player_to_start_next_company_auction)
-
-    [state_machine: [{:auction_phase, auction_phase_kv}]]
+    [start_bidder: player_to_start_next_company_auction] ++ @clear_company_auction
   end
 
   #########################################################
   # end the auction phase
   #########################################################
 
-  defreaction maybe_end_auction_phase(%__MODULE__{} = auction) do
-    with [{:auction_phase, kv}] <- auction.state_machine,
-         [] <- Keyword.fetch!(kv, :remaining_companies) do
-      phase_number = Keyword.fetch!(kv, :phase_number)
-      metadata = Projection.next_metadata(auction)
-      Messages.auction_phase_ended(phase_number, metadata)
+  defreaction maybe_end_auction_phase(%__MODULE__{} = projection) do
+    with {:ok, phase_number} <- fetch_phase_number(projection),
+         :ok <- validate_in_between_company_auctions(projection),
+         {:error, _reason} <- fetch_next_company(projection) do
+      start_player = projection.start_bidder
+      &Messages.auction_phase_ended(phase_number, start_player, &1)
     else
       _ -> nil
     end
   end
 
   handle_event "auction_phase_ended", _ctx do
-    [state_machine: []]
+    @clear_auction
   end
 
   #########################################################
-  # CONVERTERS
+  # AUCTION PHASE
   #########################################################
 
-  defp fetch_substate_kv(auction, substate_name)
-       when substate_name in ~w(company_auction setting_stock_price)a do
-    fetch_substate = fn auction ->
-      case auction.state_machine do
-        [] -> {:error, "no auction in progress"}
-        [_auction_phase] -> {:error, "no substate"}
-        [substate, _auction_phase] -> {:ok, substate}
+  defp validate_auction_phase(projection) do
+    if projection.phase_number do
+      :ok
+    else
+      {:error, "no auction in progress"}
+    end
+  end
+
+  defp fetch_phase_number(projection) do
+    if phase_number = projection.phase_number do
+      {:ok, phase_number}
+    else
+      {:error, "no phase number"}
+    end
+  end
+
+  # but also prior to the first and after the last ... :P
+  defp validate_in_between_company_auctions(projection) do
+    if projection.current_company do
+      {:error, "not in between company auctions"}
+    else
+      :ok
+    end
+  end
+
+  #########################################################
+  # CURRENT COMPANY
+  #########################################################
+
+  def fetch_next_company(projection) do
+    case projection.remaining_companies do
+      [next_company | _] -> {:ok, next_company}
+      [] -> {:error, "no next company"}
+    end
+  end
+
+  defp validate_company_auction(projection) do
+    if projection.current_company do
+      :ok
+    else
+      {:error, "no company auction in progress"}
+    end
+  end
+
+  defp fetch_current_company(projection) do
+    case projection.current_company do
+      nil -> {:error, "no current company"}
+      company -> {:ok, company}
+    end
+  end
+
+  defp validate_current_company(projection, company) do
+    with {:ok, current_company} <- fetch_current_company(projection) do
+      case current_company do
+        ^company -> :ok
+        _ -> {:error, "incorrect company"}
       end
     end
+  end
 
-    with {:ok, substate} <- fetch_substate.(auction),
-         {^substate_name, kv} <- substate do
-      {:ok, kv}
+  #########################################################
+  # BIDDERS
+  #########################################################
+
+  def fetch_start_bidder(projection) do
+    if start_bidder = projection.start_bidder do
+      {:ok, start_bidder}
     else
-      {:error, reason} -> {:error, reason}
-      {_substate_name, _kv} -> {:error, "incorrect subphase"}
+      {:error, "no start bidder"}
     end
   end
 
-  defp validate_current_bidder(auction, bidder) do
-    current_bidder =
-      with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
-           [current_bidder_tuple | _] <- Keyword.fetch!(kv, :bidders) do
-        {bidder, _bid} = current_bidder_tuple
+  defp fetch_bidders(projection) do
+    with bidders when is_list(bidders) <- projection.bidders do
+      {:ok, bidders}
+    else
+      _ -> {:error, "no bidders"}
+    end
+  end
+
+  defp fetch_current_bidder(projection) do
+    with {:ok, bidders} <- fetch_bidders(projection) do
+      case bidders do
+        [{bidder, _amount} | _] -> {:ok, bidder}
+        [] -> {:error, "no current_bidder"}
+      end
+    end
+  end
+
+  defp fetch_single_bidder_and_amount(projection) do
+    with {:ok, bidders} <- fetch_bidders(projection) do
+      case bidders do
+        [single_bidder] -> {:ok, single_bidder}
+        _ -> {:error, "more than one bidder"}
+      end
+    end
+  end
+
+  defp fetch_single_bidder(projection) do
+    with {:ok, {bidder, _amount}} <- fetch_single_bidder_and_amount(projection) do
+      {:ok, bidder}
+    end
+  end
+
+  defp validate_no_bidders(projection) do
+    case projection.bidders do
+      [] -> :ok
+      _ -> {:error, "bidders still exist"}
+    end
+  end
+
+  defp fetch_bid_winner(projection) do
+    with {:ok, {bidder, amount}} <- fetch_single_bidder_and_amount(projection) do
+      if is_integer(amount) do
         {:ok, bidder}
       else
-        {:error, reason} -> {:error, reason}
-        [] -> {:error, "no current bidder"}
+        {:error, "There is one bidder left, but they haven't bid"}
       end
+    end
+  end
 
-    case current_bidder do
-      {:ok, ^bidder} ->
+  defp validate_current_bidder(projection, bidder) do
+    with {:ok, current_bidder} <- fetch_current_bidder(projection) do
+      case current_bidder do
+        ^bidder -> :ok
+        _ -> {:error, "incorrect player"}
+      end
+    end
+  end
+
+  defp validate_bid_winner(projection, auction_winner) do
+    with {:ok, bidder} <- fetch_bid_winner(projection) do
+      case bidder do
+        ^auction_winner -> :ok
+        _ -> {:error, "incorrect player"}
+      end
+    end
+  end
+
+  #########################################################
+  # BIDS
+  #########################################################
+
+  defp validate_min_bid(amount) do
+    if amount >= 8 do
+      :ok
+    else
+      {:error, "bid must be at least 8"}
+    end
+  end
+
+  defp current_highest_bid(projection) do
+    with {:ok, bidders} <- fetch_bidders(projection) do
+      highest_bid =
+        bidders
+        |> Enum.map(&elem(&1, 1))
+        |> Enum.filter(&is_integer/1)
+        |> case do
+          [] -> 0
+          bids -> Enum.max(bids)
+        end
+
+      {:ok, highest_bid}
+    end
+  end
+
+  defp validate_increasing_bid(projection, amount) do
+    with {:ok, highest_bid} <- current_highest_bid(projection) do
+      if highest_bid < amount do
         :ok
+      else
+        {:error, "bid must be higher than the current bid"}
+      end
+    end
+  end
 
-      {:ok, _current_player} ->
-        {:error, "incorrect player"}
+  defp validate_balance(projection, bidder, amount) do
+    player_money_balance = projection.player_money_balances[bidder] || 0
 
-      {:error, reason} ->
-        {:error, reason}
+    if player_money_balance < amount do
+      {:error, "insufficient funds"}
+    else
+      :ok
+    end
+  end
+
+  defp fetch_highest_bid(projection) do
+    with {:ok, bidders} <- fetch_bidders(projection) do
+      case Enum.reverse(bidders) do
+        [last_and_therefore_highest_bidder | _] ->
+          {_bidder, amount} = last_and_therefore_highest_bidder
+
+          if is_integer(amount) do
+            {:ok, amount}
+          else
+            {:error, "no bids"}
+          end
+
+        [] ->
+          {:error, "no bidders"}
+      end
+    end
+  end
+
+  #########################################################
+  # SETTING STOCK PRICE
+  #########################################################
+
+  # There is both a company up for auction,
+  # no player has been determined the winner of it yet,
+  # and so we're not yet awaiting the
+  defp validate_bidding_in_progress(projection) do
+    with :ok <- validate_company_auction(projection) do
+      case validate_awaiting_stock_price_set(projection) do
+        {:error, _} -> :ok
+        :ok -> {:error, "incorrect subphase"}
+      end
+    end
+  end
+
+  defp validate_awaiting_stock_price_set(projection) do
+    with {:ok, _} <- fetch_bid_winner(projection) do
+      :ok
+    else
+      _ -> {:error, "not awaiting stock price"}
+    end
+  end
+
+  defp validate_stock_price_is_valid_spot_on_board(price) do
+    if price in TransSiberianRailroad.StockValue.stock_value_spaces() do
+      :ok
+    else
+      {:error, "not one of the valid stock prices"}
+    end
+  end
+
+  defp validate_stock_price_not_exceeds_bid(projection, price) do
+    with {:ok, bid} <- fetch_highest_bid(projection) do
+      if price <= bid do
+        :ok
+      else
+        {:error, "price exceeds winning bid"}
+      end
     end
   end
 end

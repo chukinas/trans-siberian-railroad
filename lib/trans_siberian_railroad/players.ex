@@ -7,11 +7,14 @@ defmodule TransSiberianRailroad.Players do
 
   def one_round(player_order, start_player) do
     player_count = length(player_order)
+    next_n_turns(player_order, start_player, player_count)
+  end
 
+  def next_n_turns(player_order, start_player, turn_count) do
     player_order
     |> Stream.cycle()
     |> Stream.drop_while(&(&1 != start_player))
-    |> Enum.take(player_count)
+    |> Enum.take(turn_count)
   end
 
   def next_player(player_order, current_player) do

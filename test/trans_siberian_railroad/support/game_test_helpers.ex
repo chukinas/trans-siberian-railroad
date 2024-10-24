@@ -1,4 +1,5 @@
 defmodule TransSiberianRailroad.GameTestHelpers do
+  require TransSiberianRailroad.Player, as: Player
   alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
@@ -13,60 +14,26 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   # Setups
   #########################################################
 
-  # TODO mv to end of setups
-  # Requires start_game to be run first.
-  def random_first_auction_phase(context) do
-    player_count = context.player_count
+  defmacro taggable_setups() do
+    quote do
+      setup context do
+        if context[:start_game],
+          do: start_game(context),
+          else: :ok
+      end
 
-    new_context = [
-      start_player: context.start_player,
-      game: context.game,
-      one_round: context.one_round
-    ]
+      setup context do
+        if context[:auction_off_company],
+          do: auction_off_company(context),
+          else: :ok
+      end
 
-    Enum.reduce(@phase_1_companies, new_context, fn company, new_context ->
-      [start_player: start_player, game: game, one_round: one_round] = new_context
-      player_balances = Map.new(1..player_count, &{&1, current_money(game, &1)})
-
-      player_bids =
-        Enum.map(player_balances, fn {player_id, balance} ->
-          bid = if balance >= 8, do: Enum.random(8..balance)
-          {player_id, bid}
-        end)
-
-      {auction_winner, bid} = Enum.random(player_bids)
-
-      start_player =
-        if bid do
-          auction_winner
-        else
-          start_player
-        end
-
-      commands =
-        Enum.map(one_round, fn player_id ->
-          if player_id == auction_winner and not is_nil(bid) do
-            Messages.submit_bid(player_id, company, bid)
-          else
-            Messages.pass_on_company(player_id, company)
-          end
-        end)
-
-      commands =
-        if bid do
-          # TODO this should 'take until'.
-          # TOOD so should the StockPrice function
-          price = @stock_value_spaces |> Enum.filter(&(&1 <= bid)) |> Enum.random()
-          # TODO make sure the arg is named stock_price or something like that
-          [commands, Messages.set_starting_stock_price(auction_winner, company, price)]
-        else
-          commands
-        end
-
-      game = Game.handle_commands(game, commands)
-      one_round = Players.one_round(context.player_order, start_player)
-      [start_player: start_player, game: game, one_round: one_round]
-    end)
+      setup context do
+        if context[:random_first_auction_phase],
+          do: rand_auction_phase(context),
+          else: :ok
+      end
+    end
   end
 
   def start_game(context) do
@@ -116,6 +83,58 @@ defmodule TransSiberianRailroad.GameTestHelpers do
      auction_winner: auction_winner,
      amount: amount,
      game: game}
+  end
+
+  #########################################################
+  # Ramdom Auction Phase 1
+  #########################################################
+
+  def rand_auction_phase(context) do
+    game = do_rand_auction_phase(context.game)
+    start_player = fetch_single_event!(game.events, "auction_phase_ended").payload.start_player
+    [game: game, start_player: start_player]
+  end
+
+  defp do_rand_auction_phase(game) do
+    event = hd(game.events)
+    payload = event.payload
+
+    case event.name do
+      "awaiting_bid_or_pass" -> game |> do_bid_or_pass(payload) |> do_rand_auction_phase()
+      "awaiting_set_stock_price" -> game |> do_stock_price(payload) |> do_rand_auction_phase()
+      _ -> game
+    end
+  end
+
+  defp do_bid_or_pass(game, payload) do
+    %{player: player, company: company, min_bid: min_bid} = payload
+    player_money = current_money(game, player)
+
+    player_options =
+      cond do
+        player_money < min_bid -> [nil]
+        true -> [nil | Enum.to_list(min_bid..player_money)]
+      end
+
+    command =
+      case Enum.random(player_options) do
+        nil -> Messages.pass_on_company(player, company)
+        bid -> Messages.submit_bid(player, company, bid)
+      end
+
+    Game.handle_commands(game, [command])
+  end
+
+  defp do_stock_price(game, payload) do
+    %{player: player, company: company, max_price: max_price} = payload
+
+    price =
+      @stock_value_spaces
+      |> Enum.take_while(&(&1 <= max_price))
+      |> Enum.random()
+
+    command = Messages.set_stock_value(player, company, price)
+    Game.handle_commands(game, [command])
   end
 
   #########################################################
@@ -193,10 +212,35 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   end
 
   #########################################################
+  # Converters
+  #########################################################
+
+  def player_order!(game) do
+    fetch_single_event!(game.events, "player_order_set").payload.player_order
+  end
+
+  def next_player!(game) do
+    game.events
+    |> Stream.map(&{&1.name, &1.payload})
+    |> Enum.find_value(fn
+      {"start_player_set", payload} ->
+        payload.start_player
+
+      {"player_won_company_auction", payload} ->
+        if payload.company in @phase_1_companies, do: payload.player_id
+
+      {"player_turn_started", payload} ->
+        payload.player_id
+
+      _ ->
+        raise "No next player found."
+    end)
+  end
+
+  #########################################################
   # Money
   #########################################################
 
-  # TODO add a function that returns all players' money balances
   def current_money(game, player_id) do
     Enum.reduce(game.events, 0, fn event, balance ->
       case event.name do
@@ -206,6 +250,22 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
         _ ->
           balance
+      end
+    end)
+  end
+
+  def players_money(game) do
+    Enum.reduce(game.events, %{}, fn event, balances ->
+      case event.name do
+        "money_transferred" ->
+          event.payload.transfers
+          |> Enum.filter(fn {player_id, _} -> Player.is_id(player_id) end)
+          |> Enum.reduce(balances, fn {player_id, amount}, balances ->
+            Map.update(balances, player_id, amount, &(&1 + amount))
+          end)
+
+        _ ->
+          balances
       end
     end)
   end

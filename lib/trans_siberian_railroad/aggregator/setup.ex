@@ -18,8 +18,7 @@ defmodule TransSiberianRailroad.Aggregator.Setup do
 
   use TransSiberianRailroad.Projection
 
-  typedstruct do
-    projection_fields()
+  aggregator_typedstruct do
     field :game_id, String.t()
     field :player_count, 0..5, default: 0
     field :start_player, 1..5

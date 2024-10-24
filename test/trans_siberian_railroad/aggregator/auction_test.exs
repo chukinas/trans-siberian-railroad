@@ -5,18 +5,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Metadata
 
-  setup context do
-    if context[:start_game],
-      do: start_game(context),
-      else: :ok
-  end
-
-  setup context do
-    if context[:auction_off_company],
-      do: auction_off_company(context),
-      else: :ok
-  end
-
+  taggable_setups()
   @moduletag :start_game
 
   test "auction_phase_started -> company_auction_started", context do
@@ -397,7 +386,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert current_bidder_money == start_bidder_money - context.amount
 
       assert event = get_latest_event_by_name(game.events, "money_transferred")
-      assert event.payload.reason == "First company stock auctioned off"
+      assert event.payload.reason == "company stock auctioned off"
     end
 
     test "-> company_auction_started with next company", context do
@@ -414,7 +403,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "has only set_starting_stock_price as a valid followup command", context do
+    test "has only set_stock_value as a valid followup command", context do
       # ARRANGE: see :start_game
       auction_winner = context.auction_winner
 
@@ -423,7 +412,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       commands = [
         Messages.pass_on_company(auction_winner, :blue),
         Messages.submit_bid(auction_winner, :blue, 8),
-        Messages.set_starting_stock_price(auction_winner, :red, 8)
+        Messages.set_stock_value(auction_winner, :red, 8)
       ]
 
       game = Game.handle_commands(context.game, commands)
@@ -431,11 +420,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ASSERT
       assert fetch_single_event!(game.events, "company_pass_rejected")
       assert fetch_single_event!(game.events, "bid_rejected")
-      assert fetch_single_event!(game.events, "starting_stock_price_set")
+      assert fetch_single_event!(game.events, "stock_value_set")
     end
   end
 
-  describe "set_starting_stock_price -> starting_stock_price_rejected when" do
+  describe "set_stock_value -> stock_value_rejected when" do
     @describetag :auction_off_company
 
     @tag start_game: false
@@ -445,10 +434,10 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game = Game.handle_commands([Messages.initialize_game(), Messages.add_player("Alice")])
 
       # ACT
-      game = Game.handle_one_command(game, Messages.set_starting_stock_price(1, :red, 10))
+      game = Game.handle_one_command(game, Messages.set_stock_value(1, :red, 10))
 
       # ASSERT
-      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
+      assert event = fetch_single_event!(game.events, "stock_value_rejected")
 
       assert event.payload == %{
                auction_winner: 1,
@@ -463,17 +452,17 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ARRANGE: see :start_game setup
 
       # ACT
-      command = Messages.set_starting_stock_price(1, :red, 10)
+      command = Messages.set_stock_value(1, :red, 10)
       game = Game.handle_one_command(context.game, command)
 
       # ASSERT
-      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
+      assert event = fetch_single_event!(game.events, "stock_value_rejected")
 
       assert event.payload == %{
                auction_winner: 1,
                company: :red,
                price: 10,
-               reason: "incorrect subphase"
+               reason: "not awaiting stock price"
              }
     end
 
@@ -489,11 +478,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game =
         Game.handle_one_command(
           context.game,
-          Messages.set_starting_stock_price(incorrect_player, :red, 10)
+          Messages.set_stock_value(incorrect_player, :red, 10)
         )
 
       # ASSERT
-      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
+      assert event = fetch_single_event!(game.events, "stock_value_rejected")
 
       assert event.payload == %{
                auction_winner: incorrect_player,
@@ -508,11 +497,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       auction_winner = context.auction_winner
 
       # ACT
-      command = Messages.set_starting_stock_price(auction_winner, :blue, 7)
+      command = Messages.set_stock_value(auction_winner, :blue, 7)
       game = Game.handle_one_command(context.game, command)
 
       # ASSERT
-      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
+      assert event = fetch_single_event!(game.events, "stock_value_rejected")
 
       assert event.payload == %{
                auction_winner: auction_winner,
@@ -532,11 +521,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game =
         Game.handle_one_command(
           context.game,
-          Messages.set_starting_stock_price(auction_winner, :red, 50)
+          Messages.set_stock_value(auction_winner, :red, 50)
         )
 
       # ASSERT
-      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
+      assert event = fetch_single_event!(game.events, "stock_value_rejected")
 
       assert event.payload == %{
                auction_winner: auction_winner,
@@ -556,11 +545,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game =
         Game.handle_one_command(
           context.game,
-          Messages.set_starting_stock_price(auction_winner, :red, 9)
+          Messages.set_stock_value(auction_winner, :red, 9)
         )
 
       # ASSERT
-      assert event = fetch_single_event!(game.events, "starting_stock_price_rejected")
+      assert event = fetch_single_event!(game.events, "stock_value_rejected")
 
       assert event.payload == %{
                auction_winner: auction_winner,
@@ -571,7 +560,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
-  describe "starting_stock_price_set" do
+  describe "stock_value_set" do
     @describetag :auction_off_company
 
     test "starts the next company's auction begins", context do
@@ -582,7 +571,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game =
         Game.handle_one_command(
           game,
-          Messages.set_starting_stock_price(context.auction_winner, :red, 8)
+          Messages.set_stock_value(context.auction_winner, :red, 8)
         )
 
       # ASSERT
@@ -597,7 +586,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game =
         Game.handle_one_command(
           context.game,
-          Messages.set_starting_stock_price(2, :red, 8)
+          Messages.set_stock_value(2, :red, 8)
         )
 
       # ACT
@@ -632,13 +621,13 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game = Game.handle_commands(context.game, commands)
 
       # ACT
-      command = Messages.set_starting_stock_price(auction_winner, :yellow, 8)
+      command = Messages.set_stock_value(auction_winner, :yellow, 8)
       game = Game.handle_one_command(game, command)
-      assert fetch_single_event!(game.events, "starting_stock_price_set")
+      assert fetch_single_event!(game.events, "stock_value_set")
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "auction_phase_ended")
-      assert event.payload == %{phase_number: 1}
+      assert event.payload == %{phase_number: 1, start_player: auction_winner}
     end
   end
 end

@@ -4,25 +4,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
   alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Messages
 
-  # TODO this is repeated from auction_test.exs
-  setup context do
-    if context[:start_game],
-      do: start_game(context),
-      else: :ok
-  end
-
-  setup context do
-    if context[:auction_off_company],
-      do: auction_off_company(context),
-      else: :ok
-  end
-
-  # TODO there has to be a better way of doing this
-  setup context do
-    if context[:random_first_auction_phase],
-      do: random_first_auction_phase(context),
-      else: :ok
-  end
+  taggable_setups()
 
   @incorrect_price 76
 
@@ -109,7 +91,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
 
       commands = [
         commands,
-        Messages.set_starting_stock_price(start_player, only_auctioned_company, winning_bid)
+        Messages.set_stock_value(start_player, only_auctioned_company, winning_bid)
       ]
 
       game = Game.handle_commands(game, commands)
@@ -151,7 +133,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
 
       commands = [
         commands,
-        Messages.set_starting_stock_price(start_player, only_auctioned_company, winning_bid)
+        Messages.set_stock_value(start_player, only_auctioned_company, winning_bid)
       ]
 
       game = Game.handle_commands(game, commands)
@@ -183,7 +165,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
             if player == 3 and company == :yellow do
               [
                 Messages.submit_bid(player, company, 8),
-                Messages.set_starting_stock_price(player, company, 8)
+                Messages.set_stock_value(player, company, 8)
               ]
             else
               Messages.pass_on_company(player, company)
@@ -226,7 +208,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
             if player == 3 and company == :yellow do
               [
                 Messages.submit_bid(player, company, 8),
-                Messages.set_starting_stock_price(player, company, 8)
+                Messages.set_stock_value(player, company, 8)
               ]
             else
               Messages.pass_on_company(player, company)
@@ -267,7 +249,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
             if player == 3 and company == :yellow do
               [
                 Messages.submit_bid(player, company, 8),
-                Messages.set_starting_stock_price(player, company, 8)
+                Messages.set_stock_value(player, company, 8)
               ]
             else
               Messages.pass_on_company(player, company)
