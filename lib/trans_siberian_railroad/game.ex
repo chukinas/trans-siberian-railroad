@@ -26,6 +26,7 @@ defmodule TransSiberianRailroad.Game do
   use TypedStruct
   alias TransSiberianRailroad.Aggregator
   alias TransSiberianRailroad.Aggregator.Auction
+  alias TransSiberianRailroad.Aggregator.EndOfTurn
   alias TransSiberianRailroad.Aggregator.PlayerTurn
   alias TransSiberianRailroad.Aggregator.Setup
   alias TransSiberianRailroad.Command
@@ -37,7 +38,7 @@ defmodule TransSiberianRailroad.Game do
     field :events, [Event.t()], default: []
 
     field :aggregators, [term()],
-      default: Enum.map([Setup, Auction, PlayerTurn], &Projection.project/1)
+      default: Enum.map([Setup, Auction, PlayerTurn, EndOfTurn], &Projection.project/1)
   end
 
   #########################################################
@@ -84,13 +85,32 @@ defmodule TransSiberianRailroad.Game do
   # and see if they generate more events.
   # Example: the Auction module emits a company_auction_started after seeing a auction_phase_started event
   defp react(game) do
-    new_events = Enum.flat_map(game.aggregators, &Aggregator.reactions(&1))
-    game = Enum.reduce(new_events, game, &update_with_new_event(&2, &1))
+    do_react(game, [])
+  end
 
-    if Enum.any?(new_events) do
-      react(game)
-    else
-      game
+  # This is hacky and arbitrary. I wonder if there's a better way to do this.
+  defp do_react(game, reactions_from_this_loop) when length(reactions_from_this_loop) >= 10 do
+    require Logger
+
+    Logger.warning(
+      "Infinite loop detected with events: #{inspect(reactions_from_this_loop, pretty: true)}"
+    )
+
+    game
+  end
+
+  defp do_react(game, previous_reactions) do
+    Enum.find_value(game.aggregators, fn %mod{} = agg ->
+      reactions = Aggregator.reactions(agg)
+      if Enum.any?(reactions), do: {mod, reactions}
+    end)
+    |> case do
+      nil ->
+        game
+
+      {_mod, new_events} = loop_element ->
+        game = Enum.reduce(new_events, game, &update_with_new_event(&2, &1))
+        do_react(game, [loop_element | previous_reactions])
     end
   end
 

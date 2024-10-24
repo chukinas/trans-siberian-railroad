@@ -4,6 +4,7 @@ defmodule TransSiberianRailroad.Command do
   typedstruct enforce: true do
     field :name, String.t()
     field :payload, map()
+    field :trace_id, Ecto.UUID.t()
   end
 
   defimpl Inspect do

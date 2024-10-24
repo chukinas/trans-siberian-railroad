@@ -2,6 +2,8 @@ defmodule TransSiberianRailroad.Messages do
   @moduledoc """
   This module contains **all** the constructors for `TransSiberianRailroad.Command`
   and `TransSiberianRailroad.Event`.
+
+  The messages described in this file **completely** describe the game's player actions and events (found in rulebook.pdf).
   """
 
   require TransSiberianRailroad.Metadata, as: Metadata
@@ -29,7 +31,7 @@ defmodule TransSiberianRailroad.Messages do
     quote do
       name = unquote(name)
       payload = Map.new(unquote(fields))
-      %TransSiberianRailroad.Command{name: name, payload: payload}
+      %TransSiberianRailroad.Command{name: name, payload: payload, trace_id: Ecto.UUID.generate()}
     end
   end
 
@@ -50,21 +52,38 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
+  # "Broad Events"
+  # Unlike all the other events, these two events may
+  # be issued by **any** aggregator.
+  #########################################################
+
+  @type entity() :: Player.id() | Company.id() | :bank
+
   # Money
   # Moving money between players, bank, and companies is
   # such a common operation that it's all handled via this
   # single event.
   # This is one of the few (only?) messages that can be
   # issued by any Aggregator.
-  #########################################################
-
-  @type entity() :: Player.id() | Company.id() | :bank
   @type amount() :: integer()
   @spec money_transferred(%{entity() => amount()}, String.t(), Metadata.t()) :: Event.t()
-  def money_transferred(%{} = transfers, reason, metadata)
-      when is_binary(reason) and Metadata.is(metadata) do
+  def money_transferred(%{} = transfers, reason, metadata) when is_binary(reason) do
     0 = transfers |> Map.values() |> Enum.sum()
     event(transfers: transfers, reason: reason)
+  end
+
+  @spec stock_certificates_transferred(
+          Company.id(),
+          entity(),
+          entity(),
+          pos_integer(),
+          String.t(),
+          Metadata.t()
+        ) ::
+          Event.t()
+  def stock_certificates_transferred(company, from, to, quantity, reason, metadata)
+      when quantity in 1..5 do
+    event(company: company, from: from, to: to, quantity: quantity, reason: reason)
   end
 
   #########################################################
@@ -193,6 +212,8 @@ defmodule TransSiberianRailroad.Messages do
 
   @doc """
   This and "all_players_passed_on_company" both end the company auction started by "company_auction_started".
+
+  At this point, the company is "Open".
   """
   def player_won_company_auction(auction_winner, company, bid_amount, metadata)
       when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(bid_amount) and
@@ -257,6 +278,12 @@ defmodule TransSiberianRailroad.Messages do
     event(auction_winner: auction_winner, company: company, price: price, reason: reason)
   end
 
+  # owner: nil
+  def stock_price_increased(company, new_price, metadata)
+      when Company.is_id(company) and is_integer(new_price) do
+    event(company: company, price: new_price)
+  end
+
   #########################################################
   # Player Turn
   #########################################################
@@ -266,7 +293,27 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
-  # Player Action #3: Pass
+  # Player Action Option #1A: Buy Single Stock
+  #########################################################
+
+  def purchase_single_stock(purchasing_player, company, price)
+      when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) do
+    command(purchasing_player: purchasing_player, company: company, price: price)
+  end
+
+  def single_stock_purchased(purchasing_player, company, price, metadata)
+      when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) do
+    event(purchasing_player: purchasing_player, company: company, price: price)
+  end
+
+  def single_stock_purchase_rejected(purchasing_player, company, price, reason, metadata)
+      when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) and
+             is_binary(reason) do
+    event(purchasing_player: purchasing_player, company: company, price: price, reason: reason)
+  end
+
+  #########################################################
+  # Player Action Option #3: Pass
   #########################################################
 
   def pass(passing_player) when Player.is_id(passing_player) do
@@ -287,6 +334,10 @@ defmodule TransSiberianRailroad.Messages do
   #########################################################
 
   def end_of_turn_sequence_started(metadata) do
+    event([])
+  end
+
+  def end_of_turn_sequence_ended(metadata) do
     event([])
   end
 

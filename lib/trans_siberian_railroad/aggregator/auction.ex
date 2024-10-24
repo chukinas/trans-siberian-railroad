@@ -22,8 +22,8 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
+  require TransSiberianRailroad.Player, as: Player
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Player
   alias TransSiberianRailroad.Players
 
   #########################################################
@@ -31,9 +31,9 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   #########################################################
 
   typedstruct opaque: true do
-    version_field()
+    projection_fields()
     field :player_order, [Player.id()]
-    field :player_money_balances, %{Player.id() => integer()}, default: %{}
+    field :player_money_balances, %{Player.id() => non_neg_integer()}, default: %{}
     field :state_machine, [{:atom, Keyword.t()}], default: []
   end
 
@@ -50,7 +50,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
 
     new_player_money_balances =
       Enum.reduce(transfers, player_money_balances, fn
-        {entity, amount}, balances when is_integer(entity) ->
+        {entity, amount}, balances when Player.is_id(entity) ->
           Map.update(balances, entity, amount, &(&1 + amount))
 
         _, balances ->
@@ -123,7 +123,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   handle_command "pass_on_company", ctx do
     %{passing_player: passing_player, company: company} = ctx.payload
     auction = ctx.projection
-    metadata = Projection.next_metadata(auction)
+    metadata = ctx.next_metadata
 
     validate_current_company = fn auction, company ->
       with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
@@ -207,8 +207,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     end
 
     validate_min_bid = if amount < 8, do: {:error, "bid must be at least 8"}, else: :ok
-
-    metadata = Projection.next_metadata(auction)
+    metadata = ctx.next_metadata
 
     with {:ok, kv} <- fetch_substate_kv(auction, :company_auction),
          :ok <- validate_current_bidder(auction, bidder),
@@ -242,14 +241,22 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
          true <- is_integer(amount) do
       company = Keyword.fetch!(kv, :company)
       metadata = &Projection.next_metadata(auction, &1)
+      reason = "First company stock auctioned off"
 
       [
         Messages.player_won_company_auction(auction_winner, company, amount, metadata.(0)),
-        # TODO the reason is too specific. Rm the player and company ids
+        Messages.stock_certificates_transferred(
+          company,
+          company,
+          auction_winner,
+          1,
+          reason,
+          metadata.(1)
+        ),
         Messages.money_transferred(
           %{auction_winner => -amount, company => amount},
-          "First company stock auctioned off",
-          metadata.(1)
+          reason,
+          metadata.(2)
         )
       ]
     else
@@ -275,7 +282,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   handle_command "set_starting_stock_price", ctx do
     %{auction_winner: auction_winner, company: company, price: price} = ctx.payload
     auction = ctx.projection
-    metadata = Projection.next_metadata(auction)
+    metadata = ctx.next_metadata
 
     validate_company = fn kv ->
       if Keyword.fetch!(kv, :company) == company, do: :ok, else: {:error, "incorrect company"}

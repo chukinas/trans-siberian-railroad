@@ -21,7 +21,8 @@ defmodule TransSiberianRailroad.Projection do
       alias unquote(__MODULE__)
       @before_compile unquote(__MODULE__)
       Module.register_attribute(__MODULE__, :handle_event_names, accumulate: true)
-      import TransSiberianRailroad.Projection, only: [handle_event: 3, version_field: 0]
+
+      import TransSiberianRailroad.Projection, only: [handle_event: 3, projection_fields: 0]
     end
   end
 
@@ -43,8 +44,10 @@ defmodule TransSiberianRailroad.Projection do
         payload: payload
       }
 
-      fields = projection_mod.__handle_event__(event_name, ctx)
+      fields = projection_mod.__handle_event__(event_name, ctx) |> List.wrap()
+
       struct!(projection, fields)
+      |> put_trace_id(event)
     else
       projection
     end
@@ -86,13 +89,19 @@ defmodule TransSiberianRailroad.Projection do
   end
 
   #########################################################
-  # Versioning
+  # Metadata
   #########################################################
 
-  defmacro version_field() do
+  defmacro projection_fields() do
     quote do
       field :__version__, non_neg_integer(), required: true, default: 0
+      field :__trace_id__, Ecto.UUID.t(), enforce: false
     end
+  end
+
+  def next_metadata(%_{__version__: version, __trace_id__: trace_id}, offset \\ 0) do
+    next_version = version + 1 + offset
+    Metadata.new(next_version, trace_id)
   end
 
   defp put_version(%_{__version__: current_version} = projection, %Event{version: next_version})
@@ -100,7 +109,7 @@ defmodule TransSiberianRailroad.Projection do
     struct!(projection, __version__: next_version)
   end
 
-  def next_metadata(%_{__version__: version}, offset \\ 0) do
-    Metadata.new(version + 1 + offset)
+  defp put_trace_id(%_{} = projection, %Event{trace_id: trace_id}) do
+    struct!(projection, __trace_id__: trace_id)
   end
 end

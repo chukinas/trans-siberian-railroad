@@ -32,6 +32,7 @@ defmodule TransSiberianRailroad.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:ecto, "~> 3.12"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:phoenix, "~> 1.7.14"},
       {:phoenix_html, "~> 4.1"},
