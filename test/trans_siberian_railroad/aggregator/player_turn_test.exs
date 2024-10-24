@@ -39,24 +39,19 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
 
       # ACT
-      # TODO I think I like the wording "wrong player" and "wrong company" better?
-      # TODO extract function
-      incorrect_player =
+      wrong_player =
         context.one_round |> Enum.reject(&(&1 == context.start_player)) |> Enum.random()
 
-      incorrect_company = :black
-
-      command =
-        Messages.purchase_single_stock(incorrect_player, incorrect_company, @incorrect_price)
-
+      wrong_company = :black
+      command = Messages.purchase_single_stock(wrong_player, wrong_company, @incorrect_price)
       game = Game.handle_one_command(context.game, command)
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
 
       assert event.payload == %{
-               purchasing_player: incorrect_player,
-               company: incorrect_company,
+               purchasing_player: wrong_player,
+               company: wrong_company,
                price: @incorrect_price,
                reason: "not a player turn"
              }
@@ -71,13 +66,13 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       assert [] = Enum.filter(context.game.events, &String.contains?(&1.name, "reject"))
 
       # ACT
-      incorrect_player =
+      wrong_player =
         context.one_round |> Enum.reject(&(&1 == correct_player)) |> Enum.random()
 
-      incorrect_company = :black
+      wrong_company = :black
 
       command =
-        Messages.purchase_single_stock(incorrect_player, incorrect_company, @incorrect_price)
+        Messages.purchase_single_stock(wrong_player, wrong_company, @incorrect_price)
 
       game = Game.handle_one_command(context.game, command)
 
@@ -85,8 +80,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
 
       assert event.payload == %{
-               purchasing_player: incorrect_player,
-               company: incorrect_company,
+               purchasing_player: wrong_player,
+               company: wrong_company,
                price: @incorrect_price,
                reason: "incorrect player"
              }
@@ -360,7 +355,6 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
   # Player Action Option #3: Pass
   #########################################################
 
-  # TODO follow the naming conventions above
   describe "pass_rejected when" do
     test "not a player turn (e.g. setup)" do
       # ARRANGE
@@ -389,14 +383,12 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       assert [] = Enum.filter(context.game.events, &String.contains?(&1.name, "reject"))
 
       # ACT
-      incorrect_player =
-        context.one_round |> Enum.reject(&(&1 == correct_player)) |> Enum.random()
-
-      game = Game.handle_one_command(context.game, Messages.pass(incorrect_player))
+      wrong_player = context.one_round |> Enum.reject(&(&1 == correct_player)) |> Enum.random()
+      game = Game.handle_one_command(context.game, Messages.pass(wrong_player))
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "pass_rejected")
-      assert event.payload == %{passing_player: incorrect_player, reason: "incorrect player"}
+      assert event.payload == %{passing_player: wrong_player, reason: "incorrect player"}
     end
   end
 

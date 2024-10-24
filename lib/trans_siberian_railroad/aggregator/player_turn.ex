@@ -1,6 +1,11 @@
 defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   @moduledoc """
-  TODO
+  This module handles the player's turn.
+
+  Players may:
+  - purchase stock
+  - pass
+  - lay rail for a company they have a majority stake in
   """
 
   use TransSiberianRailroad.Aggregator
@@ -31,10 +36,12 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
           &{&1, %{stock_count: 0, stock_price: nil, state: :unauctioned}}
         )
 
+    # If :not_started, no one's had a first turn yet. We're setting up or doing the first auction phase.
     # If :in_progress, we are in the middle of a player's turn, awaiting their command.
     # If :start_player_turn, we are ready to start the next player's turn.
-    # If nil, we are waiting for some event to initiate one of the two above.
-    field :readiness, :in_progress | :player_turn_started
+    # If :end_of_turn, we are in the middle of the end-of-turn sequence.
+    field :readiness, :not_started | :in_progress | :start_player_turn | :end_of_turn,
+      default: :not_started
   end
 
   #########################################################
@@ -57,9 +64,14 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
   handle_event "player_won_company_auction", ctx do
     %{auction_winner: next_player, company: company} = ctx.payload
-    # TODO but not if it's phase 2 auction
     companies = ctx.projection.companies |> put_in([company, :state], :active)
-    [fetched_next_player: {:ok, next_player}, companies: companies]
+    fields = [companies: companies]
+
+    if ctx.projection.readiness == :not_started do
+      Keyword.put(fields, :fetched_next_player, {:ok, next_player})
+    else
+      fields
+    end
   end
 
   #########################################################
@@ -123,13 +135,13 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     %{phase_number: phase_number} = ctx.payload
 
     if phase_number == 1 do
-      [readiness: :player_turn_started]
+      [readiness: :start_player_turn]
     end
   end
 
   defreaction maybe_start_player_turn(projection) do
     with {:ok, next_player} <- projection.fetched_next_player,
-         :player_turn_started <- projection.readiness do
+         :start_player_turn <- projection.readiness do
       metadata = Projection.next_metadata(projection)
       Messages.player_turn_started(next_player, metadata)
     else
@@ -144,11 +156,11 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   end
 
   handle_event "end_of_turn_sequence_started", _ctx do
-    [readiness: nil]
+    [readiness: :end_of_turn]
   end
 
   handle_event "end_of_turn_sequence_ended", _ctx do
-    [readiness: :player_turn_started]
+    [readiness: :start_player_turn]
   end
 
   #########################################################
@@ -227,7 +239,6 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
   defp fetch_next_player(projection, current_player) do
     with {:ok, player_order} <- fetch_player_order(projection) do
-      # TODO rename to indicate that it's a tuple?
       {:ok, Players.next_player(player_order, current_player)}
     end
   end
