@@ -25,11 +25,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   require TransSiberianRailroad.Player, as: Player
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Players
-  alias TransSiberianRailroad.RailCompany, as: Company
-
-  #########################################################
-  # PROJECTION
-  #########################################################
+  alias TransSiberianRailroad.Company
 
   aggregator_typedstruct do
     field :player_order, [Player.id()]
@@ -43,13 +39,13 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     # current company
     field :current_company, Company.id()
     field :bidders, [{Player.id(), nil | non_neg_integer()}], default: []
-    field :awaiting_stock_price, boolean(), default: false
+    field :awaiting_stock_value, boolean(), default: false
   end
 
   @clear_company_auction [
     current_company: nil,
     bidders: [],
-    awaiting_stock_price: false
+    awaiting_stock_value: false
   ]
 
   @clear_auction [
@@ -126,7 +122,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
         ctx.projection.player_order
         |> Players.one_round(start_bidder)
         |> Enum.map(&{&1, nil}),
-      awaiting_stock_price: false
+      awaiting_stock_value: false
     ]
   end
 
@@ -223,13 +219,13 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
         with [{^bidder, _} | rest] = ctx.projection.bidders do
           rest ++ [{bidder, amount}]
         end,
-      awaiting_stock_price: false
+      awaiting_stock_value: false
     ]
   end
 
   defreaction maybe_player_won_company_auction(projection) do
     with :ok <- validate_auction_phase(projection),
-         false <- projection.awaiting_stock_price,
+         false <- projection.awaiting_stock_value,
          :ok <- validate_company_auction(projection),
          {:ok, company} <- fetch_current_company(projection),
          {:ok, auction_winner} <- fetch_single_bidder(projection),
@@ -240,7 +236,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
         &Messages.player_won_company_auction(auction_winner, company, amount, &1),
         &Messages.stock_certificates_transferred(company, company, auction_winner, 1, reason, &1),
         &Messages.money_transferred(%{auction_winner => -amount, company => amount}, reason, &1),
-        &Messages.awaiting_set_stock_price(auction_winner, company, amount, &1)
+        &Messages.awaiting_stock_value(auction_winner, company, amount, &1)
       ]
     else
       _ -> nil
@@ -252,8 +248,8 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     [current_company: company, bidders: [{auction_winner, amount}]]
   end
 
-  handle_event "awaiting_set_stock_price", _ctx do
-    [awaiting_stock_price: true]
+  handle_event "awaiting_stock_value", _ctx do
+    [awaiting_stock_value: true]
   end
 
   #########################################################
@@ -266,11 +262,11 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     projection = ctx.projection
 
     with :ok <- validate_auction_phase(projection),
-         :ok <- validate_awaiting_stock_price_set(projection),
+         :ok <- validate_awaiting_stock_value(projection),
          :ok <- validate_bid_winner(projection, auction_winner),
          :ok <- validate_current_company(projection, company),
-         :ok <- validate_stock_price_not_exceeds_bid(projection, price),
-         :ok <- validate_stock_price_is_valid_spot_on_board(price) do
+         :ok <- validate_stock_value_not_exceeds_bid(projection, price),
+         :ok <- validate_stock_value_is_valid_spot_on_board(price) do
       &Messages.stock_value_set(auction_winner, company, price, &1)
     else
       {:error, reason} ->
@@ -292,6 +288,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
          :ok <- validate_in_between_company_auctions(projection),
          {:error, _reason} <- fetch_next_company(projection) do
       start_player = projection.start_bidder
+
       &Messages.auction_phase_ended(phase_number, start_player, &1)
     else
       _ -> nil
@@ -519,14 +516,14 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   # and so we're not yet awaiting the
   defp validate_bidding_in_progress(projection) do
     with :ok <- validate_company_auction(projection) do
-      case validate_awaiting_stock_price_set(projection) do
+      case validate_awaiting_stock_value(projection) do
         {:error, _} -> :ok
         :ok -> {:error, "incorrect subphase"}
       end
     end
   end
 
-  defp validate_awaiting_stock_price_set(projection) do
+  defp validate_awaiting_stock_value(projection) do
     with {:ok, _} <- fetch_bid_winner(projection) do
       :ok
     else
@@ -534,7 +531,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     end
   end
 
-  defp validate_stock_price_is_valid_spot_on_board(price) do
+  defp validate_stock_value_is_valid_spot_on_board(price) do
     if price in TransSiberianRailroad.StockValue.stock_value_spaces() do
       :ok
     else
@@ -542,7 +539,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
     end
   end
 
-  defp validate_stock_price_not_exceeds_bid(projection, price) do
+  defp validate_stock_value_not_exceeds_bid(projection, price) do
     with {:ok, bid} <- fetch_highest_bid(projection) do
       if price <= bid do
         :ok

@@ -7,6 +7,11 @@ defmodule TransSiberianRailroad.Income do
   @income_spaces 2..70
   @stock_value_increase_spaces [10, 15, 20, 26, 32, 38, 44, 51, 59, 66, 70]
 
+  @typedoc """
+  Any one of the #{inspect(@income_spaces)} spaces on the income track
+  """
+  @type t() :: pos_integer()
+
   def count_stock_value_increases(starting_income, final_income)
       when starting_income in @income_spaces and final_income in @income_spaces and
              starting_income <= final_income do

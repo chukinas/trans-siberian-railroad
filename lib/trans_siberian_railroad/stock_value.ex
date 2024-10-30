@@ -4,6 +4,7 @@ defmodule TransSiberianRailroad.StockValue do
   This is how much it costs to buy a share of that company.
   In Phase 2 of the game, railroads whose stock value is below "Nationalization Value"
   will be nationalized (bought out by the government).
+  At the end of the game, players receive this value for each stock they own.
   """
 
   @max_value 75

@@ -1,12 +1,63 @@
 defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
   use ExUnit.Case
+  import TransSiberianRailroad.CommandFactory
+  import TransSiberianRailroad.GameHelpers
   import TransSiberianRailroad.GameTestHelpers
-  alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Messages
 
   taggable_setups()
 
   @incorrect_price 76
+
+  #########################################################
+  # Start Turn
+  #########################################################
+
+  describe "start_player_turn" do
+    @describetag :start_game
+    test "-> player_turn_started", context do
+      # GIVEN all player pass on all companies, except for the last player on the last company
+      {final_pass, pass_commands} =
+        for company <- ~w/red blue green yellow/a,
+            player <- context.one_round do
+          pass_on_company(player, company)
+        end
+        |> List.pop_at(-1)
+
+      game = context.game
+      game = handle_commands(game, pass_commands)
+      refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
+
+      # WHEN that last player passes on the last company
+      game = handle_one_command(game, final_pass)
+      refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
+
+      # THEN the start player's turn begins
+      assert event = fetch_single_event!(game.events, "player_turn_started")
+      assert event.payload == %{player: context.start_player}
+    end
+
+    test "-> player_turn_rejected", context do
+      # GIVEN a player's turn is already in progress (in this case, the first player's turn)
+      commands =
+        for company <- ~w/red blue green yellow/a,
+            player <- context.one_round do
+          pass_on_company(player, company)
+        end
+
+      game = context.game
+      game = handle_commands(game, commands)
+      refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
+
+      # WHEN we emit another start_player_turn command
+      command = Messages.start_player_turn(user: :game)
+      game = handle_one_command(game, command)
+
+      # THEN the command is rejected
+      assert event = fetch_single_event!(game.events, "player_turn_rejected")
+      assert event.payload == %{message: "A player's turn is already in progress"}
+    end
+  end
 
   #########################################################
   # Player Action Option #1A: Buy Single Stock
@@ -25,8 +76,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
         context.one_round |> Enum.reject(&(&1 == context.start_player)) |> Enum.random()
 
       wrong_company = :black
-      command = Messages.purchase_single_stock(wrong_player, wrong_company, @incorrect_price)
-      game = Game.handle_one_command(context.game, command)
+      command = purchase_single_stock(wrong_player, wrong_company, @incorrect_price)
+      game = handle_one_command(context.game, command)
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
@@ -52,11 +103,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
         context.one_round |> Enum.reject(&(&1 == correct_player)) |> Enum.random()
 
       wrong_company = :black
-
-      command =
-        Messages.purchase_single_stock(wrong_player, wrong_company, @incorrect_price)
-
-      game = Game.handle_one_command(context.game, command)
+      command = purchase_single_stock(wrong_player, wrong_company, @incorrect_price)
+      game = handle_one_command(context.game, command)
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
@@ -83,23 +131,23 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
         for company <- ~w/red blue green yellow/a,
             player <- context.one_round do
           if player == start_player and company == only_auctioned_company do
-            Messages.submit_bid(start_player, only_auctioned_company, winning_bid)
+            submit_bid(start_player, only_auctioned_company, winning_bid)
           else
-            Messages.pass_on_company(player, company)
+            pass_on_company(player, company)
           end
         end
 
       commands = [
         commands,
-        Messages.set_stock_value(start_player, only_auctioned_company, winning_bid)
+        set_stock_value(start_player, only_auctioned_company, winning_bid)
       ]
 
-      game = Game.handle_commands(game, commands)
+      game = handle_commands(game, commands)
 
       # ACT
       attempted_company = :red
-      command = Messages.purchase_single_stock(start_player, attempted_company, winning_bid)
-      game = Game.handle_one_command(game, command)
+      command = purchase_single_stock(start_player, attempted_company, winning_bid)
+      game = handle_one_command(game, command)
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
@@ -125,22 +173,22 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
         for company <- ~w/red blue green yellow/a,
             player <- context.one_round do
           if player == start_player and company == only_auctioned_company do
-            Messages.submit_bid(start_player, only_auctioned_company, winning_bid)
+            submit_bid(start_player, only_auctioned_company, winning_bid)
           else
-            Messages.pass_on_company(player, company)
+            pass_on_company(player, company)
           end
         end
 
       commands = [
         commands,
-        Messages.set_stock_value(start_player, only_auctioned_company, winning_bid)
+        set_stock_value(start_player, only_auctioned_company, winning_bid)
       ]
 
-      game = Game.handle_commands(game, commands)
+      game = handle_commands(game, commands)
 
       # ACT
-      command = Messages.purchase_single_stock(start_player, only_auctioned_company, winning_bid)
-      game = Game.handle_one_command(game, command)
+      command = purchase_single_stock(start_player, only_auctioned_company, winning_bid)
+      game = handle_one_command(game, command)
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
@@ -159,29 +207,34 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
     test "company stock already all sold off", context do
       # ARRANGE
       game =
-        Game.handle_commands(context.game, [
+        handle_commands(context.game, [
           for company <- ~w/red blue green yellow/a,
               player <- context.one_round do
             if player == 3 and company == :yellow do
               [
-                Messages.submit_bid(player, company, 8),
-                Messages.set_stock_value(player, company, 8)
+                submit_bid(player, company, 8),
+                set_stock_value(player, company, 8)
               ]
             else
-              Messages.pass_on_company(player, company)
+              pass_on_company(player, company)
             end
           end,
-          Messages.purchase_single_stock(3, :yellow, 8),
-          Messages.purchase_single_stock(1, :yellow, 8),
-          Messages.purchase_single_stock(2, :yellow, 8),
-          Messages.purchase_single_stock(3, :yellow, 8)
+          purchase_single_stock(3, :yellow, 8),
+          purchase_single_stock(1, :yellow, 8),
+          purchase_single_stock(2, :yellow, 8),
+          purchase_single_stock(3, :yellow, 8)
         ])
 
-      refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
+      assert 4 ==
+               game.events
+               |> Enum.filter(&String.contains?(&1.name, "single_stock_purchased"))
+               |> Enum.count()
+
+      assert [] == Enum.filter(game.events, &String.contains?(&1.name, "reject"))
 
       # ACT
       # Now that all red stock have been auctioned and sold off, try to buy one more
-      game = Game.handle_one_command(game, Messages.purchase_single_stock(1, :yellow, 8))
+      game = handle_one_command(game, purchase_single_stock(1, :yellow, 8))
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
@@ -202,16 +255,16 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
     test "does not match current stock price", context do
       # ARRANGE
       game =
-        Game.handle_commands(context.game, [
+        handle_commands(context.game, [
           for company <- ~w/red blue green yellow/a,
               player <- context.one_round do
             if player == 3 and company == :yellow do
               [
-                Messages.submit_bid(player, company, 8),
-                Messages.set_stock_value(player, company, 8)
+                submit_bid(player, company, 8),
+                set_stock_value(player, company, 8)
               ]
             else
-              Messages.pass_on_company(player, company)
+              pass_on_company(player, company)
             end
           end
         ])
@@ -220,8 +273,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
 
       # ACT
       # Now that all red stock have been auctioned and sold off, try to buy one more
-      command = Messages.purchase_single_stock(3, :yellow, 12)
-      game = Game.handle_one_command(game, command)
+      command = purchase_single_stock(3, :yellow, 12)
+      game = handle_one_command(game, command)
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "single_stock_purchase_rejected")
@@ -243,16 +296,16 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
     setup context do
       # ARRANGE
       game =
-        Game.handle_commands(context.game, [
+        handle_commands(context.game, [
           for company <- ~w/red blue green yellow/a,
               player <- context.one_round do
             if player == 3 and company == :yellow do
               [
-                Messages.submit_bid(player, company, 8),
-                Messages.set_stock_value(player, company, 8)
+                submit_bid(player, company, 8),
+                set_stock_value(player, company, 8)
               ]
             else
-              Messages.pass_on_company(player, company)
+              pass_on_company(player, company)
             end
           end
         ])
@@ -263,7 +316,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       [game: game]
     end
 
-    @purchase_single_stock Messages.purchase_single_stock(3, :yellow, 8)
+    @purchase_single_stock purchase_single_stock(3, :yellow, 8)
 
     test "happy path", context do
       # ARRANGE
@@ -271,7 +324,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       refute get_latest_event_by_name(game.events, "single_stock_purchased")
 
       # ACT
-      game = Game.handle_one_command(game, @purchase_single_stock)
+      game = handle_one_command(game, @purchase_single_stock)
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "single_stock_purchased")
@@ -284,7 +337,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
       money_transferred_events = filter_events_by_name(game.events, "money_transferred")
 
       # ACT
-      game = Game.handle_one_command(game, @purchase_single_stock)
+      game = handle_one_command(game, @purchase_single_stock)
 
       # ASSERT
       assert [event | ^money_transferred_events] =
@@ -304,7 +357,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
         filter_events_by_name(game.events, "stock_certificates_transferred")
 
       # ACT
-      game = Game.handle_one_command(game, @purchase_single_stock)
+      game = handle_one_command(game, @purchase_single_stock)
 
       # ASSERT
       assert [event | ^stock_transferred_events] =
@@ -319,16 +372,16 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
              }
     end
 
-    test "-> end_of_turn_sequence_started", context do
+    test "-> interturn_started", context do
       # ARRANGE
       game = context.game
-      refute get_latest_event_by_name(game.events, "end_of_turn_sequence_started")
+      refute get_latest_event_by_name(game.events, "interturn_started")
 
       # ACT
-      game = Game.handle_one_command(game, @purchase_single_stock)
+      game = handle_one_command(game, @purchase_single_stock)
 
       # ASSERT
-      assert event = fetch_single_event!(game.events, "end_of_turn_sequence_started")
+      assert event = fetch_single_event!(game.events, "interturn_skipped")
       assert event.payload == %{}
     end
   end
@@ -341,14 +394,14 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
     test "not a player turn (e.g. setup)" do
       # ARRANGE
       game =
-        Game.handle_commands([
-          Messages.initialize_game(),
+        handle_commands([
+          initialize_game(),
           add_player_commands(3),
-          Messages.set_player_order([1, 2, 3])
+          set_player_order([1, 2, 3])
         ])
 
       # ACT
-      game = Game.handle_one_command(game, Messages.pass(1))
+      game = handle_one_command(game, pass(1))
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "pass_rejected")
@@ -366,7 +419,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
 
       # ACT
       wrong_player = context.one_round |> Enum.reject(&(&1 == correct_player)) |> Enum.random()
-      game = Game.handle_one_command(context.game, Messages.pass(wrong_player))
+      game = handle_one_command(context.game, pass(wrong_player))
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "pass_rejected")
@@ -377,17 +430,17 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
   describe "passed" do
     @tag :start_game
     @tag :random_first_auction_phase
-    test "-> end_of_turn_sequence_started", context do
+    test "-> interturn_started", context do
       # ARRANGE
       game = context.game
       refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
 
       # ACT
-      game = Game.handle_one_command(game, Messages.pass(context.start_player))
+      game = handle_one_command(game, pass(context.start_player))
 
       # ASSERT
       assert fetch_single_event!(game.events, "passed")
-      assert fetch_single_event!(game.events, "end_of_turn_sequence_started")
+      assert fetch_single_event!(game.events, "interturn_skipped")
     end
   end
 end

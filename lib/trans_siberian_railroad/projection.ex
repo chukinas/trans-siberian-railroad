@@ -41,7 +41,8 @@ defmodule TransSiberianRailroad.Projection do
     if event_name in projection_mod.__handled_event_names__() do
       ctx = %{
         projection: projection,
-        payload: payload
+        payload: payload,
+        trace_id: event.trace_id
       }
 
       fields = projection_mod.__handle_event__(event_name, ctx) |> List.wrap()
@@ -113,5 +114,20 @@ defmodule TransSiberianRailroad.Projection do
 
   defp put_trace_id(%_{} = projection, %Event{trace_id: trace_id}) do
     struct!(projection, __trace_id__: trace_id)
+  end
+
+  def metadata(%_{__version__: version, __trace_id__: trace_id}, overrides \\ []) do
+    next_version = version + 1 + Keyword.get(overrides, :offset, 0)
+    id = Keyword.get(overrides, :id, Ecto.UUID.generate())
+
+    metadata =
+      Metadata.new(next_version, trace_id)
+      |> Keyword.put(:id, id)
+
+    if user = Keyword.get(overrides, :user) do
+      Keyword.put(metadata, :user, user)
+    else
+      metadata
+    end
   end
 end

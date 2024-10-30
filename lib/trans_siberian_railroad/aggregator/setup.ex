@@ -71,7 +71,9 @@ defmodule TransSiberianRailroad.Aggregator.Setup do
     end
   end
 
-  handle_event("game_initialized", ctx, do: [game_id: ctx.payload.game_id])
+  handle_event "game_initialized", ctx do
+    [game_id: ctx.payload.game_id]
+  end
 
   #########################################################
   # Adding Players

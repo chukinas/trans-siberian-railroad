@@ -6,9 +6,10 @@ defmodule TransSiberianRailroad.Messages do
   The messages described in this file **completely** describe the game's player actions and events (found in rulebook.pdf).
   """
 
+  use TransSiberianRailroad.Command
   require TransSiberianRailroad.Metadata, as: Metadata
   require TransSiberianRailroad.Player, as: Player
-  require TransSiberianRailroad.RailCompany, as: Company
+  require TransSiberianRailroad.Company, as: Company
   alias TransSiberianRailroad.Event
 
   #########################################################
@@ -17,25 +18,7 @@ defmodule TransSiberianRailroad.Messages do
   #   in order to validate then in aggregators
   #########################################################
 
-  Module.register_attribute(__MODULE__, :command_names, accumulate: true)
   Module.register_attribute(__MODULE__, :event_names, accumulate: true)
-
-  defmacrop command(fields) do
-    name =
-      with {name, _arity} = __CALLER__.function do
-        to_string(name)
-      end
-
-    Module.put_attribute(__MODULE__, :command_names, name)
-
-    quote do
-      name = unquote(name)
-      payload = Map.new(unquote(fields))
-      trace_id = Ecto.UUID.generate()
-      %TransSiberianRailroad.Command{name: name, payload: payload, trace_id: trace_id}
-    end
-  end
-
   Module.register_attribute(__MODULE__, :simple_event, accumulate: true)
 
   defmacrop event(fields) do
@@ -93,13 +76,14 @@ defmodule TransSiberianRailroad.Messages do
   # Initializing Game
   #########################################################
 
-  def initialize_game() do
+  # OK
+  defcommand initialize_game() do
     game_id =
       1..6
       |> Enum.map(fn _ -> Enum.random(?A..?Z) end)
       |> Enum.join()
 
-    command(game_id: game_id)
+    [game_id: game_id]
   end
 
   def game_initialized(game_id, metadata) do
@@ -114,8 +98,9 @@ defmodule TransSiberianRailroad.Messages do
   # Adding Players
   #########################################################
 
-  def add_player(player_name) when is_binary(player_name) do
-    command(player_name: player_name)
+  # OK
+  defcommand add_player(player_name) when is_binary(player_name) do
+    [player_name: player_name]
   end
 
   def player_added(player_id, player_name, metadata)
@@ -131,22 +116,24 @@ defmodule TransSiberianRailroad.Messages do
   # SETUP - player order and starting player
   #########################################################
 
-  def set_start_player(start_player) when Player.is_id(start_player) do
-    command(start_player: start_player)
+  # OK
+  defcommand set_start_player(start_player) when Player.is_id(start_player) do
+    [start_player: start_player]
   end
 
   def start_player_set(start_player, metadata) when Player.is_id(start_player) do
     event(start_player: start_player)
   end
 
-  def set_player_order(player_order) when is_list(player_order) do
+  # OK
+  defcommand set_player_order(player_order) when is_list(player_order) do
     for player <- player_order do
       unless Player.is_id(player) do
         raise ArgumentError, "player_order must be a list of integers"
       end
     end
 
-    command(player_order: player_order)
+    [player_order: player_order]
   end
 
   def player_order_set(player_order, metadata) when is_list(player_order) do
@@ -163,8 +150,9 @@ defmodule TransSiberianRailroad.Messages do
   # Starting Game
   #########################################################
 
-  def start_game() do
-    command([])
+  # OK
+  defcommand start_game() do
+    []
   end
 
   def game_started(metadata) do
@@ -249,9 +237,10 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - players pass on a company
   #########################################################
 
-  def pass_on_company(passing_player, company)
-      when Player.is_id(passing_player) and Company.is_id(company) do
-    command(passing_player: passing_player, company: company)
+  # OK
+  defcommand pass_on_company(passing_player, company)
+             when Player.is_id(passing_player) and Company.is_id(company) do
+    [passing_player: passing_player, company: company]
   end
 
   def company_passed(passing_player, company, metadata)
@@ -268,9 +257,10 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - players bid on a company
   #########################################################
 
-  def submit_bid(bidder, company, amount)
-      when Player.is_id(bidder) and Company.is_id(company) and is_integer(amount) do
-    command(bidder: bidder, company: company, amount: amount)
+  # OK
+  defcommand submit_bid(bidder, company, amount)
+             when Player.is_id(bidder) and Company.is_id(company) and is_integer(amount) do
+    [bidder: bidder, company: company, amount: amount]
   end
 
   def bid_submitted(bidder, company, amount, metadata)
@@ -287,19 +277,19 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - set starting stock price
   #########################################################
 
-  def awaiting_set_stock_price(player, company, max_price, metadata)
+  def awaiting_stock_value(player, company, max_price, metadata)
       when Player.is_id(player) and Company.is_id(company) and is_integer(max_price) do
     event(player: player, company: company, max_price: max_price)
   end
 
-  def set_stock_value(auction_winner, company, price)
-      when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(price) do
-    command(auction_winner: auction_winner, company: company, price: price)
+  defcommand set_stock_value(auction_winner, company, price)
+             when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(price) do
+    [auction_winner: auction_winner, company: company, price: price]
   end
 
-  def stock_value_set(auction_winner, company, price, metadata)
-      when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(price) do
-    event(auction_winner: auction_winner, company: company, price: price)
+  def stock_value_set(auction_winner, company, value, metadata)
+      when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(value) do
+    event(auction_winner: auction_winner, company: company, value: value)
   end
 
   def stock_value_rejected(auction_winner, company, price, reason, metadata)
@@ -307,16 +297,25 @@ defmodule TransSiberianRailroad.Messages do
     event(auction_winner: auction_winner, company: company, price: price, reason: reason)
   end
 
-  def stock_value_incremented(company, new_price, metadata)
-      when Company.is_id(company) and is_integer(new_price) do
-    event(company: company, price: new_price)
+  def stock_value_incremented(company, metadata) when Company.is_id(company) do
+    event(company: company)
   end
 
   #########################################################
   # Player Turn
   #########################################################
 
+  defcommand(:start_player_turn)
+
   def player_turn_started(player, metadata) when Player.is_id(player) do
+    event(player: player)
+  end
+
+  def player_turn_rejected(message, metadata) do
+    event(message: message)
+  end
+
+  def player_turn_ended(player, metadata) when Player.is_id(player) do
     event(player: player)
   end
 
@@ -324,9 +323,9 @@ defmodule TransSiberianRailroad.Messages do
   # Player Action Option #1A: Buy Single Stock
   #########################################################
 
-  def purchase_single_stock(purchasing_player, company, price)
-      when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) do
-    command(purchasing_player: purchasing_player, company: company, price: price)
+  defcommand purchase_single_stock(purchasing_player, company, price)
+             when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) do
+    [purchasing_player: purchasing_player, company: company, price: price]
   end
 
   def single_stock_purchased(purchasing_player, company, price, metadata)
@@ -344,8 +343,9 @@ defmodule TransSiberianRailroad.Messages do
   # Player Action Option #3: Pass
   #########################################################
 
-  def pass(passing_player) when Player.is_id(passing_player) do
-    command(passing_player: passing_player)
+  # OK
+  defcommand pass(passing_player) when Player.is_id(passing_player) do
+    [passing_player: passing_player]
   end
 
   def passed(passing_player, metadata) when Player.is_id(passing_player) do
@@ -361,8 +361,16 @@ defmodule TransSiberianRailroad.Messages do
   # End of Turn Sequence
   #########################################################
 
-  @simple_event :end_of_turn_sequence_started
-  @simple_event :end_of_turn_sequence_ended
+  defcommand(:start_interturn)
+
+  # If the timing track is sufficiently advanced, then:
+  @simple_event :interturn_started
+  # otherwise:
+  @simple_event :interturn_skipped
+
+  # If a :interturn_started event has been issued,
+  # then when it's finished:
+  @simple_event :interturn_ended
 
   #########################################################
   # Timing Track
@@ -375,12 +383,44 @@ defmodule TransSiberianRailroad.Messages do
   # Dividends
   #########################################################
 
-  @simple_event :awaiting_dividends
+  # Emitted by Interturn as part of the response to interturn_started.
+  defcommand(pay_dividends(), do: [])
 
-  @type dividends() :: %{Player.id() => pos_integer()}
-  @spec dividends_paid(dividends(), Metadata.t()) :: Event.t()
-  def dividends_paid(dividends, metadata) do
-    event(dividends: dividends)
+  # Emitted and consumed by IncomeTrack
+  def paying_dividends(metadata) do
+    event([])
+  end
+
+  # Emitted by IncomeTrack in response to pay_dividends.
+  # It will wait for a corresponding company_dividends_paid event before emitting
+  # another for the next company.
+  defcommand pay_company_dividends(company, income) do
+    [company: company, income: income]
+  end
+
+  # Emitted by StockCertificates in response to pay_company_dividends.
+  # It also emits money_transferred
+  def company_dividends_paid(
+        company,
+        company_income,
+        stock_count,
+        certificate_value,
+        command_id,
+        metadata
+      ) do
+    event(
+      company: company,
+      company_income: company_income,
+      stock_count: stock_count,
+      certificate_value: certificate_value,
+      command_id: command_id
+    )
+  end
+
+  # Emitted by IncomeTrack after last pay_company_dividends/company_dividends_paid cycle.
+  # Consumed by Interturn to trigger the next interturn sequence.
+  def dividends_paid(metadata) do
+    event([])
   end
 
   #########################################################
@@ -392,6 +432,5 @@ defmodule TransSiberianRailroad.Messages do
     def unquote(event_name)(metadata), do: event([])
   end
 
-  def command_names(), do: @command_names
   def event_names(), do: @event_names
 end

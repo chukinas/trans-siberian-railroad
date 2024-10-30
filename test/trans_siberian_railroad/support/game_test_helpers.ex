@@ -1,8 +1,7 @@
 defmodule TransSiberianRailroad.GameTestHelpers do
-  require TransSiberianRailroad.Player, as: Player
-  alias TransSiberianRailroad.Game
+  import TransSiberianRailroad.CommandFactory
+  import TransSiberianRailroad.GameHelpers
   alias TransSiberianRailroad.Event
-  alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Players
 
   @phase_1_companies ~w/red blue green yellow/a
@@ -43,12 +42,12 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     one_round = Players.one_round(player_order, start_player)
 
     game =
-      Game.handle_commands([
-        Messages.initialize_game(),
+      handle_commands([
+        initialize_game(),
         add_player_commands(player_count),
-        Messages.set_start_player(start_player),
-        Messages.set_player_order(player_order),
-        Messages.start_game()
+        set_start_player(start_player),
+        set_player_order(player_order),
+        start_game()
       ])
 
     {:ok,
@@ -67,13 +66,13 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     amount = context[:winning_bid_amount] || 8
 
     game =
-      Game.handle_commands(
+      handle_commands(
         context.game,
         for player_id <- context.one_round do
           if player_id == auction_winner do
-            Messages.submit_bid(player_id, :red, amount)
+            submit_bid(player_id, :red, amount)
           else
-            Messages.pass_on_company(player_id, :red)
+            pass_on_company(player_id, :red)
           end
         end
       )
@@ -86,7 +85,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   end
 
   #########################################################
-  # Ramdom Auction Phase 1
+  # Random Auction Phase 1
   #########################################################
 
   def rand_auction_phase(context) do
@@ -101,7 +100,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
     case event.name do
       "awaiting_bid_or_pass" -> game |> do_bid_or_pass(payload) |> do_rand_auction_phase()
-      "awaiting_set_stock_price" -> game |> do_stock_price(payload) |> do_rand_auction_phase()
+      "awaiting_stock_value" -> game |> do_stock_value(payload) |> do_rand_auction_phase()
       _ -> game
     end
   end
@@ -118,14 +117,14 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
     command =
       case Enum.random(player_options) do
-        nil -> Messages.pass_on_company(player, company)
-        bid -> Messages.submit_bid(player, company, bid)
+        nil -> pass_on_company(player, company)
+        bid -> submit_bid(player, company, bid)
       end
 
-    Game.handle_commands(game, [command])
+    handle_commands(game, [command])
   end
 
-  defp do_stock_price(game, payload) do
+  defp do_stock_value(game, payload) do
     %{player: player, company: company, max_price: max_price} = payload
 
     price =
@@ -133,8 +132,8 @@ defmodule TransSiberianRailroad.GameTestHelpers do
       |> Enum.take_while(&(&1 <= max_price))
       |> Enum.random()
 
-    command = Messages.set_stock_value(player, company, price)
-    Game.handle_commands(game, [command])
+    command = set_stock_value(player, company, price)
+    handle_commands(game, [command])
   end
 
   #########################################################
@@ -143,12 +142,12 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
   def add_player_commands(player_count) when player_count in 1..6 do
     [
-      Messages.add_player("Alice"),
-      Messages.add_player("Bob"),
-      Messages.add_player("Charlie"),
-      Messages.add_player("David"),
-      Messages.add_player("Eve"),
-      Messages.add_player("Frank")
+      add_player("Alice"),
+      add_player("Bob"),
+      add_player("Charlie"),
+      add_player("David"),
+      add_player("Eve"),
+      add_player("Frank")
     ]
     |> Enum.take(player_count)
   end
@@ -183,34 +182,6 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     Enum.find(events, &(&1.name == event_name))
   end
 
-  def group_messages_by_trace(game) do
-    get_events_by_trace =
-      with events_by_trace = Enum.group_by(game.events, & &1.trace_id) do
-        fn trace_id ->
-          events_by_trace[trace_id]
-          |> List.wrap()
-          |> Enum.sort_by(& &1.version)
-        end
-      end
-
-    grouped_messages =
-      game.commands
-      |> Enum.reverse()
-      |> Enum.map(fn command ->
-        trace_id = command.trace_id
-        events = get_events_by_trace.(trace_id)
-        {trace_id, [command | events]}
-      end)
-
-    Enum.chunk_by(grouped_messages, fn {_trace_id, messages} ->
-      !!Enum.find(messages, &String.contains?(&1.name, "reject"))
-    end)
-    |> case do
-      [no_rejections, [first_rejection | _] | _] -> no_rejections ++ [first_rejection]
-      [no_rejections | _] -> no_rejections
-    end
-  end
-
   #########################################################
   # Converters
   #########################################################
@@ -234,39 +205,6 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
       _ ->
         raise "No next player found."
-    end)
-  end
-
-  #########################################################
-  # Money
-  #########################################################
-
-  def current_money(game, player_id) do
-    Enum.reduce(game.events, 0, fn event, balance ->
-      case event.name do
-        "money_transferred" ->
-          amount = Map.get(event.payload.transfers, player_id, 0)
-          balance + amount
-
-        _ ->
-          balance
-      end
-    end)
-  end
-
-  def players_money(game) do
-    Enum.reduce(game.events, %{}, fn event, balances ->
-      case event.name do
-        "money_transferred" ->
-          event.payload.transfers
-          |> Enum.filter(fn {player_id, _} -> Player.is_id(player_id) end)
-          |> Enum.reduce(balances, fn {player_id, amount}, balances ->
-            Map.update(balances, player_id, amount, &(&1 + amount))
-          end)
-
-        _ ->
-          balances
-      end
     end)
   end
 end

@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.RailCompany do
+defmodule TransSiberianRailroad.Company do
   @moduledoc """
   A rail company sells shares to players;
   this is its main source of income.

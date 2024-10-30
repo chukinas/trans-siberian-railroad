@@ -1,8 +1,8 @@
 defmodule TransSiberianRailroad.Aggregator.SetupTest do
   use ExUnit.Case
+  import TransSiberianRailroad.CommandFactory
+  import TransSiberianRailroad.GameHelpers
   import TransSiberianRailroad.GameTestHelpers
-  alias TransSiberianRailroad.Game
-  alias TransSiberianRailroad.Messages
 
   setup context do
     if context[:start_game],
@@ -15,10 +15,10 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
   test "add_player -> player_added" do
     for player_count <- 1..5 do
       # ARRANGE
-      commands = [Messages.initialize_game() | add_player_commands(player_count)]
+      commands = [initialize_game() | add_player_commands(player_count)]
 
       # ACT
-      game = Game.handle_commands(commands)
+      game = handle_commands(commands)
 
       # ASSERT
       events = filter_events_by_name(game.events, "player_added")
@@ -30,14 +30,14 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
     test "when already player_order_set" do
       # ARRANGE
       game =
-        Game.handle_commands([
-          Messages.initialize_game(),
+        handle_commands([
+          initialize_game(),
           add_player_commands(3),
-          Messages.set_player_order([1, 2, 3])
+          set_player_order([1, 2, 3])
         ])
 
       # ACT
-      game = Game.handle_one_command(game, Messages.add_player("David"))
+      game = handle_one_command(game, add_player("David"))
 
       # ASSERT
       assert event = fetch_single_event!(game.events, "player_rejected")
@@ -46,11 +46,11 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
 
     test "when there are already 5 players" do
       # ARRANGE - add 5 players. Game is now full.
-      commands = [Messages.initialize_game() | add_player_commands(5)]
-      game = Game.handle_commands(commands)
+      commands = [initialize_game() | add_player_commands(5)]
+      game = handle_commands(commands)
 
       # ACT - attempt to add a 6th player
-      game = Game.handle_one_command(game, Messages.add_player("Frank"))
+      game = handle_one_command(game, add_player("Frank"))
 
       # ASSERT - there are still only 5 players and the 6th player was rejected
       assert event = fetch_single_event!(game.events, "player_rejected")
@@ -60,10 +60,10 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
 
   test "initialize_game -> game_initialization_rejected when game already initialized" do
     # ARRANGE
-    game = Game.handle_commands([Messages.initialize_game()])
+    game = handle_commands([initialize_game()])
 
     # ACT
-    game = Game.handle_one_command(game, Messages.initialize_game())
+    game = handle_one_command(game, initialize_game())
 
     # ASSERT
     assert fetch_single_event!(game.events, "game_initialization_rejected")
@@ -76,14 +76,14 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
 
     commands =
       [
-        Messages.initialize_game(),
+        initialize_game(),
         add_player_commands(player_count),
-        Messages.set_start_player(start_player),
-        Messages.start_game()
+        set_start_player(start_player),
+        start_game()
       ]
 
     # ACT
-    game = Game.handle_commands(commands)
+    game = handle_commands(commands)
 
     # ASSERT
     assert fetch_single_event!(game.events, "start_player_set").payload.start_player ==
@@ -100,14 +100,14 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
 
     commands =
       [
-        Messages.initialize_game(),
+        initialize_game(),
         add_player_commands(player_count),
-        Messages.set_player_order(player_order),
-        Messages.start_game()
+        set_player_order(player_order),
+        start_game()
       ]
 
     # ACT
-    game = Game.handle_commands(commands)
+    game = handle_commands(commands)
 
     # ASSERT
     assert fetch_single_event!(game.events, "player_order_set").payload.player_order ==
@@ -135,8 +135,8 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
 
       # ACT
       game =
-        [Messages.initialize_game() | add_player_commands(player_count)]
-        |> Game.handle_commands()
+        [initialize_game() | add_player_commands(player_count)]
+        |> handle_commands()
 
       # ASSERT
       for player_id <- 1..player_count do
@@ -151,11 +151,11 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
             {5, 32}
           ] do
         # ARRANGE
-        commands = [Messages.initialize_game(), add_player_commands(player_count)]
-        game = Game.handle_commands(commands)
+        commands = [initialize_game(), add_player_commands(player_count)]
+        game = handle_commands(commands)
 
         # ACT
-        game = Game.handle_one_command(game, Messages.start_game())
+        game = handle_one_command(game, start_game())
 
         # ASSERT
         for player_id <- 1..player_count do

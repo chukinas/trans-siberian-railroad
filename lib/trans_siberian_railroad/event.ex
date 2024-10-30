@@ -28,9 +28,18 @@ defmodule TransSiberianRailroad.Event do
 
   typedstruct enforce: true do
     field :name, String.t()
-    field :payload, nil | map(), default: nil
-    field :version, pos_integer()
+    field :payload, map()
+    field :id, Ecto.UUID.t()
     field :trace_id, Ecto.UUID.t()
+
+    # This increments by one for each event.
+    field :version, pos_integer()
+
+    # This is only ever set by the Game module,
+    # when a command or event is moved from its queue to its history.
+    # It's used primarily for debugging,
+    # to sort a single list of commands and events.
+    field :global_version, pos_integer(), enforce: false
   end
 
   defimpl Inspect do
@@ -38,9 +47,10 @@ defmodule TransSiberianRailroad.Event do
 
     def inspect(event, opts) do
       payload = Map.to_list(event.payload || %{})
-      digits = Map.get(opts, :__game_digits__, 0)
-      version = event.version |> to_string() |> String.pad_leading(digits, "0")
-      concat(["#Event.#{version}.#{event.name}<", Inspect.List.inspect(payload, opts), ">"])
+      # digits = Map.get(opts, :__game_digits__, 0)
+      # version = event.version |> to_string() |> String.pad_leading(digits, "0")
+      short_id = String.slice(event.id, 0, 4)
+      concat(["#Event.#{short_id}.#{event.name}", Inspect.List.inspect(payload, opts)])
     end
   end
 
@@ -49,6 +59,7 @@ defmodule TransSiberianRailroad.Event do
       name: name,
       payload: payload,
       version: Keyword.fetch!(metadata, :version),
+      id: metadata[:id] || Ecto.UUID.generate(),
       trace_id:
         case Keyword.fetch!(metadata, :trace_id) do
           nil -> raise "No trace_id provided for event #{name}"
