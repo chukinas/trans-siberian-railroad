@@ -2,6 +2,16 @@ defmodule TransSiberianRailroad.GameHelpers do
   require TransSiberianRailroad.Player, as: Player
   alias TransSiberianRailroad.Game
 
+  def fetch_single_event!(game, event_name) do
+    events = game.events
+    events = Enum.filter(events, &(&1.name == event_name))
+
+    case events do
+      [event] -> event
+      events -> raise "Expected exactly one #{inspect(event_name)} event; got #{length(events)}."
+    end
+  end
+
   def find_command(game, command_name) do
     Enum.find(game.commands, &(&1.name == command_name))
   end

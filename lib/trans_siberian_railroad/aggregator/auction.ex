@@ -26,6 +26,7 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Players
   alias TransSiberianRailroad.Company
+  alias TransSiberianRailroad.RailLinks
 
   aggregator_typedstruct do
     field :player_order, [Player.id()]
@@ -232,10 +233,13 @@ defmodule TransSiberianRailroad.Aggregator.Auction do
          {:ok, amount} <- fetch_highest_bid(projection) do
       reason = "company stock auctioned off"
 
+      available_links = RailLinks.connected_to("moscow")
+
       [
         &Messages.player_won_company_auction(auction_winner, company, amount, &1),
         &Messages.stock_certificates_transferred(company, company, auction_winner, 1, reason, &1),
         &Messages.money_transferred(%{auction_winner => -amount, company => amount}, reason, &1),
+        &Messages.awaiting_initial_rail_link(auction_winner, company, available_links, &1),
         &Messages.awaiting_stock_value(auction_winner, company, amount, &1)
       ]
     else

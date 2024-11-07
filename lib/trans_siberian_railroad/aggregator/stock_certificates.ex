@@ -10,25 +10,56 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
   alias TransSiberianRailroad.Messages
+  alias TransSiberianRailroad.Metadata
   alias TransSiberianRailroad.Company
+  alias TransSiberianRailroad.ReactionCtx
 
-  aggregator_typedstruct enforce: true do
+  @bank_certs [red: 5, blue: 5, green: 5, yellow: 5, black: 3, white: 3]
+
+  aggregator_typedstruct do
     field :cert_counts,
           %{
             (owning_entity :: Messages.entity()) => %{
               Company.id() => non_neg_integer()
             }
           },
-          default: %{
-            bank: %{
-              red: 5,
-              blue: 5,
-              green: 5,
-              yellow: 5,
-              black: 3,
-              white: 3
-            }
-          }
+          default: %{bank: Map.new(@bank_certs)}
+
+    # start out nil, then is set to a uuid after game_initialized,
+    # then removed when the reactive event is emitteed
+    field :initial_stock_transfer, event_id :: Ecto.UUID.t()
+  end
+
+  handle_event "game_initialized", _ctx do
+    [initial_stock_transfer: Ecto.UUID.generate()]
+  end
+
+  defreaction maybe_initial_stock_transfer(projection, reaction_ctx) do
+    if event_id = projection.initial_stock_transfer do
+      ReactionCtx.if_uuid_unsent(reaction_ctx, event_id, fn -> initial_transfer(event_id) end)
+    end
+  end
+
+  defp initial_transfer(event_id) do
+    reason = "game initialization"
+
+    event_builders =
+      for {company, cert_count} <- @bank_certs do
+        &Messages.stock_certificates_transferred(
+          company,
+          :bank,
+          company,
+          cert_count,
+          reason,
+          &1
+        )
+      end
+
+    List.update_at(event_builders, -1, fn event_from_metadata ->
+      &(&1
+        |> Metadata.override(id: event_id)
+        |> event_from_metadata.())
+    end)
   end
 
   handle_event "stock_certificates_transferred", ctx do
@@ -50,7 +81,16 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
         )
       end)
 
-    [cert_counts: cert_counts]
+    initial_stock_transfer = ctx.projection.initial_stock_transfer
+
+    initial_stock_transfer =
+      if ctx.event_id == initial_stock_transfer do
+        nil
+      else
+        initial_stock_transfer
+      end
+
+    [cert_counts: cert_counts, initial_stock_transfer: initial_stock_transfer]
   end
 
   handle_command "pay_company_dividends", ctx do

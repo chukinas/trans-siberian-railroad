@@ -38,36 +38,7 @@ defmodule TransSiberianRailroad.Aggregator.Setup do
       reason = "Game already initialized"
       Messages.game_initialization_rejected(game_id, reason, metadata.(0))
     else
-      reason = "game initialization"
-
-      [
-        &Messages.game_initialized(game_id, &1),
-        for company <- ~w/red blue green yellow/a do
-          &Messages.stock_certificates_transferred(
-            company,
-            :bank,
-            company,
-            5,
-            reason,
-            &1
-          )
-        end,
-        for company <- ~w/black white/a do
-          &Messages.stock_certificates_transferred(
-            company,
-            :bank,
-            company,
-            3,
-            reason,
-            &1
-          )
-        end
-      ]
-      |> List.flatten()
-      |> Enum.with_index()
-      |> Enum.map(fn {build_msg, idx} ->
-        build_msg.(metadata.(idx))
-      end)
+      &Messages.game_initialized(game_id, &1)
     end
   end
 

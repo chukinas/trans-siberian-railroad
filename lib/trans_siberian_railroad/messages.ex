@@ -73,6 +73,19 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   #########################################################
+  # Summary Events
+  #########################################################
+
+  @spec company_stock_count_summary(%{Company.id() => 0..5}, Metadata.t()) :: Event.t()
+  def company_stock_count_summary(
+        %{red: _, blue: _, green: _, yellow: _, black: _, white: _} = stock_counts,
+        metadata
+      )
+      when map_size(stock_counts) == 6 do
+    event(stock_counts: stock_counts)
+  end
+
+  #########################################################
   # Initializing Game
   #########################################################
 
@@ -271,6 +284,14 @@ defmodule TransSiberianRailroad.Messages do
   def bid_rejected(bidder, company, amount, reason, metadata)
       when Player.is_id(bidder) and Company.is_id(company) and is_binary(reason) do
     event(bidder: bidder, company: company, amount: amount, reason: reason)
+  end
+
+  #########################################################
+  # Auctioning - initial rail link
+  #########################################################
+
+  def awaiting_initial_rail_link(player, company, available_links, metadata) do
+    event(player: player, company: company, available_links: available_links)
   end
 
   #########################################################

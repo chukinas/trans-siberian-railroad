@@ -42,7 +42,8 @@ defmodule TransSiberianRailroad.Projection do
       ctx = %{
         projection: projection,
         payload: payload,
-        trace_id: event.trace_id
+        trace_id: event.trace_id,
+        event_id: event.id
       }
 
       fields = projection_mod.__handle_event__(event_name, ctx) |> List.wrap()

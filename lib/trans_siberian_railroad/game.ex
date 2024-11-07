@@ -121,7 +121,7 @@ defmodule TransSiberianRailroad.Game do
       end
     end
 
-    reaction_ctx = %{unsent?: unsent?, if_unsent: if_unsent}
+    reaction_ctx = %{sent_ids: ids, unsent?: unsent?, if_unsent: if_unsent}
 
     case Enum.find_value(game.aggregators, &Aggregator.get_reaction(&1, reaction_ctx)) do
       nil ->

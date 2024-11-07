@@ -1,7 +1,6 @@
 defmodule TransSiberianRailroad.GameTestHelpers do
   import TransSiberianRailroad.CommandFactory
   import TransSiberianRailroad.GameHelpers
-  alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Players
 
   @phase_1_companies ~w/red blue green yellow/a
@@ -90,7 +89,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
   def rand_auction_phase(context) do
     game = do_rand_auction_phase(context.game)
-    start_player = fetch_single_event!(game.events, "auction_phase_ended").payload.start_player
+    start_player = fetch_single_event!(game, "auction_phase_ended").payload.start_player
     [game: game, start_player: start_player]
   end
 
@@ -156,18 +155,6 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   # State (Events) Converters
   #########################################################
 
-  def fetch_single_event_payload!(events, event_name) do
-    fetch_single_event!(events, event_name).payload
-  end
-
-  # Succeeds only if there is one such sought event in the list.
-  def fetch_single_event!(events, event_name) do
-    case filter_events_by_name(events, event_name) do
-      [%Event{} = event] -> event
-      events -> raise "Expected exactly one #{inspect(event_name)} event; got #{length(events)}."
-    end
-  end
-
   def filter_events_by_name(events, event_name, opts \\ []) do
     events = Enum.filter(events, &(&1.name == event_name))
 
@@ -187,7 +174,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   #########################################################
 
   def player_order!(game) do
-    fetch_single_event!(game.events, "player_order_set").payload.player_order
+    fetch_single_event!(game, "player_order_set").payload.player_order
   end
 
   def next_player!(game) do

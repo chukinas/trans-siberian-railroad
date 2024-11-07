@@ -40,7 +40,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
       game = handle_one_command(game, add_player("David"))
 
       # ASSERT
-      assert event = fetch_single_event!(game.events, "player_rejected")
+      assert event = fetch_single_event!(game, "player_rejected")
       assert event.payload.player_name == "David"
     end
 
@@ -53,7 +53,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
       game = handle_one_command(game, add_player("Frank"))
 
       # ASSERT - there are still only 5 players and the 6th player was rejected
-      assert event = fetch_single_event!(game.events, "player_rejected")
+      assert event = fetch_single_event!(game, "player_rejected")
       assert event.payload.player_name == "Frank"
     end
   end
@@ -66,7 +66,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
     game = handle_one_command(game, initialize_game())
 
     # ASSERT
-    assert fetch_single_event!(game.events, "game_initialization_rejected")
+    assert fetch_single_event!(game, "game_initialization_rejected")
   end
 
   test "set_start_player is an optional command" do
@@ -86,7 +86,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
     game = handle_commands(commands)
 
     # ASSERT
-    assert fetch_single_event!(game.events, "start_player_set").payload.start_player ==
+    assert fetch_single_event!(game, "start_player_set").payload.start_player ==
              start_player
   end
 
@@ -110,18 +110,18 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
     game = handle_commands(commands)
 
     # ASSERT
-    assert fetch_single_event!(game.events, "player_order_set").payload.player_order ==
+    assert fetch_single_event!(game, "player_order_set").payload.player_order ==
              player_order
   end
 
   @tag :start_game
   test "game_started -> auction_phase_started", context do
     # ARRANGE/ACT: see :start_game setup
-    events = context.game.events
-    assert fetch_single_event!(events, "game_started")
+    game = context.game
+    assert fetch_single_event!(game, "game_started")
 
     # ASSERT
-    assert fetch_single_event!(events, "auction_phase_started")
+    assert fetch_single_event!(game, "auction_phase_started")
   end
 
   test "the player who won the last stock in the initial auction is the start player"

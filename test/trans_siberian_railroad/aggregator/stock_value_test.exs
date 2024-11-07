@@ -30,7 +30,7 @@ defmodule TransSiberianRailroad.Aggregator.StockValueTest do
 
     # THEN the game will pay out dividends,
     # AND there will be one each of the awaiting_dividends, dividends_paid events
-    assert event = fetch_single_event!(game.events, "dividends_paid")
+    assert event = fetch_single_event!(game, "dividends_paid")
     assert event.payload == %{}
   end
 
