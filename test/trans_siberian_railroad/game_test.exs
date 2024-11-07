@@ -1,5 +1,5 @@
 defmodule TransSiberianRailroad.GameTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   import TransSiberianRailroad.CommandFactory
   import TransSiberianRailroad.GameHelpers
   alias TransSiberianRailroad.Game
@@ -9,11 +9,11 @@ defmodule TransSiberianRailroad.GameTest do
   end
 
   test "smoke test" do
-    # ACT
+    # WHEN
     command = initialize_game()
     game = handle_commands([command])
 
-    # ASSERT
+    # THEN
     assert event = fetch_single_event!(game, "game_initialized")
     assert %{game_id: _} = event.payload
   end

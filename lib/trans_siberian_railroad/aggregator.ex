@@ -46,6 +46,7 @@ defmodule TransSiberianRailroad.Aggregator do
     quote do
       typedstruct unquote(opts) do
         projection_fields()
+        field :flags, [term()], default: []
 
         unquote(__sent_reactions_field__())
         unquote(block)

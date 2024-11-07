@@ -1,5 +1,5 @@
 defmodule TransSiberianRailroad.Aggregator.StockValueTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   import TransSiberianRailroad.CommandFactory
   import TransSiberianRailroad.GameHelpers
   import TransSiberianRailroad.GameTestHelpers
@@ -19,7 +19,7 @@ defmodule TransSiberianRailroad.Aggregator.StockValueTest do
       end
 
     game = handle_commands(context.game, commands)
-    refute get_latest_event_by_name(game.events, "dividends_paid")
+    refute get_latest_event(game, "dividends_paid")
 
     # WHEN the next player passes
     next_player = Enum.at(first_five_turns, -1)

@@ -31,10 +31,10 @@ defmodule TransSiberianRailroad.Projection do
 
     events
     |> Enum.sort(Event)
-    |> Enum.reduce(initial_projection, &handle_one_event(&2, &1))
+    |> Enum.reduce(initial_projection, &(project_event(&2, &1) |> elem(1)))
   end
 
-  def handle_one_event(%projection_mod{} = projection, %Event{} = event) do
+  def project_event(%projection_mod{} = projection, %Event{} = event) do
     projection = put_version(projection, event)
     %Event{name: event_name, payload: payload} = event
 
@@ -48,10 +48,13 @@ defmodule TransSiberianRailroad.Projection do
 
       fields = projection_mod.__handle_event__(event_name, ctx) |> List.wrap()
 
-      struct!(projection, fields)
-      |> put_trace_id(event)
+      projection =
+        struct!(projection, fields)
+        |> put_trace_id(event)
+
+      {:modified, projection}
     else
-      projection
+      {:unchanged, projection}
     end
   end
 

@@ -236,6 +236,10 @@ defmodule TransSiberianRailroad.Messages do
     event(auction_winner: auction_winner, company: company, bid_amount: bid_amount)
   end
 
+  def company_auction_ended(company, metadata) when Company.is_id(company) do
+    event(company: company)
+  end
+
   #########################################################
   # Auctioning - awaiting next player to bid or pass
   #########################################################
@@ -292,6 +296,21 @@ defmodule TransSiberianRailroad.Messages do
 
   def awaiting_rail_link(player, company, available_links, metadata) do
     event(player: player, company: company, available_links: available_links)
+  end
+
+  defcommand build_rail_link(player, company, cities)
+             when Player.is_id(player) and Company.is_id(company) and is_list(cities) do
+    [player: player, company: company, cities: cities]
+  end
+
+  def rail_link_rejected(player, company, cities, reason, metadata)
+      when Player.is_id(player) and Company.is_id(company) and is_binary(reason) do
+    event(player: player, company: company, cities: cities, reason: reason)
+  end
+
+  def rail_link_built(player, company, cities, metadata)
+      when Player.is_id(player) and Company.is_id(company) and is_list(cities) do
+    event(player: player, company: company, cities: cities)
   end
 
   #########################################################

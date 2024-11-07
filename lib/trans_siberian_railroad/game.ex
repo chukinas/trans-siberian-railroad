@@ -24,6 +24,7 @@ defmodule TransSiberianRailroad.Game do
   """
 
   use TypedStruct
+  require Logger
   alias TransSiberianRailroad.Aggregator
   alias TransSiberianRailroad.Command
   alias TransSiberianRailroad.Event
@@ -32,6 +33,7 @@ defmodule TransSiberianRailroad.Game do
   @aggregators [
     TransSiberianRailroad.Aggregator.Setup,
     TransSiberianRailroad.Aggregator.Auction,
+    TransSiberianRailroad.Aggregator.CompanyAuction,
     TransSiberianRailroad.Aggregator.Orchestration,
     TransSiberianRailroad.Aggregator.PlayerTurn,
     TransSiberianRailroad.Aggregator.TimingTrack,
@@ -53,6 +55,9 @@ defmodule TransSiberianRailroad.Game do
     field :commands, [Command.t()], default: []
 
     field :aggregators, [term()], default: Enum.map(@aggregators, &Projection.project/1)
+
+    # arbitrary data used in unit tests
+    field :__test__, map(), default: %{}
   end
 
   #########################################################
@@ -84,16 +89,30 @@ defmodule TransSiberianRailroad.Game do
     if event_version == expected_next_version do
       :ok
     else
-      require Logger
       Logger.warning("Expected #{inspect(event)} to have a version of #{expected_next_version}")
     end
+
+    result = Enum.map(game.aggregators, &Projection.project_event(&1, event))
+    aggregators = Enum.map(result, &elem(&1, 1))
+
+    changed_aggs =
+      Enum.flat_map(result, fn
+        {:modified, agg} -> [agg]
+        {:unchanged, _} -> []
+      end)
+
+    Logger.debug("""
+    EVENT #{event.name}
+    event: #{inspect(event)}
+    updated aggs: #{inspect(changed_aggs, width: 120, pretty: true)}
+    """)
 
     %__MODULE__{
       game
       | event_queue: event_queue,
         events: [event | game.events],
         events_version: event_version,
-        aggregators: Enum.map(game.aggregators, &Projection.handle_one_event(&1, event)),
+        aggregators: aggregators,
         global_version: global_version
     }
     |> execute()
@@ -123,11 +142,26 @@ defmodule TransSiberianRailroad.Game do
 
     reaction_ctx = %{sent_ids: ids, unsent?: unsent?, if_unsent: if_unsent}
 
-    case Enum.find_value(game.aggregators, &Aggregator.get_reaction(&1, reaction_ctx)) do
+    result =
+      Enum.find_value(game.aggregators, fn agg ->
+        if reaction = Aggregator.get_reaction(agg, reaction_ctx) do
+          {agg, reaction}
+        end
+      end)
+
+    case result do
       nil ->
         %__MODULE__{game | last_reactions_version: version}
 
-      reactions ->
+      {agg, reactions} ->
+        # event: #{inspect(event)}
+        # updated aggs: #{inspect(changed_aggs, width: 120, pretty: true)}
+        Logger.debug("""
+        REACTIONS
+        aggregator: #{inspect(agg, width: 120, pretty: true)}
+        reactions: #{inspect(reactions, width: 120, pretty: true)}
+        """)
+
         event_queue = Map.get(reactions, :events, [])
 
         %__MODULE__{
@@ -144,12 +178,25 @@ defmodule TransSiberianRailroad.Game do
     global_version = game.global_version + 1
     command = Map.replace!(command, :global_version, global_version)
 
+    {agg, maybe_events} =
+      game.aggregators
+      |> Enum.find_value(fn agg ->
+        if events = Aggregator.maybe_events_from_command(agg, command) do
+          {agg, events}
+        end
+      end)
+
+    Logger.debug("""
+    COMMAND #{command.name}
+    command: #{inspect(command)}
+    aggregator: #{inspect(agg, width: 50, pretty: true)}
+    events: #{inspect(maybe_events)}
+    """)
+
     event_queue =
-      if events =
-           Enum.find_value(game.aggregators, &Aggregator.maybe_events_from_command(&1, command)) do
+      if events = maybe_events do
         events
       else
-        require Logger
         Logger.warning("#{inspect(command)} did not result in any events")
         []
       end
@@ -172,5 +219,12 @@ defmodule TransSiberianRailroad.Game do
   # public for testing purposes only!
   def __queue_event__(game, %Event{} = event) do
     Map.update!(game, :event_queue, &List.insert_at(&1, -1, event))
+  end
+
+  def add_flag(game, flag) do
+    fun = &[flag | &1]
+
+    game
+    |> update_in([Access.key!(:aggregators), Access.all(), Access.key!(:flags)], fun)
   end
 end

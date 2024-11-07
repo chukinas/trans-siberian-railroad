@@ -1,5 +1,5 @@
 defmodule TransSiberianRailroad.IncomeTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   alias TransSiberianRailroad.Income
 
   test "There are 11 stock-value-increase spaces" do

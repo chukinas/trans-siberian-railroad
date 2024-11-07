@@ -1,8 +1,12 @@
 defmodule TransSiberianRailroad.GameHelpers do
   require TransSiberianRailroad.Player, as: Player
   alias TransSiberianRailroad.Game
+  alias TransSiberianRailroad.Messages
+
+  @valid_event_names MapSet.new(Messages.event_names())
 
   def fetch_single_event!(game, event_name) do
+    check_name(event_name)
     events = game.events
     events = Enum.filter(events, &(&1.name == event_name))
 
@@ -10,6 +14,28 @@ defmodule TransSiberianRailroad.GameHelpers do
       [event] -> event
       events -> raise "Expected exactly one #{inspect(event_name)} event; got #{length(events)}."
     end
+  end
+
+  def filter_events(%Game{events: events}, event_name, opts \\ []) do
+    events = Enum.filter(events, &(&1.name == event_name))
+
+    if opts[:asc] do
+      Enum.reverse(events)
+    else
+      events
+    end
+  end
+
+  defp check_name(event_name) do
+    unless MapSet.member?(@valid_event_names, event_name) do
+      require Logger
+      Logger.warning("#{event_name} is not in the list of events")
+    end
+  end
+
+  def get_latest_event(%_{events: events}, event_name) do
+    check_name(event_name)
+    Enum.find(events, &(&1.name == event_name))
   end
 
   def find_command(game, command_name) do

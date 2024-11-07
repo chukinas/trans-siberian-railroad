@@ -1,5 +1,5 @@
 defmodule TransSiberianRailroad.RailLinksTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   alias TransSiberianRailroad.Locations
   alias TransSiberianRailroad.RailLink
   alias TransSiberianRailroad.RailLinks

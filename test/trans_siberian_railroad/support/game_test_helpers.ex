@@ -1,12 +1,20 @@
 defmodule TransSiberianRailroad.GameTestHelpers do
   import TransSiberianRailroad.CommandFactory
   import TransSiberianRailroad.GameHelpers
+  alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Players
 
-  @phase_1_companies ~w/red blue green yellow/a
   @stock_value_spaces [8..48//4, 50..70//2, [75]]
                       |> Enum.map(&Enum.to_list/1)
                       |> List.flatten()
+
+  #########################################################
+  # State (Events) Converters
+  #########################################################
+
+  def injest_commands(command_or_commands, game) do
+    handle_commands(game, List.wrap(command_or_commands))
+  end
 
   #########################################################
   # Setups
@@ -35,9 +43,16 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   end
 
   def start_game(context) do
-    player_count = context[:player_count] || Enum.random(3..5)
-    start_player = context[:start_player] || Enum.random(1..player_count)
-    player_order = Enum.to_list(context[:player_order] || Enum.shuffle(1..player_count))
+    {player_count, start_player, player_order} =
+      if context[:simple_setup] do
+        {3, 1, Enum.to_list(1..3)}
+      else
+        player_count = context[:player_count] || Enum.random(3..5)
+        start_player = context[:start_player] || Enum.random(1..player_count)
+        player_order = Enum.to_list(context[:player_order] || Enum.shuffle(1..player_count))
+        {player_count, start_player, player_order}
+      end
+
     one_round = Players.one_round(player_order, start_player)
 
     game =
@@ -94,13 +109,42 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   end
 
   defp do_rand_auction_phase(game) do
-    event = hd(game.events)
-    payload = event.payload
+    version_access = [Access.key!(:__test__), Access.key(:version, 0)]
+    version = get_in(game, version_access)
 
-    case event.name do
-      "awaiting_bid_or_pass" -> game |> do_bid_or_pass(payload) |> do_rand_auction_phase()
-      "awaiting_stock_value" -> game |> do_stock_value(payload) |> do_rand_auction_phase()
-      _ -> game
+    maybe_event =
+      game.events
+      |> Enum.reverse()
+      |> Enum.find(&(Event.await?(&1) and Event.version_gt?(&1, version)))
+
+    version =
+      case maybe_event do
+        nil -> version
+        event -> event.version
+      end
+
+    game = put_in(game, version_access, version)
+
+    if event = maybe_event do
+      payload = event.payload
+
+      case event.name do
+        "awaiting_bid_or_pass" ->
+          game |> do_bid_or_pass(payload) |> do_rand_auction_phase()
+
+        "awaiting_stock_value" ->
+          game |> do_stock_value(payload) |> do_rand_auction_phase()
+
+        "awaiting_rail_link" ->
+          game |> do_rail_link(payload) |> do_rand_auction_phase()
+
+        event_name ->
+          require Logger
+          Logger.warning("event_name: #{event_name} not handled in do_rand_auction_phase/1.")
+          do_rand_auction_phase(game)
+      end
+    else
+      game
     end
   end
 
@@ -131,13 +175,29 @@ defmodule TransSiberianRailroad.GameTestHelpers do
       |> Enum.take_while(&(&1 <= max_price))
       |> Enum.random()
 
-    command = set_stock_value(player, company, price)
-    handle_commands(game, [command])
+    set_stock_value(player, company, price)
+    |> injest_commands(game)
+  end
+
+  defp do_rail_link(game, payload) do
+    %{player: player, company: company, available_links: available_links} = payload
+    link = Enum.random(available_links)
+
+    build_rail_link(player, company, link)
+    |> injest_commands(game)
   end
 
   #########################################################
   # Commands
   #########################################################
+
+  def init_and_add_players(player_count) do
+    [
+      initialize_game(),
+      add_player_commands(player_count)
+    ]
+    |> handle_commands()
+  end
 
   def add_player_commands(player_count) when player_count in 1..6 do
     [
@@ -152,46 +212,6 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   end
 
   #########################################################
-  # State (Events) Converters
-  #########################################################
-
-  def filter_events_by_name(events, event_name, opts \\ []) do
-    events = Enum.filter(events, &(&1.name == event_name))
-
-    if opts[:asc] do
-      Enum.reverse(events)
-    else
-      events
-    end
-  end
-
-  def get_latest_event_by_name(events, event_name) do
-    Enum.find(events, &(&1.name == event_name))
-  end
-
-  #########################################################
   # Converters
   #########################################################
-
-  def player_order!(game) do
-    fetch_single_event!(game, "player_order_set").payload.player_order
-  end
-
-  def next_player!(game) do
-    game.events
-    |> Stream.map(&{&1.name, &1.payload})
-    |> Enum.find_value(fn
-      {"start_player_set", payload} ->
-        payload.start_player
-
-      {"player_won_company_auction", payload} ->
-        if payload.company in @phase_1_companies, do: payload.player_id
-
-      {"player_turn_started", payload} ->
-        payload.player_id
-
-      _ ->
-        raise "No next player found."
-    end)
-  end
 end

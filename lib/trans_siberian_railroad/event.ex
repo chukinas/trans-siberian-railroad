@@ -75,4 +75,9 @@ defmodule TransSiberianRailroad.Event do
       _ -> :eq
     end
   end
+
+  def await?(%__MODULE__{name: "awaiting_" <> _}), do: true
+  def await?(_), do: false
+
+  def version_gt?(%__MODULE__{version: version}, value), do: version > value
 end
