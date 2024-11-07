@@ -290,7 +290,7 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - initial rail link
   #########################################################
 
-  def awaiting_initial_rail_link(player, company, available_links, metadata) do
+  def awaiting_rail_link(player, company, available_links, metadata) do
     event(player: player, company: company, available_links: available_links)
   end
 

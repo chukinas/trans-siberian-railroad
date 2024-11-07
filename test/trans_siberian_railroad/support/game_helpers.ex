@@ -106,6 +106,8 @@ defmodule TransSiberianRailroad.GameHelpers do
     end
   end
 
+  def t(game), do: globally_sort_messages(game)
+
   def globally_sort_messages(game) do
     grouped =
       Stream.concat(game.events, game.commands)

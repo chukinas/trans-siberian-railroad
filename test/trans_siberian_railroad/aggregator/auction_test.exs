@@ -390,7 +390,24 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert event.payload.reason == "company stock auctioned off"
     end
 
-    test "-> awaiting_initial_rail_link", context do
+    test "-> awaiting_stock_value", context do
+      # ARRANGE: see :start_game, :auction_off_company
+      auction_winner = context.auction_winner
+      game = context.game
+
+      # ACT: see this descibe block's setup
+
+      # ASSERT
+      assert event = fetch_single_event!(game, "awaiting_stock_value")
+
+      assert event.payload == %{
+               player: auction_winner,
+               company: :red,
+               max_price: 8
+             }
+    end
+
+    test "-> awaiting_rail_link", context do
       # ARRANGE: see :start_game
       auction_winner = context.auction_winner
       game = context.game
@@ -398,7 +415,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # ACT: see this descibe block's setup
 
       # ASSERT
-      assert event = fetch_single_event!(game, "awaiting_initial_rail_link")
+      assert event = fetch_single_event!(game, "awaiting_rail_link")
 
       available_links = [
         ["bryansk", "moscow"],
