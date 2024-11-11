@@ -477,8 +477,10 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
   describe "build_rail_link -> rail_link_rejected when" do
     @describetag :start_game
+    @describetag :auction_off_company
 
     @tag start_game: false
+    @tag auction_off_company: false
     test "no company auction in progress" do
       # GIVEN we're still setting the game up (and not in a company auction),
       game = init_and_add_players(1)
@@ -498,10 +500,30 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "wrong player"
+    test "wrong player", context do
+      # GIVEN a player just won a company auction and we're awaiting a rail link,
+      game = context.game
+      auction_winner = context.auction_winner
+      wrong_player = context.one_round |> Enum.reject(&(&1 == auction_winner)) |> Enum.random()
+
+      # WHEN the wrong player tries to build a rail link,
+      game =
+        build_rail_link(wrong_player, :red, ["moscow", "nizhnynovgorod"])
+        |> injest_commands(game)
+
+      # THEN the command is rejected
+      assert event = fetch_single_event!(game, "rail_link_rejected")
+
+      assert event.payload == %{
+               player: wrong_player,
+               company: :red,
+               cities: ["moscow", "nizhnynovgorod"],
+               reason: "incorrect player"
+             }
+    end
+
     test "wrong company"
 
-    @tag :auction_off_company
     test "invalid cities", context do
       # GIVEN a player just won a company auction and we're awaiting a rail link,
       game = context.game
