@@ -5,6 +5,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   import TransSiberianRailroad.GameTestHelpers
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Metadata
+  alias TransSiberianRailroad.Players
 
   taggable_setups()
   @moduletag :start_game
@@ -573,9 +574,49 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       end
     end
 
+    @tag :simple_setup
+    test "link has already been built", context do
+      # GIVEN the :red auction in already done
+      game = context.game
+      auction_winner = context.auction_winner
+      cities = ["moscow", "nizhnynovgorod"]
+
+      game =
+        [
+          build_rail_link(auction_winner, :red, cities),
+          set_stock_value(auction_winner, :red, 8)
+        ]
+        |> injest_commands(game)
+
+      # AND :blue is just auctioned off
+
+      [^auction_winner, passer, next_auction_winner] =
+        Players.one_round(context.player_order, auction_winner)
+
+      game =
+        [
+          pass_on_company(auction_winner, :blue),
+          pass_on_company(passer, :blue),
+          submit_bid(next_auction_winner, :blue, 8)
+        ]
+        |> injest_commands(game)
+
+      # WHEN the auction winner tries to build the same link again,
+      game = build_rail_link(next_auction_winner, :blue, cities) |> injest_commands(game)
+
+      # THEN the command is rejected
+      assert event = fetch_single_event!(game, "rail_link_rejected")
+
+      assert event.payload == %{
+               player: next_auction_winner,
+               company: :blue,
+               cities: cities,
+               reason: "link already built"
+             }
+    end
+
     test "not connected to existing rail network"
     test "link not connected to existing rail network"
-    test "link has already been build"
   end
 
   describe "build_rail_link -> rail_link_built" do

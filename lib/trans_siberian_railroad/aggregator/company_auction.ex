@@ -22,9 +22,10 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   alias TransSiberianRailroad.RailLinks
 
   aggregator_typedstruct do
-    # These two are tracks continuously throughout the game
+    # These are tracked continuously throughout the game
     field :player_order, [Player.id()]
     field :player_money, %{Player.id() => non_neg_integer()}, default: %{}
+    field :built_links, [RailLinks.linked_cities()], default: []
 
     # Set only at the start of the company auction
     field :company, Company.id()
@@ -173,7 +174,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
          {:ok, amount} <- fetch_highest_bid(projection) do
       reason = "company stock auctioned off"
 
-      available_links = RailLinks.connected_to("moscow")
+      available_links = RailLinks.connected_to("moscow") -- projection.built_links
 
       [
         &Messages.player_won_company_auction(auction_winner, company, amount, &1),
@@ -203,7 +204,8 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     with :ok <- validate_company_auction(projection),
          :ok <- validate_current_bidder(projection, building_player),
          :ok <- validate_current_company(projection, company),
-         :ok <- RailLinks.validate_cities(cities) do
+         :ok <- RailLinks.validate_cities(cities),
+         :ok <- validate_unbuilt_rail_link(projection, cities) do
       &Messages.rail_link_built(building_player, company, cities, &1)
     else
       {:error, reason} ->
@@ -260,7 +262,11 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   end
 
   handle_event "rail_link_built", ctx do
+    %{cities: cities} = ctx.payload
+    built_links = ctx.projection.built_links
+
     drop_awaiting(ctx, "rail_link_built")
+    |> Keyword.put(:built_links, [cities | built_links])
   end
 
   handle_event "awaiting_stock_value", ctx do
@@ -461,6 +467,17 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
         [] ->
           {:error, "no bidders"}
       end
+    end
+  end
+
+  # Rail Links
+  #########################################################
+
+  defp validate_unbuilt_rail_link(projection, cities) do
+    if cities in projection.built_links do
+      {:error, "link already built"}
+    else
+      :ok
     end
   end
 

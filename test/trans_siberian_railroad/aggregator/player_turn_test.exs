@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.PlayerTurnTest do
+defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
   use ExUnit.Case, async: true
   import TransSiberianRailroad.CommandFactory
   import TransSiberianRailroad.GameHelpers

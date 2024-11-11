@@ -5,6 +5,8 @@ defmodule TransSiberianRailroad.RailLinks do
 
   alias TransSiberianRailroad.RailLink
 
+  @type linked_cities() :: [String.t(), ...]
+
   @type t() :: [RailLink.t(), ...]
   @raw [
          # Moscow (starting links, CCW from Peter)
