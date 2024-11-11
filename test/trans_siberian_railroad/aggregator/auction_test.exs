@@ -508,21 +508,43 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
       # WHEN the wrong player tries to build a rail link,
       game =
-        build_rail_link(wrong_player, :red, ["moscow", "nizhnynovgorod"])
+        build_rail_link(wrong_player, :blue, ["invalid city"])
         |> injest_commands(game)
 
-      # THEN the command is rejected
+      # THEN the command is rejected because of the wrong player,
+      # regardless of the other invalid data.
       assert event = fetch_single_event!(game, "rail_link_rejected")
 
       assert event.payload == %{
                player: wrong_player,
-               company: :red,
-               cities: ["moscow", "nizhnynovgorod"],
+               company: :blue,
+               cities: ["invalid city"],
                reason: "incorrect player"
              }
     end
 
-    test "wrong company"
+    test "wrong company", context do
+      # GIVEN a player just won a company auction and we're awaiting a rail link,
+      game = context.game
+      auction_winner = context.auction_winner
+      wrong_company = :blue
+
+      # WHEN the player tries to build a rail link for the wrong company
+      # and with invalid cities,
+      game =
+        build_rail_link(auction_winner, wrong_company, ["invalid city"])
+        |> injest_commands(game)
+
+      # THEN the command is rejected because of the wrong company.
+      assert event = fetch_single_event!(game, "rail_link_rejected")
+
+      assert event.payload == %{
+               player: auction_winner,
+               company: wrong_company,
+               cities: ["invalid city"],
+               reason: "incorrect company"
+             }
+    end
 
     test "invalid cities", context do
       # GIVEN a player just won a company auction and we're awaiting a rail link,
