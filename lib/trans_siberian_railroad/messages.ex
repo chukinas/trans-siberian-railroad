@@ -298,19 +298,19 @@ defmodule TransSiberianRailroad.Messages do
     event(player: player, company: company, available_links: available_links)
   end
 
-  defcommand build_rail_link(player, company, cities)
-             when Player.is_id(player) and Company.is_id(company) and is_list(cities) do
-    [player: player, company: company, cities: cities]
+  defcommand build_rail_link(player, company, rail_link)
+             when Player.is_id(player) and Company.is_id(company) and is_list(rail_link) do
+    [player: player, company: company, rail_link: rail_link]
   end
 
-  def rail_link_rejected(player, company, cities, reason, metadata)
+  def rail_link_rejected(player, company, rail_link, reason, metadata)
       when Player.is_id(player) and Company.is_id(company) and is_binary(reason) do
-    event(player: player, company: company, cities: cities, reason: reason)
+    event(player: player, company: company, rail_link: rail_link, reason: reason)
   end
 
-  def rail_link_built(player, company, cities, metadata)
-      when Player.is_id(player) and Company.is_id(company) and is_list(cities) do
-    event(player: player, company: company, cities: cities)
+  def rail_link_built(player, company, rail_link, metadata)
+      when Player.is_id(player) and Company.is_id(company) and is_list(rail_link) do
+    event(player: player, company: company, rail_link: rail_link)
   end
 
   #########################################################

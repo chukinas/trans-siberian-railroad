@@ -25,7 +25,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     # These are tracked continuously throughout the game
     field :player_order, [Player.id()]
     field :player_money, %{Player.id() => non_neg_integer()}, default: %{}
-    field :built_links, [RailLinks.linked_cities()], default: []
+    field :built_rail_links, [RailLinks.rail_link()], default: []
 
     # Set only at the start of the company auction
     field :company, Company.id()
@@ -174,7 +174,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
          {:ok, amount} <- fetch_highest_bid(projection) do
       reason = "company stock auctioned off"
 
-      available_links = RailLinks.connected_to("moscow") -- projection.built_links
+      available_links = RailLinks.connected_to("moscow") -- projection.built_rail_links
 
       [
         &Messages.player_won_company_auction(auction_winner, company, amount, &1),
@@ -198,18 +198,19 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   #########################################################
 
   handle_command "build_rail_link", ctx do
-    %{player: building_player, company: company, cities: cities} = ctx.payload
+    %{player: building_player, company: company, rail_link: rail_link} = ctx.payload
     projection = ctx.projection
 
     with :ok <- validate_company_auction(projection),
          :ok <- validate_current_bidder(projection, building_player),
          :ok <- validate_current_company(projection, company),
-         :ok <- RailLinks.validate_cities(cities),
-         :ok <- validate_unbuilt_rail_link(projection, cities) do
-      &Messages.rail_link_built(building_player, company, cities, &1)
+         :ok <- RailLinks.validate_rail_link(rail_link),
+         :ok <- validate_unbuilt_rail_link(projection, rail_link),
+         :ok <- validate_connected_link(rail_link) do
+      &Messages.rail_link_built(building_player, company, rail_link, &1)
     else
       {:error, reason} ->
-        &Messages.rail_link_rejected(building_player, company, cities, reason, &1)
+        &Messages.rail_link_rejected(building_player, company, rail_link, reason, &1)
     end
   end
 
@@ -262,11 +263,11 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   end
 
   handle_event "rail_link_built", ctx do
-    %{cities: cities} = ctx.payload
-    built_links = ctx.projection.built_links
+    %{rail_link: rail_link} = ctx.payload
+    built_rail_links = ctx.projection.built_rail_links
 
     drop_awaiting(ctx, "rail_link_built")
-    |> Keyword.put(:built_links, [cities | built_links])
+    |> Keyword.put(:built_rail_links, [rail_link | built_rail_links])
   end
 
   handle_event "awaiting_stock_value", ctx do
@@ -473,11 +474,20 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   # Rail Links
   #########################################################
 
-  defp validate_unbuilt_rail_link(projection, cities) do
-    if cities in projection.built_links do
+  defp validate_unbuilt_rail_link(projection, rail_link) do
+    if rail_link in projection.built_rail_links do
       {:error, "link already built"}
     else
       :ok
+    end
+  end
+
+  defp validate_connected_link(rail_link) do
+    # temp implementation
+    if "moscow" in rail_link do
+      :ok
+    else
+      {:error, "unconnected rail link"}
     end
   end
 

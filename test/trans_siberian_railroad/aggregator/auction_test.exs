@@ -487,8 +487,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game = init_and_add_players(1)
 
       # WHEN we try building a rail link with completely invalid data,
-      cities = ["philly", "newyork"]
-      game = handle_one_command(game, build_rail_link(2, :blue, cities))
+      rail_link = ["philly", "newyork"]
+      game = handle_one_command(game, build_rail_link(2, :blue, rail_link))
 
       # THEN the command is rejected for reasons other than the invalid data.
       assert event = fetch_single_event!(game, "rail_link_rejected")
@@ -496,7 +496,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert event.payload == %{
                player: 2,
                company: :blue,
-               cities: cities,
+               rail_link: rail_link,
                reason: "no company auction in progress"
              }
     end
@@ -509,7 +509,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
       # WHEN the wrong player tries to build a rail link,
       game =
-        build_rail_link(wrong_player, :blue, ["invalid city"])
+        build_rail_link(wrong_player, :blue, ["invalid rail link"])
         |> injest_commands(game)
 
       # THEN the command is rejected because of the wrong player,
@@ -519,7 +519,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert event.payload == %{
                player: wrong_player,
                company: :blue,
-               cities: ["invalid city"],
+               rail_link: ["invalid rail link"],
                reason: "incorrect player"
              }
     end
@@ -531,9 +531,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       wrong_company = :blue
 
       # WHEN the player tries to build a rail link for the wrong company
-      # and with invalid cities,
+      # and with invalid rail_link,
       game =
-        build_rail_link(auction_winner, wrong_company, ["invalid city"])
+        build_rail_link(auction_winner, wrong_company, ["invalid rail link"])
         |> injest_commands(game)
 
       # THEN the command is rejected because of the wrong company.
@@ -542,24 +542,24 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert event.payload == %{
                player: auction_winner,
                company: wrong_company,
-               cities: ["invalid city"],
+               rail_link: ["invalid rail link"],
                reason: "incorrect company"
              }
     end
 
-    test "invalid cities", context do
+    test "invalid rail link", context do
       # GIVEN a player just won a company auction and we're awaiting a rail link,
       game = context.game
       auction_winner = context.auction_winner
 
-      # WHEN the player tries to build a rail link with invalid cities,
-      for {invalid_cities, _} <- [
+      # WHEN the player tries to build a rail link with invalid rail link,
+      for {invalid_rail_link, _} <- [
             {~w(stpetersburg moscow),
              reason: "these cities are **valid**, but not in alphabetical order"},
             {["moscow", "nizhnynovgorod", "invalid"], reason: "list contains a non-existant city"}
           ] do
         game =
-          build_rail_link(auction_winner, :red, invalid_cities)
+          build_rail_link(auction_winner, :red, invalid_rail_link)
           |> injest_commands(game)
 
         # THEN the command is rejected
@@ -568,8 +568,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
         assert event.payload == %{
                  player: auction_winner,
                  company: :red,
-                 cities: invalid_cities,
-                 reason: "invalid cities"
+                 rail_link: invalid_rail_link,
+                 reason: "invalid rail link"
                }
       end
     end
@@ -579,11 +579,12 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # GIVEN the :red auction in already done
       game = context.game
       auction_winner = context.auction_winner
-      cities = ["moscow", "nizhnynovgorod"]
+      assert event = get_latest_event(game, "awaiting_rail_link")
+      rail_link = Enum.random(event.payload.available_links)
 
       game =
         [
-          build_rail_link(auction_winner, :red, cities),
+          build_rail_link(auction_winner, :red, rail_link),
           set_stock_value(auction_winner, :red, 8)
         ]
         |> injest_commands(game)
@@ -602,7 +603,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
         |> injest_commands(game)
 
       # WHEN the auction winner tries to build the same link again,
-      game = build_rail_link(next_auction_winner, :blue, cities) |> injest_commands(game)
+      game = build_rail_link(next_auction_winner, :blue, rail_link) |> injest_commands(game)
 
       # THEN the command is rejected
       assert event = fetch_single_event!(game, "rail_link_rejected")
@@ -610,13 +611,37 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       assert event.payload == %{
                player: next_auction_winner,
                company: :blue,
-               cities: cities,
+               rail_link: rail_link,
                reason: "link already built"
              }
+
+      # AND that link wasn't in the prompt command anyway
+      assert event = get_latest_event(game, "awaiting_rail_link")
+      assert rail_link not in event.payload.available_links
     end
 
-    test "not connected to existing rail network"
-    test "link not connected to existing rail network"
+    test "unconnected rail link", context do
+      # GIVEN :red just got auctioned off
+      game = context.game
+      auction_winner = context.auction_winner
+
+      # WHEN we try building a link that's not connected to Moscow,
+      unconnected_link = ~w(chita ext_chita)
+
+      game =
+        build_rail_link(auction_winner, :red, unconnected_link)
+        |> injest_commands(game)
+
+      # THEN the command is rejected
+      assert event = fetch_single_event!(game, "rail_link_rejected")
+
+      assert event.payload == %{
+               player: auction_winner,
+               company: :red,
+               rail_link: unconnected_link,
+               reason: "unconnected rail link"
+             }
+    end
   end
 
   describe "build_rail_link -> rail_link_built" do

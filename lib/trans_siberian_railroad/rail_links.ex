@@ -5,7 +5,7 @@ defmodule TransSiberianRailroad.RailLinks do
 
   alias TransSiberianRailroad.RailLink
 
-  @type linked_cities() :: [String.t(), ...]
+  @type rail_link() :: [String.t(), ...]
 
   @type t() :: [RailLink.t(), ...]
   @raw [
@@ -96,9 +96,9 @@ defmodule TransSiberianRailroad.RailLinks do
          {3, ~w(urgal birobidzhan)},
          {3, ~w(urgal komsololsknaamure)}
        ]
-       |> Enum.map(fn {income, cities} -> {income, Enum.sort(cities)} end)
+       |> Enum.map(fn {income, rail_link} -> {income, Enum.sort(rail_link)} end)
 
-  @linked_cities_set @raw |> Enum.map(fn {_, cities} -> cities end) |> MapSet.new()
+  @rail_links_set @raw |> Enum.map(fn {_, rail_link} -> rail_link end) |> MapSet.new()
 
   def new() do
     Enum.with_index(@raw, fn {income, linked_locations}, index ->
@@ -108,8 +108,8 @@ defmodule TransSiberianRailroad.RailLinks do
 
   def connected_to(city) when is_binary(city) do
     links =
-      Enum.flat_map(@raw, fn {_income, cities} ->
-        if city in cities, do: [cities], else: []
+      Enum.flat_map(@raw, fn {_income, rail_link} ->
+        if city in rail_link, do: [rail_link], else: []
       end)
 
     if Enum.empty?(links) do
@@ -120,11 +120,11 @@ defmodule TransSiberianRailroad.RailLinks do
     Enum.sort(links)
   end
 
-  def validate_cities(cities) when is_list(cities) do
-    if MapSet.member?(@linked_cities_set, cities) do
+  def validate_rail_link(rail_link) when is_list(rail_link) do
+    if MapSet.member?(@rail_links_set, rail_link) do
       :ok
     else
-      {:error, "invalid cities"}
+      {:error, "invalid rail link"}
     end
   end
 end

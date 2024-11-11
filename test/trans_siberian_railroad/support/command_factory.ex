@@ -29,8 +29,8 @@ defmodule TransSiberianRailroad.CommandFactory do
     Messages.submit_bid(player, company, amount, user: player)
   end
 
-  def build_rail_link(player, company, cities) do
-    Messages.build_rail_link(player, company, cities, user: player)
+  def build_rail_link(player, company, rail_link) do
+    Messages.build_rail_link(player, company, rail_link, user: player)
   end
 
   def set_stock_value(player, company, price) do
