@@ -476,7 +476,10 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
   end
 
   describe "build_rail_link -> rail_link_rejected when" do
-    test "no company auction in progress", _context do
+    @describetag :start_game
+
+    @tag start_game: false
+    test "no company auction in progress" do
       # GIVEN we're still setting the game up (and not in a company auction),
       game = init_and_add_players(1)
 
@@ -497,7 +500,35 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
     test "wrong player"
     test "wrong company"
-    test "not valid cities"
+
+    @tag :auction_off_company
+    test "invalid cities", context do
+      # GIVEN a player just won a company auction and we're awaiting a rail link,
+      game = context.game
+      auction_winner = context.auction_winner
+
+      # WHEN the player tries to build a rail link with invalid cities,
+      for {invalid_cities, _} <- [
+            {~w(stpetersburg moscow),
+             reason: "these cities are **valid**, but not in alphabetical order"},
+            {["moscow", "nizhnynovgorod", "invalid"], reason: "list contains a non-existant city"}
+          ] do
+        game =
+          build_rail_link(auction_winner, :red, invalid_cities)
+          |> injest_commands(game)
+
+        # THEN the command is rejected
+        assert event = fetch_single_event!(game, "rail_link_rejected")
+
+        assert event.payload == %{
+                 player: auction_winner,
+                 company: :red,
+                 cities: invalid_cities,
+                 reason: "invalid cities"
+               }
+      end
+    end
+
     test "not connected to existing rail network"
     test "link not connected to existing rail network"
     test "link has already been build"

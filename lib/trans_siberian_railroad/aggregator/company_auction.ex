@@ -202,8 +202,8 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
 
     with :ok <- validate_company_auction(projection),
          :ok <- validate_current_company(projection, company),
-         :ok <- validate_current_bidder(projection, building_player) do
-      # :ok <- RailLinks.validate_rail_link(cities) do
+         :ok <- validate_current_bidder(projection, building_player),
+         :ok <- RailLinks.validate_cities(cities) do
       &Messages.rail_link_built(building_player, company, cities, &1)
     else
       {:error, reason} ->
