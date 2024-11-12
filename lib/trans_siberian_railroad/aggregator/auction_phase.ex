@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.Auction do
+defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
   @moduledoc """
   This module orchestates the one or two auction phases of the game.
 

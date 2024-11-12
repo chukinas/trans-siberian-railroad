@@ -1,2 +1,1 @@
 alias TransSiberianRailroad.Projection
-alias TransSiberianRailroad.Aggregator.Auction

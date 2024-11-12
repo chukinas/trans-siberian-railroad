@@ -32,7 +32,7 @@ defmodule TransSiberianRailroad.Game do
 
   @aggregators [
     TransSiberianRailroad.Aggregator.Setup,
-    TransSiberianRailroad.Aggregator.Auction,
+    TransSiberianRailroad.Aggregator.AuctionPhase,
     TransSiberianRailroad.Aggregator.CompanyAuction,
     TransSiberianRailroad.Aggregator.Orchestration,
     TransSiberianRailroad.Aggregator.PlayerTurn,
