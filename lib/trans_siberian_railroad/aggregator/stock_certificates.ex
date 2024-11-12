@@ -1,11 +1,13 @@
 defmodule TransSiberianRailroad.Aggregator.StockCertificates do
   @moduledoc """
-  Source of truth for where the stock certificates are at any time.
+  Track stock certificate ownership by companies, players, and bank.
 
   Each company starts the game with 5 or 3.
   As certificates get auctioned or sold off, they then transfer to the players.
-  If a company fails to auction off its first certificate, all its certificates are returned to the bank.
-  If a company gets nationalized, all its certificates are returned to the bank.
+
+  All of a company's certificates are returned to the bank if
+  - it fails to auction off its first certificate or
+  - it gets nationalized.
   """
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection

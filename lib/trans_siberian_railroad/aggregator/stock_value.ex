@@ -1,7 +1,12 @@
 defmodule TransSiberianRailroad.Aggregator.StockValue do
   @moduledoc """
-  Each company (if it's sold any stock certificates and if it's not nationalized)
-  tracks its stock value here.
+  Track the value of stock certificates.
+
+  Stock value dictates
+  - The price a player must pay to buy a stock certificate
+  - When a company gets nationalized,
+    the tsar buys out the owner of each stock certificate at the current stock value
+  - During Interturn, the company with the highest stock value has its stock value increased by 1.
   """
 
   use TransSiberianRailroad.Aggregator

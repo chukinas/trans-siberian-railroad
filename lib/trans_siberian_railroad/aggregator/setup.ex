@@ -1,6 +1,6 @@
 defmodule TransSiberianRailroad.Aggregator.Setup do
   @moduledoc """
-  The main orchestrating aggregator for the game.
+  Initialize game, add players, set start player and player order, and start the game.
   """
 
   use TransSiberianRailroad.Aggregator
