@@ -473,4 +473,81 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   def event_names(), do: @event_names
+
+  #########################################################
+  # Game End Sequence
+  #########################################################
+
+  defcommand end_game(causes) when is_list(causes) do
+    [causes: causes]
+  end
+
+  def game_end_sequence_begun(causes, metadata) when is_list(causes) do
+    event(causes: causes)
+  end
+
+  def game_end_stock_values_determined(companies, metadata) when is_list(companies) do
+    for company_map <- companies do
+      %{company: company, stock_value: stock_value} = company_map
+
+      unless map_size(company_map) == 2 and Company.is_id(company) and is_integer(stock_value) do
+        raise ArgumentError,
+              "companies argument must be a list of maps with :company and :stock_value keys. Got: #{inspect(companies)}"
+      end
+    end
+
+    note =
+      "this takes nationalization into account but ignores the effect of private companies, " <>
+        "the value of whose stock certificates is actually zero at game end"
+
+    event(companies: companies, note: note)
+  end
+
+  def game_end_player_score_calculated(player, score_total, money, stocks, metadata)
+      when Player.is_id(player) and is_integer(score_total) and score_total >= 0 and
+             is_list(stocks) do
+    for stock_map <- stocks do
+      with %{
+             company: company,
+             count: count,
+             value_per: value_per,
+             total_value: total_value,
+             company_status: company_status
+           } <- stock_map,
+           5 <- map_size(stock_map),
+           true <- company in [:red, :blue, :green, :yellow, :black, :white],
+           true <- count in 0..5,
+           true <- is_integer(value_per) and value_per >= 0,
+           true <- is_integer(total_value) and total_value >= 0,
+           true <- count * value_per == total_value,
+           true <- company_status in [:private, :public] do
+      else
+        _ ->
+          raise ArgumentError,
+                "stocks argument must be a list of maps with :company, :count, :value_per, :total_value, and :company_status keys. Got: #{inspect(stocks)}"
+      end
+    end
+
+    event(player: player, score_total: score_total, money: money, stocks: stocks)
+  end
+
+  def winner_determined(winner, score, metadata)
+      when Player.is_id(winner) and is_integer(score) and score >= 0 do
+    event(winner: winner, score: score)
+  end
+
+  def tied_winners_determined(winners, score, metadata)
+      when is_list(winners) and is_integer(score) and score >= 0 do
+    for winner <- winners do
+      unless Player.is_id(winner) do
+        raise ArgumentError, "winners must be a list of integers, got: #{inspect(winners)}"
+      end
+    end
+
+    event(winners: winners, score: score)
+  end
+
+  def game_ended(game_id, metadata) when is_binary(game_id) do
+    event(game_id: game_id)
+  end
 end
