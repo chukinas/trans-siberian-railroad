@@ -4,11 +4,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
   import TransSiberianRailroad.GameHelpers
   import TransSiberianRailroad.GameTestHelpers
 
-  setup context do
-    if context[:start_game],
-      do: start_game(context),
-      else: :ok
-  end
+  taggable_setups()
 
   test "initialize_game -> game_initialized only if it's the first event"
 

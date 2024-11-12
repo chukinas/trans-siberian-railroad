@@ -7,35 +7,11 @@ defmodule TransSiberianRailroad.Messages do
   """
 
   use TransSiberianRailroad.Command
+  use TransSiberianRailroad.Event
   require TransSiberianRailroad.Metadata, as: Metadata
   require TransSiberianRailroad.Player, as: Player
   require TransSiberianRailroad.Company, as: Company
   alias TransSiberianRailroad.Event
-
-  #########################################################
-  # - Local boilerplate reduction
-  # - Accumulate command and event names
-  #   in order to validate then in aggregators
-  #########################################################
-
-  Module.register_attribute(__MODULE__, :event_names, accumulate: true)
-  Module.register_attribute(__MODULE__, :simple_event, accumulate: true)
-
-  defmacrop event(fields) do
-    name =
-      with {name, _arity} = __CALLER__.function do
-        to_string(name)
-      end
-
-    Module.put_attribute(__MODULE__, :event_names, name)
-
-    quote do
-      name = unquote(name)
-      payload = Map.new(unquote(fields))
-      metadata = var!(metadata)
-      TransSiberianRailroad.Event.new(name, payload, metadata)
-    end
-  end
 
   #########################################################
   # "Broad Events"
@@ -404,20 +380,20 @@ defmodule TransSiberianRailroad.Messages do
   defcommand(:start_interturn)
 
   # If the timing track is sufficiently advanced, then:
-  @simple_event :interturn_started
+  simple_event(:interturn_started)
   # otherwise:
-  @simple_event :interturn_skipped
+  simple_event(:interturn_skipped)
 
   # If a :interturn_started event has been issued,
   # then when it's finished:
-  @simple_event :interturn_ended
+  simple_event(:interturn_ended)
 
   #########################################################
   # Timing Track
   #########################################################
 
-  @simple_event :timing_track_reset
-  @simple_event :timing_track_incremented
+  simple_event(:timing_track_reset)
+  simple_event(:timing_track_incremented)
 
   #########################################################
   # Dividends
@@ -462,17 +438,6 @@ defmodule TransSiberianRailroad.Messages do
   def dividends_paid(metadata) do
     event([])
   end
-
-  #########################################################
-  # Message name guards
-  # These must remain at the bottom of the module
-  #########################################################
-
-  for event_name <- @simple_event do
-    def unquote(event_name)(metadata), do: event([])
-  end
-
-  def event_names(), do: @event_names
 
   #########################################################
   # Game End Sequence

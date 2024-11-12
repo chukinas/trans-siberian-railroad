@@ -25,10 +25,11 @@ defmodule TransSiberianRailroad.Game do
 
   use TypedStruct
   require Logger
-  alias TransSiberianRailroad.Aggregator
   alias TransSiberianRailroad.Command
+  alias TransSiberianRailroad.CommandHandling
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Projection
+  alias TransSiberianRailroad.Reaction
 
   @aggregators [
     TransSiberianRailroad.Aggregator.Setup,
@@ -40,7 +41,8 @@ defmodule TransSiberianRailroad.Game do
     TransSiberianRailroad.Aggregator.Interturn,
     TransSiberianRailroad.Aggregator.IncomeTrack,
     TransSiberianRailroad.Aggregator.StockCertificates,
-    TransSiberianRailroad.Aggregator.StockValue
+    TransSiberianRailroad.Aggregator.StockValue,
+    TransSiberianRailroad.Aggregator.GameEndSequence
   ]
 
   typedstruct enforce: true do
@@ -124,27 +126,15 @@ defmodule TransSiberianRailroad.Game do
           game
       )
       when last_reactions_version < version do
-    ids =
+    stream_all_messages =
       [game.events, game.event_queue, game.commands, game.command_queue]
       |> Stream.concat()
-      |> Stream.map(& &1.id)
-      |> MapSet.new()
 
-    unsent? = fn %{id: id} -> !MapSet.member?(ids, id) end
-
-    if_unsent = fn message ->
-      case {unsent?.(message), message} do
-        {true, %Command{}} -> %{commands: [message]}
-        {true, %Event{}} -> %{events: [message]}
-        _ -> nil
-      end
-    end
-
-    reaction_ctx = %{sent_ids: ids, unsent?: unsent?, if_unsent: if_unsent}
+    reaction_ctx = Reaction.build_reaction_ctx(stream_all_messages)
 
     result =
       Enum.find_value(game.aggregators, fn agg ->
-        if reaction = Aggregator.get_reaction(agg, reaction_ctx) do
+        if reaction = Reaction.get_reaction(agg, reaction_ctx) do
           {agg, reaction}
         end
       end)
@@ -178,28 +168,28 @@ defmodule TransSiberianRailroad.Game do
     global_version = game.global_version + 1
     command = Map.replace!(command, :global_version, global_version)
 
-    {agg, maybe_events} =
+    {maybe_agg, event_queue} =
       game.aggregators
       |> Enum.find_value(fn agg ->
-        if events = Aggregator.maybe_events_from_command(agg, command) do
+        if events = CommandHandling.get_events(agg, command) do
           {agg, events}
         end
       end)
+      |> case do
+        nil ->
+          Logger.warning("#{inspect(command)} did not result in any events")
+          {nil, []}
+
+        {agg, events} ->
+          {agg, events}
+      end
 
     Logger.debug("""
     COMMAND #{command.name}
     command: #{inspect(command)}
-    aggregator: #{inspect(agg, width: 50, pretty: true)}
-    events: #{inspect(maybe_events)}
+    aggregator: #{inspect(maybe_agg, width: 50, pretty: true)}
+    events: #{inspect(event_queue)}
     """)
-
-    event_queue =
-      if events = maybe_events do
-        events
-      else
-        Logger.warning("#{inspect(command)} did not result in any events")
-        []
-      end
 
     %__MODULE__{
       game

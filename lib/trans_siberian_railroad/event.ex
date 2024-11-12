@@ -25,6 +25,8 @@ defmodule TransSiberianRailroad.Event do
   """
 
   use TypedStruct
+  alias TransSiberianRailroad.Event
+  alias TransSiberianRailroad.Metadata
 
   typedstruct enforce: true do
     field :name, String.t()
@@ -42,6 +44,48 @@ defmodule TransSiberianRailroad.Event do
     field :global_version, pos_integer(), enforce: false
   end
 
+  defmacro __using__(_) do
+    quote do
+      #   import unquote(__MODULE__)
+      #   Module.register_attribute(__MODULE__, :__command_names__, accumulate: true)
+      @before_compile unquote(__MODULE__)
+      import unquote(__MODULE__)
+      Module.register_attribute(__MODULE__, :event_names, accumulate: true)
+    end
+  end
+
+  defmacro event(fields) do
+    name =
+      with {name, _arity} = __CALLER__.function do
+        to_string(name)
+      end
+
+    Module.put_attribute(__CALLER__.module, :event_names, name)
+
+    quote do
+      name = unquote(name)
+      payload = Map.new(unquote(fields))
+      metadata = var!(metadata)
+      TransSiberianRailroad.Event.new(name, payload, metadata)
+    end
+  end
+
+  defmacro simple_event(name) do
+    quote do
+      Module.put_attribute(__MODULE__, :event_names, unquote(to_string(name)))
+
+      def unquote(name)(metadata) do
+        TransSiberianRailroad.Event.new(to_string(unquote(name)), %{}, metadata)
+      end
+    end
+  end
+
+  defmacro __before_compile__(_env) do
+    quote do
+      def event_names(), do: @event_names
+    end
+  end
+
   defimpl Inspect do
     import Inspect.Algebra
 
@@ -53,6 +97,10 @@ defmodule TransSiberianRailroad.Event do
       concat(["#Event.#{short_id}.#{event.name}", Inspect.List.inspect(payload, opts)])
     end
   end
+
+  #########################################################
+  # Constructors
+  #########################################################
 
   def new(name, payload, metadata) do
     %__MODULE__{
@@ -68,6 +116,10 @@ defmodule TransSiberianRailroad.Event do
     }
   end
 
+  #########################################################
+  # Compare
+  #########################################################
+
   def compare(event1, event2) do
     case event1.version - event2.version do
       n when n > 0 -> :gt
@@ -76,8 +128,42 @@ defmodule TransSiberianRailroad.Event do
     end
   end
 
+  #########################################################
+  # Converters
+  #########################################################
+
   def await?(%__MODULE__{name: "awaiting_" <> _}), do: true
   def await?(_), do: false
 
   def version_gt?(%__MODULE__{version: version}, value), do: version > value
+
+  #########################################################
+  # Helpers
+  #########################################################
+
+  @doc """
+  It's a common pattern for command handlers and reactions to return
+  events in one of four forms:
+  - a single event
+  - an arity-1 function that converts a metadata to an event
+  - a list of one of the above two
+
+  This function takes one of the above and returns a list of events.
+  """
+  @type event_or_function() :: Event.t() | (Metadata.t() -> Event.t())
+  @type metadata_from_offset() :: (offset :: non_neg_integer() -> Metadata.t())
+  @spec coerce_to_events([event_or_function()], metadata_from_offset()) :: [Event.t()]
+  def coerce_to_events(events_or_functions, metadata_from_index) do
+    events_or_functions
+    |> List.wrap()
+    |> case do
+      [fun | _] = events_or_functions when is_function(fun, 1) ->
+        events_or_functions
+        |> Enum.with_index()
+        |> Enum.map(fn {build_msg, idx} -> build_msg.(metadata_from_index.(idx)) end)
+
+      events ->
+        events
+    end
+  end
 end

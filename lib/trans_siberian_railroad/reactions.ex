@@ -1,13 +1,14 @@
 defmodule TransSiberianRailroad.Reactions do
+  @moduledoc """
+  Abstraction for defining reactions.
+  """
   def set_next_command(command) do
     [next_command: command]
   end
 
   def __maybe_next_command__(projection, reaction_ctx) do
     if command = projection.next_command do
-      if reaction_ctx.unsent?.(command) do
-        %{commands: [command]}
-      end
+      reaction_ctx.if_unsent.(command)
     end
   end
 

@@ -15,6 +15,8 @@ defmodule TransSiberianRailroad.Projection do
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Metadata
 
+  @type t() :: struct()
+
   defmacro __using__(_opts) do
     quote do
       use TypedStruct
@@ -123,6 +125,7 @@ defmodule TransSiberianRailroad.Projection do
   def metadata(%_{__version__: version, __trace_id__: trace_id}, overrides \\ []) do
     next_version = version + 1 + Keyword.get(overrides, :offset, 0)
     id = Keyword.get(overrides, :id, Ecto.UUID.generate())
+    trace_id = overrides[:trace_id] || trace_id
 
     metadata =
       Metadata.new(next_version, trace_id)
@@ -132,6 +135,18 @@ defmodule TransSiberianRailroad.Projection do
       Keyword.put(metadata, :user, user)
     else
       metadata
+    end
+  end
+
+  def event_from_offset_builder(projection) do
+    event_from_offset_builder(projection, projection.__trace_id__)
+  end
+
+  def event_from_offset_builder(projection, trace_id) do
+    fn offset ->
+      projection
+      |> next_metadata(offset)
+      |> Keyword.put(:trace_id, trace_id)
     end
   end
 end

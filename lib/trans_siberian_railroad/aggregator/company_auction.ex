@@ -32,7 +32,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
 
     # These two track the state of the company auction
     field :bidders, [{Player.id(), nil | non_neg_integer()}], default: []
-    field :awaiting_stock_value, boolean(), default: false
+    field :next, [term()], default: []
     field :awaiting, term()
   end
 
@@ -72,19 +72,16 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
       bidders:
         ctx.projection.player_order
         |> Players.one_round(start_bidder)
-        |> Enum.map(&{&1, nil}),
-      awaiting_stock_value: false
+        |> Enum.map(&{&1, nil})
     ]
   end
 
   #########################################################
-  # awaiting
+  # Awaiting bid or pass
   #########################################################
 
-  Aggregator.register_reaction("awaiting_bid_or_pass", __ENV__)
-
   defreaction maybe_awaiting_bid_or_pass(projection) do
-    with :ok <- Aggregator.validate_unsent(projection, "awaiting_bid_or_pass"),
+    with nil <- projection.awaiting,
          :ok <- validate_bidding_in_progress(projection),
          {:ok, company} <- fetch_current_company(projection),
          {:ok, player} <- fetch_current_bidder(projection) do
@@ -98,6 +95,10 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     else
       _ -> nil
     end
+  end
+
+  handle_event "awaiting_bid_or_pass", _ctx do
+    [awaiting: "bid_or_pass"]
   end
 
   #########################################################
@@ -121,7 +122,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   handle_event "company_passed", ctx do
     %{passing_player: passing_player} = ctx.payload
     bidders = Enum.reject(ctx.projection.bidders, fn {player, _} -> player == passing_player end)
-    [bidders: bidders]
+    [bidders: bidders, awaiting: nil]
   end
 
   defreaction maybe_all_players_passed_on_company(projection) do
@@ -162,12 +163,12 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
         with [{^bidder, _} | rest] = ctx.projection.bidders do
           rest ++ [{bidder, amount}]
         end,
-      awaiting_stock_value: false
+      awaiting: nil
     ]
   end
 
   defreaction maybe_player_won_company_auction(projection) do
-    with false <- projection.awaiting_stock_value,
+    with nil <- projection.awaiting,
          :ok <- validate_company_auction(projection),
          {:ok, company} <- fetch_current_company(projection),
          {:ok, auction_winner} <- fetch_single_bidder(projection),
@@ -272,7 +273,6 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
 
   handle_event "awaiting_stock_value", ctx do
     add_awaiting(ctx, "stock_value_set")
-    |> Keyword.put(:awaiting_stock_value, true)
   end
 
   handle_event "stock_value_set", ctx do
@@ -293,7 +293,6 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     [
       company: nil,
       bidders: [],
-      awaiting_stock_value: false,
       awaiting: nil
     ]
   end

@@ -38,18 +38,42 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
   Emitted by GameEndSequence after hearing one of the above two
   """
   use ExUnit.Case, async: true
-  # import TransSiberianRailroad.CommandFactory
-  # import TransSiberianRailroad.GameHelpers
-  # import TransSiberianRailroad.GameTestHelpers
-  # alias TransSiberianRailroad.Messages
-  # alias TransSiberianRailroad.Metadata
-  # alias TransSiberianRailroad.Players
+  import TransSiberianRailroad.GameHelpers
+  import TransSiberianRailroad.GameTestHelpers
+  alias TransSiberianRailroad.Messages
+
+  taggable_setups()
+  @moduletag :start_game
+  @moduletag :rand_auction_phase
+
+  defp force_end_game(game, causes \\ [:nonsense]) do
+    Messages.end_game(causes, user: :game) |> injest_commands(game)
+  end
 
   describe "end_game (command)" do
-    test "always results in game_end_sequence_begun (event)"
-    # TODO mv this to CheckForGameEndTest
+    test "always results in game_end_sequence_begun (event)", context do
+      # GIVEN a game with a completed phase-1 auction,
+      game = context.game
+
+      # WHEN we force an end_game command,
+      game = force_end_game(game)
+
+      # THEN we should see a game_end_sequence_begun event
+      assert fetch_single_event!(game, "game_end_sequence_begun")
+    end
+
     test "has one of three causes"
-    test "has the same cause as the resulting game_end_sequence_begun (event)"
+
+    test "has the same cause as the resulting game_end_sequence_begun (event)", context do
+      # GIVEN a game with a completed phase-1 auction,
+      game = context.game
+
+      # WHEN we force an end_game command,
+      game = force_end_game(game)
+
+      # THEN we should see a game_end_sequence_begun event
+      assert fetch_single_event!(game, "game_end_sequence_begun")
+    end
   end
 
   describe "game_end_sequence_begun (event)" do
