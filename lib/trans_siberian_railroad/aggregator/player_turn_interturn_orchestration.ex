@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.Orchestration do
+defmodule TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration do
   @moduledoc """
   This handles the housekeeping in between players' turns
 

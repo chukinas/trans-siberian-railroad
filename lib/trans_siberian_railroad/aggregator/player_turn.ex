@@ -3,9 +3,9 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   This module handles the player's turn.
 
   Players may:
-  - purchase stock
+  - purchase stock (one or two)
   - pass
-  - lay rail for a company they have a majority stake in
+  - lay rail for a company they have a majority stake in (one or two rail links)
   """
 
   use TransSiberianRailroad.Aggregator
