@@ -19,14 +19,11 @@ defmodule TransSiberianRailroad.Event do
   - How do I handle events that need to generate other events?
     Do the cascading events get created directly or do they
     need to have a command created first?
-  - Add Events module that wraps the list of events.
-    It'd store e.g. the latest event index / vesion.
-    It would replace the test helper functions like fetch_single_event!/2.
   """
 
   use TypedStruct
+  require TransSiberianRailroad.Metadata, as: Metadata
   alias TransSiberianRailroad.Event
-  alias TransSiberianRailroad.Metadata
 
   typedstruct enforce: true do
     field :name, String.t()
@@ -102,7 +99,7 @@ defmodule TransSiberianRailroad.Event do
   # Constructors
   #########################################################
 
-  def new(name, payload, metadata) do
+  def new(name, payload, metadata) when Metadata.is(metadata) do
     %__MODULE__{
       name: name,
       payload: payload,

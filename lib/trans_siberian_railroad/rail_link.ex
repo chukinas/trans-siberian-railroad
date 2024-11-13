@@ -11,7 +11,7 @@ defmodule TransSiberianRailroad.RailLink do
     field :id, non_neg_integer()
     field :linked_location_ids, [TransSiberianRailroad.Location.id(), ...]
     field :income, 2..6
-    field :owning_railroad, nil | TransSiberianRailroad.Company.id()
+    field :owning_railroad, nil | TransSiberianRailroad.Constants.company()
   end
 
   def new(id, linked_locations, income) when is_integer(id) and id >= 0 and income in 2..6 do

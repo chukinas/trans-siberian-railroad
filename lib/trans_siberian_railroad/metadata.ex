@@ -12,7 +12,9 @@ defmodule TransSiberianRailroad.Metadata do
 
   @type t() :: Keyword.t()
 
-  def new(version, trace_id) do
+  defguard is(metadata) when is_list(metadata)
+
+  def new(version, trace_id \\ Ecto.UUID.generate()) do
     [version: version, trace_id: trace_id]
   end
 

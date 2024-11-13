@@ -11,9 +11,9 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
   """
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
+  alias TransSiberianRailroad.Constants
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Metadata
-  alias TransSiberianRailroad.Company
   alias TransSiberianRailroad.ReactionCtx
 
   @bank_certs [red: 5, blue: 5, green: 5, yellow: 5, black: 3, white: 3]
@@ -22,7 +22,7 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
     field :cert_counts,
           %{
             (owning_entity :: Messages.entity()) => %{
-              Company.id() => non_neg_integer()
+              Constants.company() => non_neg_integer()
             }
           },
           default: %{bank: Map.new(@bank_certs)}

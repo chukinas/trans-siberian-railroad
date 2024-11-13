@@ -7,17 +7,17 @@ defmodule TransSiberianRailroad.Aggregator.IncomeTrack do
   use TransSiberianRailroad.Projection
   alias TransSiberianRailroad.Income
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Company
+  alias TransSiberianRailroad.Constants
 
   aggregator_typedstruct do
     plugin TransSiberianRailroad.Reactions
-    field :company_incomes, %{Company.id() => Income.t()}, default: %{red: 2}
+    field :company_incomes, %{Constants.company() => Income.t()}, default: %{red: 2}
 
     field :next_dividends_companies,
           [
             {
               event_uuid :: Ecto.UUID.t(),
-              Company.id(),
+              Constants.company(),
               income :: pos_integer()
             }
           ]
@@ -32,7 +32,7 @@ defmodule TransSiberianRailroad.Aggregator.IncomeTrack do
 
     next_dividends_companies =
       Enum.flat_map(
-        Company.ids(),
+        Constants.companies(),
         &case company_incomes[&1] do
           income when is_integer(income) -> [{Ecto.UUID.generate(), &1, income}]
           nil -> []

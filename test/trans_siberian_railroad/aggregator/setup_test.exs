@@ -36,7 +36,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
       game = handle_one_command(game, add_player("David"))
 
       # THEN
-      assert event = fetch_single_event!(game, "player_rejected")
+      assert event = get_one_event(game, "player_rejected")
       assert event.payload.player_name == "David"
     end
 
@@ -48,7 +48,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
       game = handle_one_command(game, add_player("Frank"))
 
       # THEN - there are still only 5 players and the 6th player was rejected
-      assert event = fetch_single_event!(game, "player_rejected")
+      assert event = get_one_event(game, "player_rejected")
       assert event.payload.player_name == "Frank"
     end
   end
@@ -61,7 +61,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
     game = handle_one_command(game, initialize_game())
 
     # THEN
-    assert fetch_single_event!(game, "game_initialization_rejected")
+    assert get_one_event(game, "game_initialization_rejected")
   end
 
   test "set_start_player is an optional command" do
@@ -81,7 +81,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
     game = handle_commands(commands)
 
     # THEN
-    assert fetch_single_event!(game, "start_player_set").payload.start_player ==
+    assert get_one_event(game, "start_player_set").payload.start_player ==
              start_player
   end
 
@@ -105,7 +105,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
     game = handle_commands(commands)
 
     # THEN
-    assert fetch_single_event!(game, "player_order_set").payload.player_order ==
+    assert get_one_event(game, "player_order_set").payload.player_order ==
              player_order
   end
 
@@ -113,10 +113,10 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
   test "game_started -> auction_phase_started", context do
     # GIVEN/WHEN: see :start_game setup
     game = context.game
-    assert fetch_single_event!(game, "game_started")
+    assert get_one_event(game, "game_started")
 
     # THEN
-    assert fetch_single_event!(game, "auction_phase_started")
+    assert get_one_event(game, "auction_phase_started")
   end
 
   test "the player who won the last stock in the initial auction is the start player"

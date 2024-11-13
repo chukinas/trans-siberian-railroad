@@ -15,23 +15,23 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
 
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
-  require TransSiberianRailroad.Player, as: Player
+  require TransSiberianRailroad.Constants, as: Constants
+  alias TransSiberianRailroad.Aggregator.StockValue
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Players
-  alias TransSiberianRailroad.Company
   alias TransSiberianRailroad.RailLinks
 
   aggregator_typedstruct do
     # These are tracked continuously throughout the game
-    field :player_order, [Player.id()]
-    field :player_money, %{Player.id() => non_neg_integer()}, default: %{}
+    field :player_order, [Constants.player()]
+    field :player_money, %{Constants.player() => non_neg_integer()}, default: %{}
     field :built_rail_links, [RailLinks.rail_link()], default: []
 
     # Set only at the start of the company auction
-    field :company, Company.id()
+    field :company, Constants.company()
 
     # These two track the state of the company auction
-    field :bidders, [{Player.id(), nil | non_neg_integer()}], default: []
+    field :bidders, [{Constants.player(), nil | non_neg_integer()}], default: []
     field :next, [term()], default: []
     field :awaiting, term()
   end
@@ -50,7 +50,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
 
     new_player_money_balances =
       Enum.reduce(transfers, player_money, fn
-        {entity, amount}, balances when Player.is_id(entity) ->
+        {entity, amount}, balances when Constants.is_player(entity) ->
           Map.update(balances, entity, amount, &(&1 + amount))
 
         _, balances ->
@@ -514,7 +514,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   end
 
   defp validate_stock_value_is_valid_spot_on_board(price) do
-    if price in TransSiberianRailroad.StockValue.stock_value_spaces() do
+    if price in StockValue.stock_value_spaces() do
       :ok
     else
       {:error, "not one of the valid stock prices"}

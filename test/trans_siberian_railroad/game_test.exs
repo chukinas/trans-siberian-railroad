@@ -14,7 +14,7 @@ defmodule TransSiberianRailroad.GameTest do
     game = handle_commands([command])
 
     # THEN
-    assert event = fetch_single_event!(game, "game_initialized")
+    assert event = get_one_event(game, "game_initialized")
     assert %{game_id: _} = event.payload
   end
 

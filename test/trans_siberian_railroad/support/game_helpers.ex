@@ -1,28 +1,29 @@
 defmodule TransSiberianRailroad.GameHelpers do
-  require TransSiberianRailroad.Player, as: Player
+  require TransSiberianRailroad.Constants, as: Constants
+  alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Game
   alias TransSiberianRailroad.Messages
+  alias TransSiberianRailroad.Metadata
 
   @valid_event_names MapSet.new(Messages.event_names())
 
-  def fetch_single_event!(game, event_name) do
-    check_name(event_name)
-    events = game.events
-    events = Enum.filter(events, &(&1.name == event_name))
-
-    case events do
-      [event] -> event
-      events -> raise "Expected exactly one #{inspect(event_name)} event; got #{length(events)}."
-    end
-  end
-
   def filter_events(%Game{events: events}, event_name, opts \\ []) do
+    check_name(event_name)
     events = Enum.filter(events, &(&1.name == event_name))
 
     if opts[:asc] do
       Enum.reverse(events)
     else
       events
+    end
+  end
+
+  def get_one_event(game, event_name) do
+    check_name(event_name)
+
+    case filter_events(game, event_name) do
+      [event] -> event
+      [] -> nil
     end
   end
 
@@ -61,7 +62,13 @@ defmodule TransSiberianRailroad.GameHelpers do
     |> Game.execute()
   end
 
-  def handle_one_event(game, event) do
+  def handle_one_event(%Game{events_version: version} = game, event) do
+    event =
+      cond do
+        is_struct(event, Event) -> event
+        is_function(event, 1) -> Metadata.new(version + 1) |> event.()
+      end
+
     game
     |> Game.__queue_event__(event)
     |> Game.execute()
@@ -89,7 +96,7 @@ defmodule TransSiberianRailroad.GameHelpers do
       case event.name do
         "money_transferred" ->
           event.payload.transfers
-          |> Enum.filter(fn {player_id, _} -> Player.is_id(player_id) end)
+          |> Enum.filter(fn {player_id, _} -> Constants.is_player(player_id) end)
           |> Enum.reduce(balances, fn {player_id, amount}, balances ->
             Map.update(balances, player_id, amount, &(&1 + amount))
           end)

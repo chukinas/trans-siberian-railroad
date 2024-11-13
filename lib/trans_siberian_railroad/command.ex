@@ -1,13 +1,13 @@
 defmodule TransSiberianRailroad.Command do
   use TypedStruct
-  alias TransSiberianRailroad.Player
+  alias TransSiberianRailroad.Constants
 
   typedstruct enforce: true do
     field :name, String.t()
     field :payload, map()
     field :id, Ecto.UUID.t()
     field :trace_id, Ecto.UUID.t()
-    field :user, :game | Player.id()
+    field :user, :game | Constants.player()
 
     # This is only ever set by the Game module,
     # when a command or event is moved from its queue to its history.

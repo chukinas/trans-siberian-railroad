@@ -33,7 +33,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
 
       # THEN the start player's turn begins
-      assert event = fetch_single_event!(game, "player_turn_started")
+      assert event = get_one_event(game, "player_turn_started")
       assert event.payload == %{player: context.start_player}
     end
 
@@ -54,7 +54,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(game, command)
 
       # THEN the command is rejected
-      assert event = fetch_single_event!(game, "player_turn_rejected")
+      assert event = get_one_event(game, "player_turn_rejected")
       assert event.payload == %{message: "A player's turn is already in progress"}
     end
   end
@@ -80,7 +80,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(context.game, command)
 
       # THEN
-      assert event = fetch_single_event!(game, "single_stock_purchase_rejected")
+      assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
                purchasing_player: wrong_player,
@@ -107,7 +107,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(context.game, command)
 
       # THEN
-      assert event = fetch_single_event!(game, "single_stock_purchase_rejected")
+      assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
                purchasing_player: wrong_player,
@@ -148,7 +148,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(game, command)
 
       # THEN
-      assert event = fetch_single_event!(game, "single_stock_purchase_rejected")
+      assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
                purchasing_player: start_player,
@@ -190,7 +190,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(game, command)
 
       # THEN
-      assert event = fetch_single_event!(game, "single_stock_purchase_rejected")
+      assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
                purchasing_player: start_player,
@@ -239,7 +239,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(game, purchase_single_stock(1, :yellow, 8))
 
       # THEN
-      assert event = fetch_single_event!(game, "single_stock_purchase_rejected")
+      assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
                purchasing_player: 1,
@@ -282,7 +282,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(game, command)
 
       # THEN
-      assert event = fetch_single_event!(game, "single_stock_purchase_rejected")
+      assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
                purchasing_player: 3,
@@ -335,7 +335,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(game, @purchase_single_stock)
 
       # THEN
-      assert event = fetch_single_event!(game, "single_stock_purchased")
+      assert event = get_one_event(game, "single_stock_purchased")
       assert event.payload == %{company: :yellow, price: 8, purchasing_player: 3}
     end
 
@@ -389,7 +389,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(game, @purchase_single_stock)
 
       # THEN
-      assert event = fetch_single_event!(game, "interturn_skipped")
+      assert event = get_one_event(game, "interturn_skipped")
       assert event.payload == %{}
     end
   end
@@ -409,7 +409,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(game, pass(1))
 
       # THEN
-      assert event = fetch_single_event!(game, "pass_rejected")
+      assert event = get_one_event(game, "pass_rejected")
       assert event.payload.passing_player == 1
     end
 
@@ -427,7 +427,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(context.game, pass(wrong_player))
 
       # THEN
-      assert event = fetch_single_event!(game, "pass_rejected")
+      assert event = get_one_event(game, "pass_rejected")
       assert event.payload == %{passing_player: wrong_player, reason: "incorrect player"}
     end
   end
@@ -444,8 +444,8 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = handle_one_command(game, pass(context.start_player))
 
       # THEN
-      assert fetch_single_event!(game, "passed")
-      assert fetch_single_event!(game, "interturn_skipped")
+      assert get_one_event(game, "passed")
+      assert get_one_event(game, "interturn_skipped")
     end
   end
 end

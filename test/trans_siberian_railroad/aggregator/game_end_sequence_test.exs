@@ -40,12 +40,12 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
   use ExUnit.Case, async: true
   import TransSiberianRailroad.GameHelpers
   import TransSiberianRailroad.GameTestHelpers
+  alias TransSiberianRailroad.Constants
   alias TransSiberianRailroad.Messages
 
   taggable_setups()
   @moduletag :start_game
-  @moduletag :rand_auction_phase
-
+  @moduletag :random_first_auction_phase
   defp force_end_game(game, causes \\ [:nonsense]) do
     Messages.end_game(causes, user: :game) |> injest_commands(game)
   end
@@ -59,7 +59,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
       game = force_end_game(game)
 
       # THEN we should see a game_end_sequence_begun event
-      assert fetch_single_event!(game, "game_end_sequence_begun")
+      assert get_one_event(game, "game_end_sequence_begun")
     end
 
     test "has one of three causes"
@@ -69,23 +69,58 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
       game = context.game
 
       # WHEN we force an end_game command,
-      game = force_end_game(game)
+      causes = [:stuff]
+      game = force_end_game(game, causes)
 
       # THEN we should see a game_end_sequence_begun event
-      assert fetch_single_event!(game, "game_end_sequence_begun")
+      assert event = get_one_event(game, "game_end_sequence_begun")
+      assert event.payload.causes == causes
     end
   end
 
   describe "game_end_sequence_begun (event)" do
-    test "always results in one game_end_stock_values_determined (event)"
+    test "always results in one game_end_stock_values_determined (event)", context do
+      # GIVEN a game with a completed phase-1 auction,
+      game = context.game
+
+      # AND one of the companies has been nationalized
+      nationalized_company = Constants.companies() |> Enum.take(4) |> Enum.random()
+
+      game = handle_one_event(game, &Messages.company_nationalized(nationalized_company, &1))
+
+      # WHEN we force an end_game command,
+      game = force_end_game(game)
+
+      # THEN we should see a game_end_sequence_begun event
+      assert event = get_one_event(game, "game_end_stock_values_determined")
+
+      expected_company_stock_values =
+        with company_stock_values =
+               filter_events(game, "stock_value_set")
+               |> Map.new(&{&1.payload.company, &1.payload.value}) do
+          Enum.flat_map(Constants.companies(), fn company ->
+            if (value = company_stock_values[company]) && company != nationalized_company do
+              [%{company: company, stock_value: value}]
+            else
+              []
+            end
+          end)
+        end
+
+      assert event.payload == %{
+               companies: expected_company_stock_values,
+               note:
+                 "this takes nationalization into account but ignores the effect of private companies, the value of whose stock certificates is actually zero at game end"
+             }
+    end
+
     test "results in one game_end_player_score_calculated (event) for each player"
     test "results in either winner_determined (event) or tied_winners_determined (event)"
     test "results in game_ended (event)"
   end
 
   describe "game_end_stock_values_determined (event)" do
-    test "always has the same 'constant' note"
-    test "has a :companies payload, a list of maps containing :company and :stock_value keys"
+    test "does not include companies that have been nationalized"
   end
 
   describe "game_end_player_score_calculated (event)" do

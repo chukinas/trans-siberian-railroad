@@ -10,8 +10,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
-  require TransSiberianRailroad.Company, as: Company
-  require TransSiberianRailroad.Player, as: Player
+  require TransSiberianRailroad.Constants, as: Constants
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Players
 
@@ -20,21 +19,22 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   #########################################################
 
   aggregator_typedstruct do
-    field :player_order, [Player.id()]
+    field :player_order, [Constants.player()]
 
-    field :fetched_next_player, {:ok, Player.id()} | {:error, String.t()},
+    field :fetched_next_player, {:ok, Constants.player()} | {:error, String.t()},
       default: {:error, "no start player set"}
 
     # If nil, then no player turn is in progress.
     # If a player ID, then that player is taking their turn.
-    field :current_player, Player.id()
+    field :current_player, Constants.player()
 
-    field :player_money, %{(Player.id() | Company.id()) => non_neg_integer()}, default: %{}
+    field :player_money, %{(Constants.player() | Constants.company()) => non_neg_integer()},
+      default: %{}
 
-    field :companies, %{Company.id() => map()},
+    field :companies, %{Constants.company() => map()},
       default:
         Map.new(
-          Company.ids(),
+          Constants.companies(),
           &{&1, %{stock_count: 0, stock_value: nil, state: :unauctioned}}
         )
   end
@@ -57,7 +57,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     [fetched_next_player: {:ok, next_player}]
   end
 
-  @phase_1_companies Company.phase_1_ids()
+  @phase_1_companies Constants.companies() |> Enum.take(4)
   handle_event "player_won_company_auction", ctx do
     %{auction_winner: next_player, company: company} = ctx.payload
     companies = put_in(ctx.projection.companies, [company, :state], :active)
@@ -79,7 +79,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
     new_player_money_balances =
       Enum.reduce(transfers, player_money, fn
-        {entity, amount}, balances when Player.is_id(entity) ->
+        {entity, amount}, balances when Constants.is_player(entity) ->
           Map.update(balances, entity, amount, &(&1 + amount))
 
         _, balances ->
@@ -99,7 +99,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
     companies =
       Enum.reduce(transfers, ctx.projection.companies, fn {entity, amount}, companies ->
-        if Company.is_id(entity) do
+        if Constants.is_company(entity) do
           update_in(companies, [entity, :stock_count], &(&1 + amount))
         else
           companies

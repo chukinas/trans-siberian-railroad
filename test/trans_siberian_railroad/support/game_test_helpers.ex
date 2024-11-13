@@ -104,7 +104,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
   def rand_auction_phase(context) do
     game = do_rand_auction_phase(context.game)
-    start_player = fetch_single_event!(game, "auction_phase_ended").payload.start_player
+    start_player = get_one_event(game, "auction_phase_ended").payload.start_player
     [game: game, start_player: start_player]
   end
 

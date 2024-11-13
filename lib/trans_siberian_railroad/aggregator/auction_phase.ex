@@ -12,14 +12,13 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
 
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
-  require TransSiberianRailroad.Player, as: Player
+  alias TransSiberianRailroad.Constants
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Company
 
   # invariant: all three fields are either all nil or all non-nil
   aggregator_typedstruct do
     field :phase_number, 1..2
-    field :start_bidder, Player.id()
+    field :start_bidder, Constants.player()
 
     # default to nil
     # e: auction_phase_started: populate the list
@@ -28,7 +27,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
     # e: company_auction_ended: drop element
     # r: if empty list, emit auction_phase_ended
     # e: auction_phase_ended: set to nil
-    field :next_steps, [{Company.id(), :start | :end}]
+    field :next_steps, [{Constants.company(), :start | :end}]
   end
 
   defp drop_next_step(ctx, company, start_or_end) do
