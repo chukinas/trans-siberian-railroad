@@ -557,12 +557,7 @@ defmodule TransSiberianRailroad.Messages do
     event(player_scores: player_scores)
   end
 
-  def winner_determined(winner, score, metadata)
-      when Constants.is_player(winner) and is_integer(score) and score >= 0 do
-    event(winner: winner, score: score)
-  end
-
-  def tied_winners_determined(winners, score, metadata)
+  def winners_determined(winners, score, metadata)
       when is_list(winners) and is_integer(score) and score >= 0 do
     for winner <- winners do
       unless Constants.is_player(winner) do

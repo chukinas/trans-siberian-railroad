@@ -9,10 +9,23 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
   alias TransSiberianRailroad.Messages
 
   aggregator_typedstruct do
+    field :game_id, term()
     field :player_money, term()
     field :player_stock_values, term()
     field :player_scores, term()
   end
+
+  #########################################################
+  # Game ID
+  #########################################################
+
+  handle_event "game_initialized", ctx do
+    [game_id: ctx.payload.game_id]
+  end
+
+  #########################################################
+  # Begin game end sequence
+  #########################################################
 
   handle_command "end_game", ctx do
     %{causes: causes} = ctx.payload
@@ -60,21 +73,16 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
           _ -> []
         end)
 
-      case winners do
-        [winner] ->
-          &Messages.winner_determined(winner, max_score, &1)
+      game_id = projection.game_id
 
-        winners ->
-          &Messages.tied_winners_determined(winners, max_score, &1)
-      end
+      [
+        &Messages.winners_determined(winners, max_score, &1),
+        &Messages.game_ended(game_id, &1)
+      ]
     end
   end
 
-  handle_event "winner_determined", _ctx do
-    [player_scores: nil]
-  end
-
-  handle_event "tied_winners_determined", _ctx do
+  handle_event "game_ended", _ctx do
     [player_scores: nil]
   end
 end

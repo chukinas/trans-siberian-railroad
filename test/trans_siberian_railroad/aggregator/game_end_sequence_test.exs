@@ -113,73 +113,29 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
              }
     end
 
-    # TOOD rename
-    test "results in one game_end_player_stock_values_calculated (event) for each player",
-         context do
-      # GIVEN a game with a completed phase-1 auction,
-      game = context.game
-
-      # AND one of the companies has been nationalized
-      nationalized_company = Constants.companies() |> Enum.take(4) |> Enum.random()
-      game = handle_one_event(game, &Messages.company_nationalized(nationalized_company, &1))
-
-      # WHEN we force an end_game command,
-      game = force_end_game(game)
-
-      # THEN we see one game_end_player_stock_values_calculated event
-      assert get_one_event(game, "game_end_player_stock_values_calculated")
-    end
-
     test "private companies are worth nothing"
     test "public companies are worth something"
     test "nationalized companies are worth nothing"
-    test "results in either winner_determined (event) or tied_winners_determined (event)"
+    test "results in either winner_determined (event) or winners_determined (event)"
     test "results in game_ended (event)"
+  end
+
+  test "end game simple, happy path", context do
+    # GIVEN a game with a completed phase-1 auction,
+    game = context.game
+    # AND one of the companies has been nationalized
+    # WHEN we force an end_game command,
+    game = force_end_game(game)
+    # THEN we see a bunch of events ending with "game_ended"
+    assert event = get_one_event(game, "game_end_player_money_calculated")
+    assert length(event.payload.player_money) == context.player_count
+    assert get_one_event(game, "game_end_player_stock_values_calculated")
+    assert get_one_event(game, "player_scores_calculated")
+    assert get_one_event(game, "winners_determined")
+    assert get_one_event(game, "game_ended")
   end
 
   describe "game_end_stock_values_determined (event)" do
     test "does not include companies that have been nationalized"
-  end
-
-  describe "game_end_player_money_calculated" do
-    test "is emitted as reaction to game_end_sequence_begun", context do
-      # GIVEN a game with a completed phase-1 auction,
-      game = context.game
-      # WHEN we force an end_game command,
-      game = force_end_game(game)
-      # THEN we should see a game_end_player_money_calculated event
-      assert event = get_one_event(game, "game_end_player_money_calculated")
-      assert length(event.payload.player_money) == context.player_count
-    end
-
-    test "the stocks[company].total_value is the product of :count and :value_per"
-    test "if :company_status is :private, the :value_per is 0"
-  end
-
-  describe "player_scores_calculated:" do
-    test "each player's score is the sum of money and stock value", context do
-      # GIVEN a game with a completed phase-1 auction,
-      game = context.game
-      # WHEN we force an end_game command,
-      game = force_end_game(game)
-      # THEN we should see a player_scores_calculated event
-      assert get_one_event(game, "player_scores_calculated")
-    end
-  end
-
-  describe "winner_determined (event)" do
-    test "has a payload of :winner and :score"
-
-    test "has a :score matching exactly ONE of the player_scores_calculated (event) :score_total values"
-  end
-
-  describe "tied_winners_determined (event)" do
-    test "has a payload of :winners and :score"
-
-    test "has a :score matching that of the winners' player_scores_calculated (event) :score_total values"
-  end
-
-  describe "game_ended (event)" do
-    test "has a :game_id payload equal to that of game_initialized (event)"
   end
 end
