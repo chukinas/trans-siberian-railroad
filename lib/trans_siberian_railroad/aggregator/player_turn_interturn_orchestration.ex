@@ -5,7 +5,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration do
   Events that might get triggered:
   - pay out dividends
   - end the game
-  - start the phase 2 auction of :black and :white companies
+  - start the phase 2 auction of "black" and :white companies
   - nationalize companies that are performing poorly
   """
 

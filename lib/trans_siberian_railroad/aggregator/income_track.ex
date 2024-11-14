@@ -11,7 +11,7 @@ defmodule TransSiberianRailroad.Aggregator.IncomeTrack do
 
   aggregator_typedstruct do
     plugin TransSiberianRailroad.Reactions
-    field :company_incomes, %{Constants.company() => Income.t()}, default: %{red: 2}
+    field :company_incomes, %{Constants.company() => Income.t()}, default: %{"red" => 2}
 
     field :next_dividends_companies,
           [

@@ -10,8 +10,8 @@ defmodule TransSiberianRailroad.Constants do
   # Companies
   #########################################################
 
-  @type company() :: :red | :blue | :green | :yellow | :black | :white
-  @companies ~w(red blue green yellow black white)a
+  @type company() :: String.t()
+  @companies ~w(red blue green yellow black white)
   def companies(), do: @companies
   defguard is_company(id) when id in @companies
 end

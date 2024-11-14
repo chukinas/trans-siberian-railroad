@@ -3,11 +3,14 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
   import TransSiberianRailroad.CommandFactory
   import TransSiberianRailroad.GameHelpers
   import TransSiberianRailroad.GameTestHelpers
+  alias TransSiberianRailroad.Constants
   alias TransSiberianRailroad.Messages
 
   taggable_setups()
 
   @incorrect_price 76
+
+  @phase_1_companies Constants.companies() |> Enum.take(4)
 
   #########################################################
   # Start Turn
@@ -18,7 +21,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
     test "-> player_turn_started", context do
       # GIVEN all player pass on all companies, except for the last player on the last company
       {final_pass, pass_commands} =
-        for company <- ~w/red blue green yellow/a,
+        for company <- @phase_1_companies,
             player <- context.one_round do
           pass_on_company(player, company)
         end
@@ -40,7 +43,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
     test "-> player_turn_rejected", context do
       # GIVEN a player's turn is already in progress (in this case, the first player's turn)
       commands =
-        for company <- ~w/red blue green yellow/a,
+        for company <- @phase_1_companies,
             player <- context.one_round do
           pass_on_company(player, company)
         end
@@ -75,7 +78,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       wrong_player =
         context.one_round |> Enum.reject(&(&1 == context.start_player)) |> Enum.random()
 
-      wrong_company = :black
+      wrong_company = "black"
       command = purchase_single_stock(wrong_player, wrong_company, @incorrect_price)
       game = handle_one_command(context.game, command)
 
@@ -102,7 +105,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       wrong_player =
         context.one_round |> Enum.reject(&(&1 == correct_player)) |> Enum.random()
 
-      wrong_company = :black
+      wrong_company = "black"
       command = purchase_single_stock(wrong_player, wrong_company, @incorrect_price)
       game = handle_one_command(context.game, command)
 
@@ -125,11 +128,11 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = context.game
       start_player = context.start_player
       winning_bid = current_money(game, start_player)
-      only_auctioned_company = :yellow
+      only_auctioned_company = "yellow"
 
       game =
         [
-          for company <- ~w/red blue green yellow/a,
+          for company <- @phase_1_companies,
               player <- context.one_round do
             if player == start_player and company == only_auctioned_company do
               submit_bid(start_player, only_auctioned_company, winning_bid)
@@ -143,7 +146,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
         |> injest_commands(game)
 
       # WHEN
-      attempted_company = :red
+      attempted_company = "red"
       command = purchase_single_stock(start_player, attempted_company, winning_bid)
       game = handle_one_command(game, command)
 
@@ -165,10 +168,10 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       game = context.game
       start_player = context.start_player
       winning_bid = current_money(game, start_player)
-      only_auctioned_company = :yellow
+      only_auctioned_company = "yellow"
 
       commands =
-        for company <- ~w/red blue green yellow/a,
+        for company <- @phase_1_companies,
             player <- context.one_round do
           if player == start_player and company == only_auctioned_company do
             submit_bid(start_player, only_auctioned_company, winning_bid)
@@ -209,9 +212,9 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       game =
         handle_commands(game, [
-          for company <- ~w/red blue green yellow/a,
+          for company <- @phase_1_companies,
               player <- context.one_round do
-            if player == 3 and company == :yellow do
+            if player == 3 and company == "yellow" do
               [
                 submit_bid(player, company, 8),
                 build_rail_link(player, company, ["moscow", "nizhnynovgorod"]),
@@ -221,10 +224,10 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
               pass_on_company(player, company)
             end
           end,
-          purchase_single_stock(3, :yellow, 8),
-          purchase_single_stock(1, :yellow, 8),
-          purchase_single_stock(2, :yellow, 8),
-          purchase_single_stock(3, :yellow, 8)
+          purchase_single_stock(3, "yellow", 8),
+          purchase_single_stock(1, "yellow", 8),
+          purchase_single_stock(2, "yellow", 8),
+          purchase_single_stock(3, "yellow", 8)
         ])
 
       assert 4 ==
@@ -236,14 +239,14 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       # WHEN
       # Now that all red stock have been auctioned and sold off, try to buy one more
-      game = handle_one_command(game, purchase_single_stock(1, :yellow, 8))
+      game = handle_one_command(game, purchase_single_stock(1, "yellow", 8))
 
       # THEN
       assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
                purchasing_player: 1,
-               company: :yellow,
+               company: "yellow",
                price: 8,
                reason: "company has no stock to sell"
              }
@@ -260,9 +263,9 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       game =
         handle_commands(game, [
-          for company <- ~w/red blue green yellow/a,
+          for company <- @phase_1_companies,
               player <- context.one_round do
-            if player == 3 and company == :yellow do
+            if player == 3 and company == "yellow" do
               [
                 submit_bid(player, company, 8),
                 build_rail_link(player, company, ["moscow", "nizhnynovgorod"]),
@@ -278,7 +281,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       # WHEN
       # Now that all red stock have been auctioned and sold off, try to buy one more
-      command = purchase_single_stock(3, :yellow, 12)
+      command = purchase_single_stock(3, "yellow", 12)
       game = handle_one_command(game, command)
 
       # THEN
@@ -286,7 +289,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       assert event.payload == %{
                purchasing_player: 3,
-               company: :yellow,
+               company: "yellow",
                price: 12,
                reason: "does not match current stock price"
              }
@@ -304,9 +307,9 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       game =
         handle_commands(game, [
-          for company <- ~w/red blue green yellow/a,
+          for company <- @phase_1_companies,
               player <- context.one_round do
-            if player == 3 and company == :yellow do
+            if player == 3 and company == "yellow" do
               [
                 submit_bid(player, company, 8),
                 build_rail_link(player, company, ["moscow", "nizhnynovgorod"]),
@@ -324,7 +327,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       [game: game]
     end
 
-    @purchase_single_stock purchase_single_stock(3, :yellow, 8)
+    @purchase_single_stock purchase_single_stock(3, "yellow", 8)
 
     test "happy path", context do
       # GIVEN
@@ -336,7 +339,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       # THEN
       assert event = get_one_event(game, "single_stock_purchased")
-      assert event.payload == %{company: :yellow, price: 8, purchasing_player: 3}
+      assert event.payload == %{company: "yellow", price: 8, purchasing_player: 3}
     end
 
     test "-> money_transferred", context do
@@ -352,7 +355,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
                filter_events(game, "money_transferred")
 
       assert event.payload == %{
-               transfers: %{3 => -8, :yellow => 8},
+               transfers: %{3 => -8, "yellow" => 8},
                reason: "single stock purchased"
              }
     end
@@ -372,8 +375,8 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
                filter_events(game, "stock_certificates_transferred")
 
       assert event.payload == %{
-               company: :yellow,
-               from: :yellow,
+               company: "yellow",
+               from: "yellow",
                to: 3,
                quantity: 1,
                reason: "single stock purchased"

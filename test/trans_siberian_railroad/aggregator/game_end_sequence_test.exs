@@ -85,7 +85,6 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
 
       # AND one of the companies has been nationalized
       nationalized_company = Constants.companies() |> Enum.take(4) |> Enum.random()
-
       game = handle_one_event(game, &Messages.company_nationalized(nationalized_company, &1))
 
       # WHEN we force an end_game command,
@@ -114,7 +113,24 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
              }
     end
 
-    test "results in one game_end_player_score_calculated (event) for each player"
+    test "results in one game_end_player_score_calculated (event) for each player", context do
+      # GIVEN a game with a completed phase-1 auction,
+      game = context.game
+
+      # AND one of the companies has been nationalized
+      nationalized_company = Constants.companies() |> Enum.take(4) |> Enum.random()
+      game = handle_one_event(game, &Messages.company_nationalized(nationalized_company, &1))
+
+      # WHEN we force an end_game command,
+      game = force_end_game(game)
+
+      # THEN we see one player_stock_values_calculated event
+      assert get_one_event(game, "player_stock_values_calculated")
+    end
+
+    test "private companies are worth nothing"
+    test "public companies are worth something"
+    test "nationalized companies are worth nothing"
     test "results in either winner_determined (event) or tied_winners_determined (event)"
     test "results in game_ended (event)"
   end

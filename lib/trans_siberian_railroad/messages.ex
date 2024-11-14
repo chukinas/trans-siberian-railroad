@@ -10,6 +10,7 @@ defmodule TransSiberianRailroad.Messages do
   use TransSiberianRailroad.Event
   require TransSiberianRailroad.Metadata, as: Metadata
   require TransSiberianRailroad.Constants, as: Constants
+  alias Ecto.Changeset
   alias TransSiberianRailroad.Event
 
   #########################################################
@@ -47,20 +48,7 @@ defmodule TransSiberianRailroad.Messages do
     event(company: company, from: from, to: to, quantity: quantity, reason: reason)
   end
 
-  #########################################################
-  # Summary Events
-  #########################################################
-
-  @spec company_stock_count_summary(%{Constants.company() => 0..5}, Metadata.t()) :: Event.t()
-  def company_stock_count_summary(
-        %{red: _, blue: _, green: _, yellow: _, black: _, white: _} = stock_counts,
-        metadata
-      )
-      when map_size(stock_counts) == 6 do
-    event(stock_counts: stock_counts)
-  end
-
-  #########################################################
+  ####### ##################################################
   # Initializing Game
   #########################################################
 
@@ -487,31 +475,53 @@ defmodule TransSiberianRailroad.Messages do
     event(companies: companies, note: note)
   end
 
-  def game_end_player_score_calculated(player, score_total, money, stocks, metadata)
-      when Constants.is_player(player) and is_integer(score_total) and score_total >= 0 and
-             is_list(stocks) do
-    for stock_map <- stocks do
-      with %{
-             company: company,
-             count: count,
-             value_per: value_per,
-             total_value: total_value,
-             company_status: company_status
-           } <- stock_map,
-           5 <- map_size(stock_map),
-           true <- company in [:red, :blue, :green, :yellow, :black, :white],
-           true <- count in 0..5,
-           true <- is_integer(value_per) and value_per >= 0,
-           true <- is_integer(total_value) and total_value >= 0,
-           true <- count * value_per == total_value,
-           true <- company_status in [:private, :public] do
-      else
-        _ ->
-          raise ArgumentError,
-                "stocks argument must be a list of maps with :company, :count, :value_per, :total_value, and :company_status keys. Got: #{inspect(stocks)}"
-      end
-    end
+  def player_stock_values_calculated(player_stock_values, metadata)
+      when is_list(player_stock_values) do
+    player_stock_values = Enum.map(player_stock_values, &validate(&1, include_player: true))
+    event(player_stock_values: player_stock_values)
+  end
 
+  defp validate(stock_values, include_player: include_player) do
+    types = %{
+      player: :integer,
+      company: :string,
+      count: :integer,
+      value_per: :integer,
+      total_value: :integer,
+      public_cert_count: :integer
+    }
+
+    keys =
+      with keys = Map.keys(stock_values) do
+        if include_player do
+          keys
+        else
+          Enum.reject(keys, &(&1 == :player))
+        end
+      end
+
+    changeset =
+      {%{}, types}
+      |> Changeset.cast(stock_values, keys)
+      |> Changeset.validate_required(keys)
+      |> Changeset.validate_inclusion(:player, 1..5)
+      |> Changeset.validate_inclusion(:company, Constants.companies())
+      |> Changeset.validate_inclusion(:count, 1..5)
+      |> Changeset.validate_number(:value_per, greater_than_or_equal_to: 0)
+      |> Changeset.validate_number(:total_value, greater_than_or_equal_to: 0)
+      |> Changeset.validate_inclusion(:public_cert_count, 1..5)
+
+    if changeset.valid? do
+      Changeset.apply_changes(changeset)
+    else
+      raise ArgumentError, "Invalid stock_map: #{inspect(changeset.errors)}"
+    end
+  end
+
+  def game_end_player_score_calculated(player, score_total, money, stock_values, metadata)
+      when Constants.is_player(player) and is_integer(score_total) and score_total >= 0 and
+             is_list(stock_values) do
+    stocks = Enum.map(stock_values, &validate(&1, include_player: false))
     event(player: player, score_total: score_total, money: money, stocks: stocks)
   end
 

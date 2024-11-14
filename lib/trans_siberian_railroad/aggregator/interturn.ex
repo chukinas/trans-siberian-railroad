@@ -7,7 +7,7 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
   An interturn consists of the following steps:
   - pay dividends
   - If Phase 1: check for phase shift (e.g. from phase 1 to phase 2). If so,
-    start the phase 2 auction of `:black` and `:white` companies.
+    start the phase 2 auction of `"black"` and `"white"` companies.
   - If Phase 2: check for nationalization
   - perform stock adjustments
   - adjust markers

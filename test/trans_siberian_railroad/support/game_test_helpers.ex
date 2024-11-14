@@ -84,9 +84,9 @@ defmodule TransSiberianRailroad.GameTestHelpers do
         context.game,
         for player_id <- context.one_round do
           if player_id == auction_winner do
-            submit_bid(player_id, :red, amount)
+            submit_bid(player_id, "red", amount)
           else
-            pass_on_company(player_id, :red)
+            pass_on_company(player_id, "red")
           end
         end
       )

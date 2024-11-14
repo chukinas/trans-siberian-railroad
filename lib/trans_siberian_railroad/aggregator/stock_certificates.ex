@@ -11,12 +11,14 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
   """
   use TransSiberianRailroad.Aggregator
   use TransSiberianRailroad.Projection
-  alias TransSiberianRailroad.Constants
+  require TransSiberianRailroad.Constants, as: Constants
   alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Metadata
   alias TransSiberianRailroad.ReactionCtx
 
-  @bank_certs [red: 5, blue: 5, green: 5, yellow: 5, black: 3, white: 3]
+  @bank_certs Constants.companies()
+              |> Enum.zip([5, 5, 5, 5, 3, 3])
+              |> Map.new()
 
   aggregator_typedstruct do
     field :cert_counts,
@@ -30,7 +32,12 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
     # start out nil, then is set to a uuid after game_initialized,
     # then removed when the reactive event is emitteed
     field :initial_stock_transfer, event_id :: Ecto.UUID.t()
+    field :end_game_stock_valuation, %{Constants.company() => non_neg_integer()}
   end
+
+  ########################################################
+  # track :cert_counts
+  ########################################################
 
   handle_event "game_initialized", _ctx do
     [initial_stock_transfer: Ecto.UUID.generate()]
@@ -95,6 +102,10 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
     [cert_counts: cert_counts, initial_stock_transfer: initial_stock_transfer]
   end
 
+  ########################################################
+  # pay dividends
+  ########################################################
+
   handle_command "pay_company_dividends", ctx do
     command_id = ctx.id
     %{company: company, income: income} = ctx.payload
@@ -136,5 +147,73 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
         &1
       )
     ]
+  end
+
+  ########################################################
+  # GAME END PLAYER SCORE
+  # It's up to another aggregator to calculate the value
+  # of each certificate, but it's this one that
+  ########################################################
+
+  handle_event "game_end_stock_values_determined", ctx do
+    %{companies: companies} = ctx.payload
+
+    stock_values =
+      Map.new(companies, fn %{company: company, stock_value: stock_value} ->
+        {company, stock_value}
+      end)
+
+    players =
+      ctx.projection.cert_counts
+      |> Map.keys()
+      |> Enum.filter(&Constants.is_player/1)
+      |> Enum.sort()
+
+    # A company is only worth anything if it has at least 2 certificates owned by players
+    company_cert_count_owned_by_players =
+      Constants.companies()
+      |> Map.new(fn company ->
+        count =
+          players
+          |> Enum.map(&(ctx.projection.cert_counts[&1][company] || 0))
+          |> Enum.sum()
+
+        {company, count}
+      end)
+
+    end_game_stock_valuation =
+      for player <- players, company <- Constants.companies() do
+        stock_count = ctx.projection.cert_counts[player][company] || 0
+        cert_count = company_cert_count_owned_by_players[company]
+
+        value_per =
+          if cert_count < 2 do
+            0
+          else
+            stock_values[company] || 0
+          end
+
+        %{
+          player: player,
+          company: company,
+          count: stock_count,
+          value_per: value_per,
+          total_value: value_per * stock_count,
+          public_cert_count: cert_count
+        }
+      end
+      |> Enum.reject(&(&1.count == 0))
+
+    [end_game_stock_valuation: end_game_stock_valuation]
+  end
+
+  defreaction maybe_player_stock_values_calculated(projection, _reaction_ctx) do
+    if stock_values = projection.end_game_stock_valuation do
+      &Messages.player_stock_values_calculated(stock_values, &1)
+    end
+  end
+
+  handle_event "player_stock_values_calculated", _ctx do
+    [end_game_stock_valuation: nil]
   end
 end

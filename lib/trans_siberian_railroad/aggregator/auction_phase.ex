@@ -48,8 +48,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
 
     companies =
       case phase_number do
-        1 -> ~w(red blue green yellow)a
-        2 -> ~w(black white)a
+        1 -> Constants.companies() |> Enum.take(4)
+        2 -> Constants.companies() |> Enum.drop(4)
       end
 
     next_steps =
