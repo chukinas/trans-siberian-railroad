@@ -477,52 +477,61 @@ defmodule TransSiberianRailroad.Messages do
 
   def player_stock_values_calculated(player_stock_values, metadata)
       when is_list(player_stock_values) do
-    player_stock_values = Enum.map(player_stock_values, &validate(&1, include_player: true))
+    player_stock_values =
+      Enum.map(player_stock_values, fn stock_values ->
+        types = %{
+          player: :integer,
+          company: :string,
+          count: :integer,
+          value_per: :integer,
+          total_value: :integer,
+          public_cert_count: :integer
+        }
+
+        keys = Map.keys(stock_values)
+
+        changeset =
+          {%{}, types}
+          |> Changeset.cast(stock_values, keys)
+          |> Changeset.validate_required(keys)
+          |> Changeset.validate_inclusion(:player, 1..5)
+          |> Changeset.validate_inclusion(:company, Constants.companies())
+          |> Changeset.validate_inclusion(:count, 1..5)
+          |> Changeset.validate_number(:value_per, greater_than_or_equal_to: 0)
+          |> Changeset.validate_number(:total_value, greater_than_or_equal_to: 0)
+          |> Changeset.validate_inclusion(:public_cert_count, 1..5)
+
+        if changeset.valid? do
+          Changeset.apply_changes(changeset)
+        else
+          raise ArgumentError, "Invalid stock_map: #{inspect(changeset.errors)}"
+        end
+      end)
+
     event(player_stock_values: player_stock_values)
   end
 
-  defp validate(stock_values, include_player: include_player) do
-    types = %{
-      player: :integer,
-      company: :string,
-      count: :integer,
-      value_per: :integer,
-      total_value: :integer,
-      public_cert_count: :integer
-    }
+  def game_end_player_money_calculated(player_money, metadata) do
+    types = %{player: :integer, money: :integer}
+    keys = Map.keys(types)
 
-    keys =
-      with keys = Map.keys(stock_values) do
-        if include_player do
-          keys
+    player_money =
+      Enum.map(player_money, fn map ->
+        changeset =
+          {%{}, types}
+          |> Changeset.cast(map, keys)
+          |> Changeset.validate_required(keys)
+          |> Changeset.validate_inclusion(:player, 1..5)
+          |> Changeset.validate_number(:money, greater_than_or_equal_to: 0)
+
+        if changeset.valid? do
+          Changeset.apply_changes(changeset)
         else
-          Enum.reject(keys, &(&1 == :player))
+          raise ArgumentError, "Invalid player money: #{inspect(changeset.errors)}"
         end
-      end
+      end)
 
-    changeset =
-      {%{}, types}
-      |> Changeset.cast(stock_values, keys)
-      |> Changeset.validate_required(keys)
-      |> Changeset.validate_inclusion(:player, 1..5)
-      |> Changeset.validate_inclusion(:company, Constants.companies())
-      |> Changeset.validate_inclusion(:count, 1..5)
-      |> Changeset.validate_number(:value_per, greater_than_or_equal_to: 0)
-      |> Changeset.validate_number(:total_value, greater_than_or_equal_to: 0)
-      |> Changeset.validate_inclusion(:public_cert_count, 1..5)
-
-    if changeset.valid? do
-      Changeset.apply_changes(changeset)
-    else
-      raise ArgumentError, "Invalid stock_map: #{inspect(changeset.errors)}"
-    end
-  end
-
-  def game_end_player_score_calculated(player, score_total, money, stock_values, metadata)
-      when Constants.is_player(player) and is_integer(score_total) and score_total >= 0 and
-             is_list(stock_values) do
-    stocks = Enum.map(stock_values, &validate(&1, include_player: false))
-    event(player: player, score_total: score_total, money: money, stocks: stocks)
+    event(player_money: player_money)
   end
 
   def winner_determined(winner, score, metadata)

@@ -42,7 +42,8 @@ defmodule TransSiberianRailroad.Game do
     TransSiberianRailroad.Aggregator.IncomeTrack,
     TransSiberianRailroad.Aggregator.StockCertificates,
     TransSiberianRailroad.Aggregator.StockValue,
-    TransSiberianRailroad.Aggregator.GameEndSequence
+    TransSiberianRailroad.Aggregator.GameEndSequence,
+    TransSiberianRailroad.Aggregator.Money
   ]
 
   typedstruct enforce: true do

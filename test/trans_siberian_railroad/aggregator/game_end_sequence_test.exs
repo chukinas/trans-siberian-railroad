@@ -113,6 +113,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
              }
     end
 
+    # TOOD rename
     test "results in one game_end_player_score_calculated (event) for each player", context do
       # GIVEN a game with a completed phase-1 auction,
       game = context.game
@@ -139,25 +140,35 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
     test "does not include companies that have been nationalized"
   end
 
-  describe "game_end_player_score_calculated (event)" do
-    test "get emitted for each player"
-
-    test "has a :score_total payload (integer) equal to :current_money and :stocks[Access.all()].total_value"
+  describe "game_end_player_money_calculated" do
+    test "is emitted as reaction to game_end_sequence_begun", context do
+      # GIVEN a game with a completed phase-1 auction,
+      game = context.game
+      # WHEN we force an end_game command,
+      game = force_end_game(game)
+      # THEN we should see a game_end_player_money_calculated event
+      assert event = get_one_event(game, "game_end_player_money_calculated")
+      assert length(event.payload.player_money) == context.player_count
+    end
 
     test "the stocks[company].total_value is the product of :count and :value_per"
     test "if :company_status is :private, the :value_per is 0"
   end
 
+  describe "player_scores_calculated" do
+    test "each player's score is the sum of money and stock value"
+  end
+
   describe "winner_determined (event)" do
     test "has a payload of :winner and :score"
 
-    test "has a :score matching exactly ONE of the game_end_player_score_calculated (event) :score_total values"
+    test "has a :score matching exactly ONE of the player_scores_calculated (event) :score_total values"
   end
 
   describe "tied_winners_determined (event)" do
     test "has a payload of :winners and :score"
 
-    test "has a :score matching that of the winners' game_end_player_score_calculated (event) :score_total values"
+    test "has a :score matching that of the winners' player_scores_calculated (event) :score_total values"
   end
 
   describe "game_ended (event)" do

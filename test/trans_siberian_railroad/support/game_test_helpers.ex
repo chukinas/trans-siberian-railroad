@@ -152,16 +152,18 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     %{player: player, company: company, min_bid: min_bid} = payload
     player_money = current_money(game, player)
 
-    player_options =
+    pass? =
       cond do
-        player_money < min_bid -> [nil]
-        true -> [nil | Enum.to_list(min_bid..player_money)]
+        player_money < min_bid -> true
+        true -> Enum.random([true, true, false])
       end
 
     command =
-      case Enum.random(player_options) do
-        nil -> pass_on_company(player, company)
-        bid -> submit_bid(player, company, bid)
+      if pass? do
+        pass_on_company(player, company)
+      else
+        bid = Enum.to_list(min_bid..player_money) |> Enum.random()
+        submit_bid(player, company, bid)
       end
 
     handle_commands(game, [command])
