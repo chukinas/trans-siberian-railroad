@@ -207,13 +207,13 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
     [end_game_stock_valuation: end_game_stock_valuation]
   end
 
-  defreaction maybe_player_stock_values_calculated(projection, _reaction_ctx) do
+  defreaction maybe_game_end_player_stock_values_calculated(projection, _reaction_ctx) do
     if stock_values = projection.end_game_stock_valuation do
-      &Messages.player_stock_values_calculated(stock_values, &1)
+      &Messages.game_end_player_stock_values_calculated(stock_values, &1)
     end
   end
 
-  handle_event "player_stock_values_calculated", _ctx do
+  handle_event "game_end_player_stock_values_calculated", _ctx do
     [end_game_stock_valuation: nil]
   end
 end

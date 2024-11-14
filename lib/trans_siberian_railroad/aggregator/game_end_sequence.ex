@@ -9,10 +9,72 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
   alias TransSiberianRailroad.Messages
 
   aggregator_typedstruct do
+    field :player_money, term()
+    field :player_stock_values, term()
+    field :player_scores, term()
   end
 
   handle_command "end_game", ctx do
     %{causes: causes} = ctx.payload
     &Messages.game_end_sequence_begun(causes, &1)
+  end
+
+  handle_event "game_end_player_money_calculated", ctx do
+    [player_money: ctx.payload.player_money]
+  end
+
+  handle_event "game_end_player_stock_values_calculated", ctx do
+    [player_stock_values: ctx.payload.player_stock_values]
+  end
+
+  defreaction maybe_calculate_player_scores(projection, _reaction_ctx) do
+    with player_money when is_list(player_money) <- projection.player_money,
+         player_stock_values when is_list(player_stock_values) <- projection.player_stock_values do
+      player_scores =
+        Stream.concat(player_money, player_stock_values)
+        |> Enum.group_by(& &1.player, fn
+          %{money: money} -> money
+          %{total_value: total_stock_value} -> total_stock_value
+        end)
+        |> Enum.map(fn {player, individual_scores} ->
+          total_score = Enum.sum(individual_scores)
+          %{player: player, score: total_score}
+        end)
+        |> Enum.sort_by(& &1.player)
+
+      &Messages.player_scores_calculated(player_scores, &1)
+    end
+  end
+
+  handle_event "player_scores_calculated", ctx do
+    [player_money: nil, player_stock_values: nil, player_scores: ctx.payload.player_scores]
+  end
+
+  defreaction maybe_determine_winner(projection, _reaction_ctx) do
+    with player_scores when is_list(player_scores) <- projection.player_scores do
+      max_score = player_scores |> Enum.map(& &1.score) |> Enum.max()
+
+      winners =
+        Enum.flat_map(player_scores, fn
+          %{player: player, score: ^max_score} -> [player]
+          _ -> []
+        end)
+
+      case winners do
+        [winner] ->
+          &Messages.winner_determined(winner, max_score, &1)
+
+        winners ->
+          &Messages.tied_winners_determined(winners, max_score, &1)
+      end
+    end
+  end
+
+  handle_event "winner_determined", _ctx do
+    [player_scores: nil]
+  end
+
+  handle_event "tied_winners_determined", _ctx do
+    [player_scores: nil]
   end
 end

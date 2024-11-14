@@ -475,7 +475,7 @@ defmodule TransSiberianRailroad.Messages do
     event(companies: companies, note: note)
   end
 
-  def player_stock_values_calculated(player_stock_values, metadata)
+  def game_end_player_stock_values_calculated(player_stock_values, metadata)
       when is_list(player_stock_values) do
     player_stock_values =
       Enum.map(player_stock_values, fn stock_values ->
@@ -532,6 +532,29 @@ defmodule TransSiberianRailroad.Messages do
       end)
 
     event(player_money: player_money)
+  end
+
+  def player_scores_calculated(player_scores, metadata) do
+    types = %{player: :integer, score: :integer}
+    keys = Map.keys(types)
+
+    player_scores =
+      Enum.map(player_scores, fn map ->
+        changeset =
+          {%{}, types}
+          |> Changeset.cast(map, keys)
+          |> Changeset.validate_required(keys)
+          |> Changeset.validate_inclusion(:player, 1..5)
+          |> Changeset.validate_number(:score, greater_than_or_equal_to: 0)
+
+        if changeset.valid? do
+          Changeset.apply_changes(changeset)
+        else
+          raise ArgumentError, "Invalid player score: #{inspect(changeset.errors)}"
+        end
+      end)
+
+    event(player_scores: player_scores)
   end
 
   def winner_determined(winner, score, metadata)

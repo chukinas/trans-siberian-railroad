@@ -114,7 +114,8 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
     end
 
     # TOOD rename
-    test "results in one game_end_player_score_calculated (event) for each player", context do
+    test "results in one game_end_player_stock_values_calculated (event) for each player",
+         context do
       # GIVEN a game with a completed phase-1 auction,
       game = context.game
 
@@ -125,8 +126,8 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
       # WHEN we force an end_game command,
       game = force_end_game(game)
 
-      # THEN we see one player_stock_values_calculated event
-      assert get_one_event(game, "player_stock_values_calculated")
+      # THEN we see one game_end_player_stock_values_calculated event
+      assert get_one_event(game, "game_end_player_stock_values_calculated")
     end
 
     test "private companies are worth nothing"
@@ -155,8 +156,15 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
     test "if :company_status is :private, the :value_per is 0"
   end
 
-  describe "player_scores_calculated" do
-    test "each player's score is the sum of money and stock value"
+  describe "player_scores_calculated:" do
+    test "each player's score is the sum of money and stock value", context do
+      # GIVEN a game with a completed phase-1 auction,
+      game = context.game
+      # WHEN we force an end_game command,
+      game = force_end_game(game)
+      # THEN we should see a player_scores_calculated event
+      assert get_one_event(game, "player_scores_calculated")
+    end
   end
 
   describe "winner_determined (event)" do
