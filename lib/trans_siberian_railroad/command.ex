@@ -102,7 +102,7 @@ defmodule TransSiberianRailroad.Command do
           payload: Map.new(unquote(block)),
           id: metadata[:id] || Ecto.UUID.generate(),
           trace_id: metadata[:trace_id] || Ecto.UUID.generate(),
-          user: Keyword.fetch!(metadata, :user)
+          user: user
         }
       end
     end

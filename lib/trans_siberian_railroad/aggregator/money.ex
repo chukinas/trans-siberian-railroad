@@ -4,9 +4,6 @@ defmodule TransSiberianRailroad.Aggregator.Money do
   """
 
   use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
-  require TransSiberianRailroad.Constants, as: Constants
-  alias TransSiberianRailroad.Messages
 
   #########################################################
   # PROJECTION
@@ -45,7 +42,7 @@ defmodule TransSiberianRailroad.Aggregator.Money do
     [do_game_end_player_money: true]
   end
 
-  defreaction maybe_game_end_player_money(projection, _ctx) do
+  defreaction maybe_game_end_player_money(%{projection: projection}) do
     if projection.do_game_end_player_money do
       player_money =
         projection.player_money

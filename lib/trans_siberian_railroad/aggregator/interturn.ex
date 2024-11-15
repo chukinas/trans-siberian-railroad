@@ -17,9 +17,6 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
   """
 
   use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
-  alias TransSiberianRailroad.Event
-  alias TransSiberianRailroad.Messages
 
   aggregator_typedstruct do
     plugin TransSiberianRailroad.Reactions
@@ -41,8 +38,8 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
     put_next_event(next_event)
   end
 
-  defreaction maybe_next_event(projection, reaction_ctx) do
-    if event = projection.next_event, do: reaction_ctx.if_unsent.(event)
+  defreaction maybe_next_event(%{projection: projection} = reaction_ctx) do
+    if event = projection.next_event, do: ReactionCtx.issue_if_unsent(reaction_ctx, event)
   end
 
   handle_event "timing_track_reset", ctx do

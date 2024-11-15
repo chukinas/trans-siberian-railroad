@@ -9,8 +9,15 @@ defmodule TransSiberianRailroad.Aggregator do
   defmacro __using__(_) do
     quote do
       use TransSiberianRailroad.CommandHandling
+      use TransSiberianRailroad.Projection
       use TransSiberianRailroad.Reaction
       import TransSiberianRailroad.Aggregator, only: :macros
+      require TransSiberianRailroad.Constants, as: Constants
+      alias TransSiberianRailroad.Command
+      alias TransSiberianRailroad.Event
+      alias TransSiberianRailroad.Messages
+      alias TransSiberianRailroad.Metadata
+      alias TransSiberianRailroad.ReactionCtx
     end
   end
 

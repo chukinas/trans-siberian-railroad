@@ -37,6 +37,7 @@ defmodule TransSiberianRailroad.Game do
     TransSiberianRailroad.Aggregator.CompanyAuction,
     TransSiberianRailroad.Aggregator.PlayerTurn,
     TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration,
+    TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink,
     TransSiberianRailroad.Aggregator.TimingTrack,
     TransSiberianRailroad.Aggregator.Interturn,
     TransSiberianRailroad.Aggregator.IncomeTrack,
@@ -96,7 +97,10 @@ defmodule TransSiberianRailroad.Game do
     end
 
     result = Enum.map(game.aggregators, &Projection.project_event(&1, event))
-    aggregators = Enum.map(result, &elem(&1, 1))
+
+    aggregators =
+      Enum.map(result, &elem(&1, 1))
+      |> Enum.shuffle()
 
     changed_aggs =
       Enum.flat_map(result, fn
@@ -127,14 +131,16 @@ defmodule TransSiberianRailroad.Game do
           game
       )
       when last_reactions_version < version do
-    stream_all_messages =
+    sent_id_mapset =
       [game.events, game.event_queue, game.commands, game.command_queue]
       |> Stream.concat()
-
-    reaction_ctx = Reaction.build_reaction_ctx(stream_all_messages)
+      |> Stream.map(& &1.id)
+      |> MapSet.new()
 
     result =
       Enum.find_value(game.aggregators, fn agg ->
+        reaction_ctx = Reaction.build_reaction_ctx(agg, sent_id_mapset)
+
         if reaction = Reaction.get_reaction(agg, reaction_ctx) do
           {agg, reaction}
         end

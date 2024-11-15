@@ -9,8 +9,6 @@ defmodule TransSiberianRailroad.Aggregator.TimingTrack do
   """
 
   use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
-  alias TransSiberianRailroad.Messages
 
   aggregator_typedstruct do
     plugin TransSiberianRailroad.Reactions

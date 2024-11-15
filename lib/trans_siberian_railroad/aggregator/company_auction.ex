@@ -14,10 +14,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   """
 
   use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
-  require TransSiberianRailroad.Constants, as: Constants
   alias TransSiberianRailroad.Aggregator.StockValue
-  alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Players
   alias TransSiberianRailroad.RailLinks
 
@@ -80,7 +77,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   # Awaiting bid or pass
   #########################################################
 
-  defreaction maybe_awaiting_bid_or_pass(projection) do
+  defreaction maybe_awaiting_bid_or_pass(%{projection: projection}) do
     with nil <- projection.awaiting,
          :ok <- validate_bidding_in_progress(projection),
          {:ok, company} <- fetch_current_company(projection),
@@ -125,7 +122,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     [bidders: bidders, awaiting: nil]
   end
 
-  defreaction maybe_all_players_passed_on_company(projection) do
+  defreaction maybe_all_players_passed_on_company(%{projection: projection}) do
     with :ok <- validate_no_bidders(projection),
          {:ok, company} <- fetch_current_company(projection) do
       &Messages.all_players_passed_on_company(company, &1)
@@ -167,7 +164,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     ]
   end
 
-  defreaction maybe_player_won_company_auction(projection) do
+  defreaction maybe_player_won_company_auction(%{projection: projection}) do
     with nil <- projection.awaiting,
          :ok <- validate_company_auction(projection),
          {:ok, company} <- fetch_current_company(projection),
@@ -181,7 +178,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
         &Messages.player_won_company_auction(auction_winner, company, amount, &1),
         &Messages.stock_certificates_transferred(company, company, auction_winner, 1, reason, &1),
         &Messages.money_transferred(%{auction_winner => -amount, company => amount}, reason, &1),
-        &Messages.awaiting_rail_link(auction_winner, company, available_links, &1),
+        &Messages.awaiting_initial_rail_link(auction_winner, company, available_links, &1),
         &Messages.awaiting_stock_value(auction_winner, company, amount, &1)
       ]
     else
@@ -198,7 +195,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   # initial rail link
   #########################################################
 
-  handle_command "build_rail_link", ctx do
+  handle_command "build_initial_rail_link", ctx do
     %{player: building_player, company: company, rail_link: rail_link} = ctx.payload
     projection = ctx.projection
 
@@ -208,10 +205,10 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
          :ok <- RailLinks.validate_rail_link(rail_link),
          :ok <- validate_unbuilt_rail_link(projection, rail_link),
          :ok <- validate_connected_link(rail_link) do
-      &Messages.rail_link_built(building_player, company, rail_link, &1)
+      &Messages.initial_rail_link_built(building_player, company, rail_link, &1)
     else
       {:error, reason} ->
-        &Messages.rail_link_rejected(building_player, company, rail_link, reason, &1)
+        &Messages.initial_rail_link_rejected(building_player, company, rail_link, reason, &1)
     end
   end
 
@@ -259,15 +256,15 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     [awaiting: awaiting]
   end
 
-  handle_event "awaiting_rail_link", ctx do
-    add_awaiting(ctx, "rail_link_built")
+  handle_event "awaiting_initial_rail_link", ctx do
+    add_awaiting(ctx, "initial_rail_link_built")
   end
 
-  handle_event "rail_link_built", ctx do
+  handle_event "initial_rail_link_built", ctx do
     %{rail_link: rail_link} = ctx.payload
     built_rail_links = ctx.projection.built_rail_links
 
-    drop_awaiting(ctx, "rail_link_built")
+    drop_awaiting(ctx, "initial_rail_link_built")
     |> Keyword.put(:built_rail_links, [rail_link | built_rail_links])
   end
 
@@ -283,7 +280,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     add_awaiting(ctx, "company_auction_ended")
   end
 
-  defreaction maybe_end_company_auction(projection, _reaction_ctx) do
+  defreaction maybe_end_company_auction(%{projection: projection}) do
     if ["company_auction_ended"] == projection.awaiting do
       &Messages.company_auction_ended(projection.company, &1)
     end

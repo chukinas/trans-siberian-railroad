@@ -16,9 +16,6 @@ defmodule TransSiberianRailroad.Aggregator.StockValue do
   """
 
   use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
-  alias TransSiberianRailroad.Constants
-  alias TransSiberianRailroad.Messages
 
   aggregator_typedstruct do
     field :stock_values, %{Constants.company() => non_neg_integer()}, default: %{}
@@ -79,7 +76,7 @@ defmodule TransSiberianRailroad.Aggregator.StockValue do
     [do_game_end_stock_values: true]
   end
 
-  defreaction maybe_game_end_stock_values_determined(projection, _ctx) do
+  defreaction maybe_game_end_stock_values_determined(%{projection: projection}) do
     if projection.do_game_end_stock_values do
       stock_values = projection.stock_values
 

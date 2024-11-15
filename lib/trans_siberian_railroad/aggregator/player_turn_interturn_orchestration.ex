@@ -10,9 +10,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration do
   """
 
   use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
   require TransSiberianRailroad.Reactions, as: Reactions
-  alias TransSiberianRailroad.Messages
 
   aggregator_typedstruct do
     plugin Reactions

@@ -14,4 +14,10 @@ defmodule TransSiberianRailroad.Constants do
   @companies ~w(red blue green yellow black white)
   def companies(), do: @companies
   defguard is_company(id) when id in @companies
+
+  #########################################################
+  # Rail Links
+  #########################################################
+
+  defguard is_rail_link(rail_link) when is_list(rail_link)
 end

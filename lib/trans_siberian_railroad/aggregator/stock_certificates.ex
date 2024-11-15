@@ -10,11 +10,6 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
   - it gets nationalized.
   """
   use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
-  require TransSiberianRailroad.Constants, as: Constants
-  alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Metadata
-  alias TransSiberianRailroad.ReactionCtx
 
   @bank_certs Constants.companies()
               |> Enum.zip([5, 5, 5, 5, 3, 3])
@@ -43,7 +38,7 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
     [initial_stock_transfer: Ecto.UUID.generate()]
   end
 
-  defreaction maybe_initial_stock_transfer(projection, reaction_ctx) do
+  defreaction maybe_initial_stock_transfer(%{projection: projection} = reaction_ctx) do
     if event_id = projection.initial_stock_transfer do
       ReactionCtx.if_uuid_unsent(reaction_ctx, event_id, fn -> initial_transfer(event_id) end)
     end
@@ -124,8 +119,14 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
       |> Enum.map(&elem(&1, 1))
       |> Enum.sum()
 
-    certificate_value = ceil(income / stock_count)
+    if stock_count > 0 do
+      pay_company_dividends_events(command_id, company, income, player_cert_counts, stock_count)
+    end
+  end
 
+  defp pay_company_dividends_events(command_id, company, income, player_cert_counts, stock_count)
+       when stock_count > 0 do
+    certificate_value = ceil(income / stock_count)
     total_value = stock_count * certificate_value
 
     transfers =
@@ -207,7 +208,7 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
     [end_game_stock_valuation: end_game_stock_valuation]
   end
 
-  defreaction maybe_game_end_player_stock_values_calculated(projection, _reaction_ctx) do
+  defreaction maybe_game_end_player_stock_values_calculated(%{projection: projection}) do
     if stock_values = projection.end_game_stock_valuation do
       &Messages.game_end_player_stock_values_calculated(stock_values, &1)
     end

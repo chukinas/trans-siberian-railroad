@@ -140,7 +140,10 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
               pass_on_company(player, company)
             end
           end,
-          build_rail_link(start_player, only_auctioned_company, ["moscow", "nizhnynovgorod"]),
+          build_initial_rail_link(start_player, only_auctioned_company, [
+            "moscow",
+            "nizhnynovgorod"
+          ]),
           set_stock_value(start_player, only_auctioned_company, winning_bid)
         ]
         |> injest_commands(game)
@@ -182,7 +185,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       commands = [
         commands,
-        build_rail_link(start_player, only_auctioned_company, ["moscow", "nizhnynovgorod"]),
+        build_initial_rail_link(start_player, only_auctioned_company, ["moscow", "nizhnynovgorod"]),
         set_stock_value(start_player, only_auctioned_company, winning_bid)
       ]
 
@@ -217,7 +220,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
             if player == 3 and company == "yellow" do
               [
                 submit_bid(player, company, 8),
-                build_rail_link(player, company, ["moscow", "nizhnynovgorod"]),
+                build_initial_rail_link(player, company, ["moscow", "nizhnynovgorod"]),
                 set_stock_value(player, company, 8)
               ]
             else
@@ -268,7 +271,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
             if player == 3 and company == "yellow" do
               [
                 submit_bid(player, company, 8),
-                build_rail_link(player, company, ["moscow", "nizhnynovgorod"]),
+                build_initial_rail_link(player, company, ["moscow", "nizhnynovgorod"]),
                 set_stock_value(player, company, 8)
               ]
             else
@@ -312,7 +315,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
             if player == 3 and company == "yellow" do
               [
                 submit_bid(player, company, 8),
-                build_rail_link(player, company, ["moscow", "nizhnynovgorod"]),
+                build_initial_rail_link(player, company, ["moscow", "nizhnynovgorod"]),
                 set_stock_value(player, company, 8)
               ]
             else

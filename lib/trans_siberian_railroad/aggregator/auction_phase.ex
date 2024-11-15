@@ -11,9 +11,6 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
   """
 
   use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
-  alias TransSiberianRailroad.Constants
-  alias TransSiberianRailroad.Messages
 
   # invariant: all three fields are either all nil or all non-nil
   aggregator_typedstruct do
@@ -68,7 +65,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
   # Start company auction
   #########################################################
 
-  defreaction maybe_start_company_auction(projection) do
+  defreaction maybe_start_company_auction(%{projection: projection}) do
     case projection.next_steps do
       [{company, :start} | _] ->
         &Messages.company_auction_started(projection.start_bidder, company, &1)
@@ -102,7 +99,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
   # End auction phase
   #########################################################
 
-  defreaction maybe_end_auction_phase(%__MODULE__{} = projection) do
+  defreaction maybe_end_auction_phase(%{projection: projection}) do
     if [] == projection.next_steps do
       &Messages.auction_phase_ended(projection.phase_number, projection.start_bidder, &1)
     end

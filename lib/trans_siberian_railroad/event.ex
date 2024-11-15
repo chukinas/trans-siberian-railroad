@@ -8,17 +8,10 @@ defmodule TransSiberianRailroad.Event do
   [Aggregators](`TransSiberianRailroad.Aggregator`) start off with a version though of 0 so we're always working with non-negative integers.
 
   ## Notes
-  - Add a trace_id to the struct.
-    Since events are typically (always?) created in response to a command,
-    it would be useful to have a trace_id that links the event back to the command that caused it.
   - Give every event a timestamp.
-  - Give every event a sequence number.
   - Add a macro that generates the event functions.
   - Enable and force marking each event with the module that's responsible for creating it.
     For each event, there should be exactly one such module.
-  - How do I handle events that need to generate other events?
-    Do the cascading events get created directly or do they
-    need to have a command created first?
   """
 
   use TypedStruct
@@ -43,27 +36,58 @@ defmodule TransSiberianRailroad.Event do
 
   defmacro __using__(_) do
     quote do
-      #   import unquote(__MODULE__)
-      #   Module.register_attribute(__MODULE__, :__command_names__, accumulate: true)
       @before_compile unquote(__MODULE__)
       import unquote(__MODULE__)
       Module.register_attribute(__MODULE__, :event_names, accumulate: true)
     end
   end
 
-  defmacro event(fields) do
-    name =
-      with {name, _arity} = __CALLER__.function do
-        to_string(name)
+  defmacro defevent(function_head, do: block) do
+    modify_function_args = fn {fn_name, meta, args} ->
+      meta =
+        if Enum.any?(args) do
+          {_, meta, _} = Enum.at(args, -1)
+          meta
+        else
+          meta
+        end
+
+      metadata_arg = {:\\, meta, [{:metadata, meta, nil}, []]}
+      new_args = args ++ [metadata_arg]
+      {fn_name, meta, new_args}
+    end
+
+    event_name =
+      case function_head do
+        {:when, _, stuff} -> hd(stuff)
+        _ -> function_head
+      end
+      |> elem(0)
+      |> to_string()
+
+    function_head =
+      case function_head do
+        {:when, _, _} ->
+          update_in(function_head, [Access.elem(2), Access.at(0)], modify_function_args)
+
+        _ ->
+          modify_function_args.(function_head)
       end
 
-    Module.put_attribute(__CALLER__.module, :event_names, name)
-
     quote do
-      name = unquote(name)
-      payload = Map.new(unquote(fields))
-      metadata = var!(metadata)
-      TransSiberianRailroad.Event.new(name, payload, metadata)
+      @__event_name__ unquote(event_name)
+      @event_names @__event_name__
+      def unquote(function_head) do
+        metadata = var!(metadata)
+
+        %unquote(__MODULE__){
+          name: @__event_name__,
+          payload: Map.new(unquote(block)),
+          id: metadata[:id] || Ecto.UUID.generate(),
+          trace_id: metadata[:trace_id] || Ecto.UUID.generate(),
+          version: Keyword.fetch!(metadata, :version)
+        }
+      end
     end
   end
 

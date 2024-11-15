@@ -5,8 +5,6 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
   The end-game conditions are handled elsewhere.
   """
   use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
-  alias TransSiberianRailroad.Messages
 
   aggregator_typedstruct do
     field :game_id, term()
@@ -40,7 +38,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
     [player_stock_values: ctx.payload.player_stock_values]
   end
 
-  defreaction maybe_calculate_player_scores(projection, _reaction_ctx) do
+  defreaction maybe_calculate_player_scores(%{projection: projection}) do
     with player_money when is_list(player_money) <- projection.player_money,
          player_stock_values when is_list(player_stock_values) <- projection.player_stock_values do
       player_scores =
@@ -63,7 +61,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
     [player_money: nil, player_stock_values: nil, player_scores: ctx.payload.player_scores]
   end
 
-  defreaction maybe_determine_winner(projection, _reaction_ctx) do
+  defreaction maybe_determine_winner(%{projection: projection}) do
     with player_scores when is_list(player_scores) <- projection.player_scores do
       max_score = player_scores |> Enum.map(& &1.score) |> Enum.max()
 

@@ -9,14 +9,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   """
 
   use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
-  require TransSiberianRailroad.Constants, as: Constants
-  alias TransSiberianRailroad.Messages
   alias TransSiberianRailroad.Players
-
-  #########################################################
-  # PROJECTION
-  #########################################################
 
   aggregator_typedstruct do
     field :player_order, [Constants.player()]
@@ -142,6 +135,22 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
       fetched_next_player: fetched_next_player,
       current_player: current_player
     ]
+  end
+
+  #########################################################
+  # Checking Player Turn
+  #########################################################
+
+  handle_command "reserve_player_action", ctx do
+    %{player: player} = ctx.payload
+    projection = ctx.projection
+
+    with :ok <- validate_player_turn(projection),
+         :ok <- validate_current_player(projection, player) do
+      &Messages.player_action_reserved(player, &1)
+    else
+      {:error, reason} -> &Messages.player_action_rejected(player, reason, &1)
+    end
   end
 
   #########################################################

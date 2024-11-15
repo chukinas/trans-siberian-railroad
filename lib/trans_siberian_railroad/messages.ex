@@ -29,9 +29,9 @@ defmodule TransSiberianRailroad.Messages do
   # issued by any Aggregator.
   @type amount() :: integer()
   @spec money_transferred(%{entity() => amount()}, String.t(), Metadata.t()) :: Event.t()
-  def money_transferred(%{} = transfers, reason, metadata) when is_binary(reason) do
+  defevent money_transferred(%{} = transfers, reason) when is_binary(reason) do
     0 = transfers |> Map.values() |> Enum.sum()
-    event(transfers: transfers, reason: reason)
+    [transfers: transfers, reason: reason]
   end
 
   @spec stock_certificates_transferred(
@@ -43,9 +43,9 @@ defmodule TransSiberianRailroad.Messages do
           Metadata.t()
         ) ::
           Event.t()
-  def stock_certificates_transferred(company, from, to, quantity, reason, metadata)
-      when quantity in 1..5 do
-    event(company: company, from: from, to: to, quantity: quantity, reason: reason)
+  defevent stock_certificates_transferred(company, from, to, quantity, reason)
+           when quantity in 1..5 do
+    [company: company, from: from, to: to, quantity: quantity, reason: reason]
   end
 
   ####### ##################################################
@@ -62,12 +62,12 @@ defmodule TransSiberianRailroad.Messages do
     [game_id: game_id]
   end
 
-  def game_initialized(game_id, metadata) do
-    event(game_id: game_id)
+  defevent game_initialized(game_id) do
+    [game_id: game_id]
   end
 
-  def game_initialization_rejected(game_id, reason, metadata) do
-    event(game_id: game_id, reason: reason)
+  defevent game_initialization_rejected(game_id, reason) do
+    [game_id: game_id, reason: reason]
   end
 
   #########################################################
@@ -79,13 +79,13 @@ defmodule TransSiberianRailroad.Messages do
     [player_name: player_name]
   end
 
-  def player_added(player_id, player_name, metadata)
-      when Constants.is_player(player_id) and is_binary(player_name) do
-    event(player_id: player_id, player_name: player_name)
+  defevent player_added(player_id, player_name)
+           when Constants.is_player(player_id) and is_binary(player_name) do
+    [player_id: player_id, player_name: player_name]
   end
 
-  def player_rejected(player_name, reason, metadata) when is_binary(reason) do
-    event(player_name: player_name, reason: reason)
+  defevent player_rejected(player_name, reason) when is_binary(reason) do
+    [player_name: player_name, reason: reason]
   end
 
   #########################################################
@@ -97,8 +97,8 @@ defmodule TransSiberianRailroad.Messages do
     [start_player: start_player]
   end
 
-  def start_player_set(start_player, metadata) when Constants.is_player(start_player) do
-    event(start_player: start_player)
+  defevent start_player_set(start_player) when Constants.is_player(start_player) do
+    [start_player: start_player]
   end
 
   # OK
@@ -112,14 +112,14 @@ defmodule TransSiberianRailroad.Messages do
     [player_order: player_order]
   end
 
-  def player_order_set(player_order, metadata) when is_list(player_order) do
+  defevent player_order_set(player_order) when is_list(player_order) do
     for player_id <- player_order do
       if player_id not in 1..5 do
         raise ArgumentError, "player_order must be a list of integers"
       end
     end
 
-    event(player_order: player_order)
+    [player_order: player_order]
   end
 
   #########################################################
@@ -131,12 +131,12 @@ defmodule TransSiberianRailroad.Messages do
     []
   end
 
-  def game_started(metadata) do
-    event([])
+  defevent game_started() do
+    []
   end
 
-  def game_start_rejected(reason, metadata) when is_binary(reason) do
-    event(reason: reason)
+  defevent game_start_rejected(reason) when is_binary(reason) do
+    [reason: reason]
   end
 
   #########################################################
@@ -145,24 +145,25 @@ defmodule TransSiberianRailroad.Messages do
 
   defguardp is_phase_number(phase_number) when phase_number in 1..2
 
-  def auction_phase_started(phase_number, start_bidder, metadata)
-      when is_phase_number(phase_number) and Constants.is_player(start_bidder) do
-    event(phase_number: phase_number, start_bidder: start_bidder)
+  defevent auction_phase_started(phase_number, start_bidder)
+           when is_phase_number(phase_number) and Constants.is_player(start_bidder) do
+    [phase_number: phase_number, start_bidder: start_bidder]
   end
 
-  def auction_phase_ended(phase_number, start_player, metadata)
-      when is_phase_number(phase_number) do
-    event(phase_number: phase_number, start_player: start_player)
+  defevent auction_phase_ended(phase_number, start_player)
+           when is_phase_number(phase_number) do
+    [phase_number: phase_number, start_player: start_player]
   end
 
   #########################################################
   # Auctioning - starting player auction turn
   #########################################################
 
-  def player_auction_turn_started(player, company, min_bid, metadata)
-      when Constants.is_player(player) and Constants.is_company(company) and is_integer(min_bid) and
-             min_bid >= 8 do
-    event(player: player, company: company, min_bid: min_bid)
+  defevent player_auction_turn_started(player, company, min_bid)
+           when Constants.is_player(player) and Constants.is_company(company) and
+                  is_integer(min_bid) and
+                  min_bid >= 8 do
+    [player: player, company: company, min_bid: min_bid]
   end
 
   #########################################################
@@ -175,18 +176,16 @@ defmodule TransSiberianRailroad.Messages do
   This can result in either "player_won_company_auction" (a player won the share)
   or "all_players_passed_on_company" (no player bid on the share).
   """
-  @spec company_auction_started(Constants.player(), Constants.company(), Metadata.t()) ::
-          Event.t()
-  def company_auction_started(start_bidder, company, metadata)
-      when Constants.is_player(start_bidder) and Constants.is_company(company) do
-    event(start_bidder: start_bidder, company: company)
+  defevent company_auction_started(start_bidder, company)
+           when Constants.is_player(start_bidder) and Constants.is_company(company) do
+    [start_bidder: start_bidder, company: company]
   end
 
   @doc """
   This and "player_won_company_auction" both end the company auction started by "company_auction_started".
   """
-  def all_players_passed_on_company(company, metadata) when Constants.is_company(company) do
-    event(company: company)
+  defevent all_players_passed_on_company(company) when Constants.is_company(company) do
+    [company: company]
   end
 
   @doc """
@@ -194,25 +193,26 @@ defmodule TransSiberianRailroad.Messages do
 
   At this point, the company is "Open".
   """
-  def player_won_company_auction(auction_winner, company, bid_amount, metadata)
-      when Constants.is_player(auction_winner) and Constants.is_company(company) and
-             is_integer(bid_amount) and
-             bid_amount >= 8 do
-    event(auction_winner: auction_winner, company: company, bid_amount: bid_amount)
+  defevent player_won_company_auction(auction_winner, company, bid_amount)
+           when Constants.is_player(auction_winner) and Constants.is_company(company) and
+                  is_integer(bid_amount) and
+                  bid_amount >= 8 do
+    [auction_winner: auction_winner, company: company, bid_amount: bid_amount]
   end
 
-  def company_auction_ended(company, metadata) when Constants.is_company(company) do
-    event(company: company)
+  defevent company_auction_ended(company) when Constants.is_company(company) do
+    [company: company]
   end
 
   #########################################################
   # Auctioning - awaiting next player to bid or pass
   #########################################################
 
-  def awaiting_bid_or_pass(player, company, min_bid, metadata)
-      when Constants.is_player(player) and Constants.is_company(company) and is_integer(min_bid) and
-             min_bid >= 8 do
-    event(player: player, company: company, min_bid: min_bid)
+  defevent awaiting_bid_or_pass(player, company, min_bid)
+           when Constants.is_player(player) and Constants.is_company(company) and
+                  is_integer(min_bid) and
+                  min_bid >= 8 do
+    [player: player, company: company, min_bid: min_bid]
   end
 
   #########################################################
@@ -225,15 +225,15 @@ defmodule TransSiberianRailroad.Messages do
     [passing_player: passing_player, company: company]
   end
 
-  def company_passed(passing_player, company, metadata)
-      when Constants.is_player(passing_player) and Constants.is_company(company) do
-    event(passing_player: passing_player, company: company)
+  defevent company_passed(passing_player, company)
+           when Constants.is_player(passing_player) and Constants.is_company(company) do
+    [passing_player: passing_player, company: company]
   end
 
-  def company_pass_rejected(passing_player, company, reason, metadata)
-      when Constants.is_player(passing_player) and Constants.is_company(company) and
-             is_binary(reason) do
-    event(passing_player: passing_player, company: company, reason: reason)
+  defevent company_pass_rejected(passing_player, company, reason)
+           when Constants.is_player(passing_player) and Constants.is_company(company) and
+                  is_binary(reason) do
+    [passing_player: passing_player, company: company, reason: reason]
   end
 
   #########################################################
@@ -247,47 +247,52 @@ defmodule TransSiberianRailroad.Messages do
     [bidder: bidder, company: company, amount: amount]
   end
 
-  def bid_submitted(bidder, company, amount, metadata)
-      when Constants.is_player(bidder) and Constants.is_company(company) and is_integer(amount) do
-    event(bidder: bidder, company: company, amount: amount)
+  defevent bid_submitted(bidder, company, amount)
+           when Constants.is_player(bidder) and Constants.is_company(company) and
+                  is_integer(amount) do
+    [bidder: bidder, company: company, amount: amount]
   end
 
-  def bid_rejected(bidder, company, amount, reason, metadata)
-      when Constants.is_player(bidder) and Constants.is_company(company) and is_binary(reason) do
-    event(bidder: bidder, company: company, amount: amount, reason: reason)
+  defevent bid_rejected(bidder, company, amount, reason)
+           when Constants.is_player(bidder) and Constants.is_company(company) and
+                  is_binary(reason) do
+    [bidder: bidder, company: company, amount: amount, reason: reason]
   end
 
   #########################################################
   # Auctioning - initial rail link
   #########################################################
 
-  def awaiting_rail_link(player, company, available_links, metadata) do
-    event(player: player, company: company, available_links: available_links)
+  defevent awaiting_initial_rail_link(player, company, available_links) do
+    [player: player, company: company, available_links: available_links]
   end
 
-  defcommand build_rail_link(player, company, rail_link)
+  defcommand build_initial_rail_link(player, company, rail_link)
              when Constants.is_player(player) and Constants.is_company(company) and
                     is_list(rail_link) do
     [player: player, company: company, rail_link: rail_link]
   end
 
-  def rail_link_rejected(player, company, rail_link, reason, metadata)
-      when Constants.is_player(player) and Constants.is_company(company) and is_binary(reason) do
-    event(player: player, company: company, rail_link: rail_link, reason: reason)
+  defevent initial_rail_link_rejected(player, company, rail_link, reason)
+           when Constants.is_player(player) and Constants.is_company(company) and
+                  is_binary(reason) do
+    [player: player, company: company, rail_link: rail_link, reason: reason]
   end
 
-  def rail_link_built(player, company, rail_link, metadata)
-      when Constants.is_player(player) and Constants.is_company(company) and is_list(rail_link) do
-    event(player: player, company: company, rail_link: rail_link)
+  defevent initial_rail_link_built(player, company, rail_link)
+           when Constants.is_player(player) and Constants.is_company(company) and
+                  is_list(rail_link) do
+    [player: player, company: company, rail_link: rail_link]
   end
 
   #########################################################
   # Auctioning - set starting stock price
   #########################################################
 
-  def awaiting_stock_value(player, company, max_price, metadata)
-      when Constants.is_player(player) and Constants.is_company(company) and is_integer(max_price) do
-    event(player: player, company: company, max_price: max_price)
+  defevent awaiting_stock_value(player, company, max_price)
+           when Constants.is_player(player) and Constants.is_company(company) and
+                  is_integer(max_price) do
+    [player: player, company: company, max_price: max_price]
   end
 
   defcommand set_stock_value(auction_winner, company, price)
@@ -296,20 +301,20 @@ defmodule TransSiberianRailroad.Messages do
     [auction_winner: auction_winner, company: company, price: price]
   end
 
-  def stock_value_set(auction_winner, company, value, metadata)
-      when Constants.is_player(auction_winner) and Constants.is_company(company) and
-             is_integer(value) do
-    event(auction_winner: auction_winner, company: company, value: value)
+  defevent stock_value_set(auction_winner, company, value)
+           when Constants.is_player(auction_winner) and Constants.is_company(company) and
+                  is_integer(value) do
+    [auction_winner: auction_winner, company: company, value: value]
   end
 
-  def stock_value_rejected(auction_winner, company, price, reason, metadata)
-      when Constants.is_player(auction_winner) and Constants.is_company(company) and
-             is_binary(reason) do
-    event(auction_winner: auction_winner, company: company, price: price, reason: reason)
+  defevent stock_value_rejected(auction_winner, company, price, reason)
+           when Constants.is_player(auction_winner) and Constants.is_company(company) and
+                  is_binary(reason) do
+    [auction_winner: auction_winner, company: company, price: price, reason: reason]
   end
 
-  def stock_value_incremented(company, metadata) when Constants.is_company(company) do
-    event(company: company)
+  defevent stock_value_incremented(company) when Constants.is_company(company) do
+    [company: company]
   end
 
   #########################################################
@@ -318,16 +323,16 @@ defmodule TransSiberianRailroad.Messages do
 
   defcommand(:start_player_turn)
 
-  def player_turn_started(player, metadata) when Constants.is_player(player) do
-    event(player: player)
+  defevent player_turn_started(player) when Constants.is_player(player) do
+    [player: player]
   end
 
-  def player_turn_rejected(message, metadata) do
-    event(message: message)
+  defevent player_turn_rejected(message) do
+    [message: message]
   end
 
-  def player_turn_ended(player, metadata) when Constants.is_player(player) do
-    event(player: player)
+  defevent player_turn_ended(player) when Constants.is_player(player) do
+    [player: player]
   end
 
   #########################################################
@@ -340,17 +345,70 @@ defmodule TransSiberianRailroad.Messages do
     [purchasing_player: purchasing_player, company: company, price: price]
   end
 
-  def single_stock_purchased(purchasing_player, company, price, metadata)
-      when Constants.is_player(purchasing_player) and Constants.is_company(company) and
-             is_integer(price) do
-    event(purchasing_player: purchasing_player, company: company, price: price)
+  defevent single_stock_purchased(purchasing_player, company, price)
+           when Constants.is_player(purchasing_player) and Constants.is_company(company) and
+                  is_integer(price) do
+    [purchasing_player: purchasing_player, company: company, price: price]
   end
 
-  def single_stock_purchase_rejected(purchasing_player, company, price, reason, metadata)
-      when Constants.is_player(purchasing_player) and Constants.is_company(company) and
-             is_integer(price) and
-             is_binary(reason) do
-    event(purchasing_player: purchasing_player, company: company, price: price, reason: reason)
+  defevent single_stock_purchase_rejected(purchasing_player, company, price, reason)
+           when Constants.is_player(purchasing_player) and Constants.is_company(company) and
+                  is_integer(price) and
+                  is_binary(reason) do
+    [purchasing_player: purchasing_player, company: company, price: price, reason: reason]
+  end
+
+  #########################################################
+  # Reserving Player Actions
+  # Player actions can be complicated, involving input from
+  # multiple aggregator. This set of command/events lets us
+  # block the current player turn from accepting any new
+  # actions until the current one is resolved.
+  #########################################################
+
+  defcommand reserve_player_action(player) when Constants.is_player(player) do
+    [player: player]
+  end
+
+  defevent player_action_rejected(player, reason)
+           when Constants.is_player(player) and is_binary(reason) do
+    [player: player, reason: reason]
+  end
+
+  defevent player_action_reserved(player) when Constants.is_player(player) do
+    [player: player]
+  end
+
+  #########################################################
+  # Player Action Option #2A: Build Rail Link (single)
+  #########################################################
+
+  defcommand build_rail_link(player, company, rail_link)
+             when Constants.is_player(player) and
+                    Constants.is_company(company) and
+                    Constants.is_rail_link(rail_link) do
+    [player: player, company: company, rail_link: rail_link]
+  end
+
+  defevent rail_link_sequence_begun(player, company, rail_link)
+           when Constants.is_player(player) and
+                  Constants.is_company(company) and
+                  Constants.is_rail_link(rail_link) do
+    [player: player, company: company, rail_link: rail_link]
+  end
+
+  defevent rail_link_built(player, company, rail_link)
+           when Constants.is_player(player) and Constants.is_company(company) and
+                  Constants.is_rail_link(rail_link) do
+    [player: player, company: company, rail_link: rail_link]
+  end
+
+  defevent rail_link_rejected(player, company, rail_link, reason)
+           when Constants.is_player(player) and
+                  Constants.is_company(company) and
+                  Constants.is_rail_link(rail_link) and
+                  is_binary(reason) do
+    [player: player, company: company, rail_link: rail_link, reason: reason]
   end
 
   #########################################################
@@ -362,13 +420,13 @@ defmodule TransSiberianRailroad.Messages do
     [passing_player: passing_player]
   end
 
-  def passed(passing_player, metadata) when Constants.is_player(passing_player) do
-    event(passing_player: passing_player)
+  defevent passed(passing_player) when Constants.is_player(passing_player) do
+    [passing_player: passing_player]
   end
 
-  def pass_rejected(passing_player, reason, metadata)
-      when Constants.is_player(passing_player) and is_binary(reason) do
-    event(passing_player: passing_player, reason: reason)
+  defevent pass_rejected(passing_player, reason)
+           when Constants.is_player(passing_player) and is_binary(reason) do
+    [passing_player: passing_player, reason: reason]
   end
 
   #########################################################
@@ -401,8 +459,8 @@ defmodule TransSiberianRailroad.Messages do
   defcommand(pay_dividends(), do: [])
 
   # Emitted and consumed by IncomeTrack
-  def paying_dividends(metadata) do
-    event([])
+  defevent paying_dividends() do
+    []
   end
 
   # Emitted by IncomeTrack in response to pay_dividends.
@@ -414,35 +472,34 @@ defmodule TransSiberianRailroad.Messages do
 
   # Emitted by StockCertificates in response to pay_company_dividends.
   # It also emits money_transferred
-  def company_dividends_paid(
-        company,
-        company_income,
-        stock_count,
-        certificate_value,
-        command_id,
-        metadata
-      ) do
-    event(
+  defevent company_dividends_paid(
+             company,
+             company_income,
+             stock_count,
+             certificate_value,
+             command_id
+           ) do
+    [
       company: company,
       company_income: company_income,
       stock_count: stock_count,
       certificate_value: certificate_value,
       command_id: command_id
-    )
+    ]
   end
 
   # Emitted by IncomeTrack after last pay_company_dividends/company_dividends_paid cycle.
   # Consumed by Interturn to trigger the next interturn sequence.
-  def dividends_paid(metadata) do
-    event([])
+  defevent dividends_paid() do
+    []
   end
 
   #########################################################
   # Nationalization
   #########################################################
 
-  def company_nationalized(company, metadata) when Constants.is_company(company) do
-    event(company: company)
+  defevent company_nationalized(company) when Constants.is_company(company) do
+    [company: company]
   end
 
   #########################################################
@@ -453,11 +510,11 @@ defmodule TransSiberianRailroad.Messages do
     [causes: causes]
   end
 
-  def game_end_sequence_begun(causes, metadata) when is_list(causes) do
-    event(causes: causes)
+  defevent game_end_sequence_begun(causes) when is_list(causes) do
+    [causes: causes]
   end
 
-  def game_end_stock_values_determined(companies, metadata) when is_list(companies) do
+  defevent game_end_stock_values_determined(companies) when is_list(companies) do
     for company_map <- companies do
       %{company: company, stock_value: stock_value} = company_map
 
@@ -472,11 +529,11 @@ defmodule TransSiberianRailroad.Messages do
       "this takes nationalization into account but ignores the effect of private companies, " <>
         "the value of whose stock certificates is actually zero at game end"
 
-    event(companies: companies, note: note)
+    [companies: companies, note: note]
   end
 
-  def game_end_player_stock_values_calculated(player_stock_values, metadata)
-      when is_list(player_stock_values) do
+  defevent game_end_player_stock_values_calculated(player_stock_values)
+           when is_list(player_stock_values) do
     player_stock_values =
       Enum.map(player_stock_values, fn stock_values ->
         types = %{
@@ -508,10 +565,10 @@ defmodule TransSiberianRailroad.Messages do
         end
       end)
 
-    event(player_stock_values: player_stock_values)
+    [player_stock_values: player_stock_values]
   end
 
-  def game_end_player_money_calculated(player_money, metadata) do
+  defevent game_end_player_money_calculated(player_money) do
     types = %{player: :integer, money: :integer}
     keys = Map.keys(types)
 
@@ -531,10 +588,10 @@ defmodule TransSiberianRailroad.Messages do
         end
       end)
 
-    event(player_money: player_money)
+    [player_money: player_money]
   end
 
-  def player_scores_calculated(player_scores, metadata) do
+  defevent player_scores_calculated(player_scores) do
     types = %{player: :integer, score: :integer}
     keys = Map.keys(types)
 
@@ -554,21 +611,21 @@ defmodule TransSiberianRailroad.Messages do
         end
       end)
 
-    event(player_scores: player_scores)
+    [player_scores: player_scores]
   end
 
-  def winners_determined(winners, score, metadata)
-      when is_list(winners) and is_integer(score) and score >= 0 do
+  defevent winners_determined(winners, score)
+           when is_list(winners) and is_integer(score) and score >= 0 do
     for winner <- winners do
       unless Constants.is_player(winner) do
         raise ArgumentError, "winners must be a list of integers, got: #{inspect(winners)}"
       end
     end
 
-    event(winners: winners, score: score)
+    [winners: winners, score: score]
   end
 
-  def game_ended(game_id, metadata) when is_binary(game_id) do
-    event(game_id: game_id)
+  defevent game_ended(game_id) when is_binary(game_id) do
+    [game_id: game_id]
   end
 end

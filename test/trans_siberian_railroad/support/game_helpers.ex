@@ -75,7 +75,7 @@ defmodule TransSiberianRailroad.GameHelpers do
   end
 
   #########################################################
-  # Money
+  # Converters
   #########################################################
 
   def current_money(game, player_id) do
@@ -105,6 +105,23 @@ defmodule TransSiberianRailroad.GameHelpers do
           balances
       end
     end)
+  end
+
+  def player_count(game) do
+    game
+    |> filter_events("player_added")
+    |> Enum.count()
+  end
+
+  def players(game), do: 1..player_count(game)
+
+  def current_player(game) do
+    get_latest_event(game, "player_turn_started").payload.player
+  end
+
+  def wrong_player(game) do
+    current_player = current_player(game)
+    players(game) |> Enum.reject(&(&1 == current_player)) |> Enum.random()
   end
 
   #########################################################

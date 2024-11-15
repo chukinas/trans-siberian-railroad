@@ -24,17 +24,11 @@ defmodule TransSiberianRailroad.Reaction do
     quote do
       @__reaction_fns__ Enum.map(@__reactions__, fn fn_name ->
                           arity = Module.definitions_in(__MODULE__)[fn_name]
-
                           Function.capture(__MODULE__, fn_name, arity)
                         end)
 
       def get_reaction(projection, reaction_ctx) do
-        Enum.find_value(@__reaction_fns__, fn fun ->
-          cond do
-            is_function(fun, 1) -> fun.(projection)
-            is_function(fun, 2) -> fun.(projection, reaction_ctx)
-          end
-        end)
+        Enum.find_value(@__reaction_fns__, & &1.(reaction_ctx))
       end
     end
   end
@@ -79,22 +73,7 @@ defmodule TransSiberianRailroad.Reaction do
     end
   end
 
-  def build_reaction_ctx(stream_all_messages) do
-    ids =
-      stream_all_messages
-      |> Stream.map(& &1.id)
-      |> MapSet.new()
-
-    unsent? = fn %{id: id} -> !MapSet.member?(ids, id) end
-
-    if_unsent = fn message ->
-      case {unsent?.(message), message} do
-        {true, %Command{}} -> %{commands: [message]}
-        {true, %Event{}} -> %{events: [message]}
-        _ -> nil
-      end
-    end
-
-    %{sent_ids: ids, if_unsent: if_unsent}
-  end
+  defdelegate build_reaction_ctx(projection, sent_id_mapset),
+    to: TransSiberianRailroad.ReactionCtx,
+    as: :new
 end

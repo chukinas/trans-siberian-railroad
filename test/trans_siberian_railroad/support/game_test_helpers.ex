@@ -135,7 +135,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
         "awaiting_stock_value" ->
           game |> do_stock_value(payload) |> do_rand_auction_phase()
 
-        "awaiting_rail_link" ->
+        "awaiting_initial_rail_link" ->
           game |> do_rail_link(payload) |> do_rand_auction_phase()
 
         event_name ->
@@ -185,7 +185,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     %{player: player, company: company, available_links: available_links} = payload
     link = Enum.random(available_links)
 
-    build_rail_link(player, company, link)
+    build_initial_rail_link(player, company, link)
     |> injest_commands(game)
   end
 

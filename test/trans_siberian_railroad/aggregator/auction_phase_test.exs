@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.AuctionTest do
+defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
   use ExUnit.Case, async: true
   import TransSiberianRailroad.CommandFactory
   import TransSiberianRailroad.GameHelpers
@@ -414,7 +414,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "-> awaiting_rail_link", context do
+    test "-> awaiting_initial_rail_link", context do
       # GIVEN: see :start_game
       auction_winner = context.auction_winner
       game = context.game
@@ -422,7 +422,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # WHEN: see this descibe block's setup
 
       # THEN
-      assert event = get_one_event(game, "awaiting_rail_link")
+      assert event = get_one_event(game, "awaiting_initial_rail_link")
 
       available_links = [
         ["bryansk", "moscow"],
@@ -459,7 +459,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
     end
 
-    test "has only build_rail_link and set_stock_value as valid followup commands", context do
+    test "has only build_initial_rail_link and set_stock_value as valid followup commands",
+         context do
       # GIVEN a player has won a company auction
       game = context.game
       auction_winner = context.auction_winner
@@ -468,8 +469,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       for {resulting_event, command} <- [
             {"company_pass_rejected", pass_on_company(auction_winner, "blue")},
             {"bid_rejected", submit_bid(auction_winner, "blue", 8)},
-            {"rail_link_built",
-             build_rail_link(auction_winner, "red", ["moscow", "nizhnynovgorod"])},
+            {"initial_rail_link_built",
+             build_initial_rail_link(auction_winner, "red", ["moscow", "nizhnynovgorod"])},
             {"stock_value_set", set_stock_value(auction_winner, "red", 8)}
           ] do
         # THEN the command is rejected
@@ -480,7 +481,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
-  describe "build_rail_link -> rail_link_rejected when" do
+  describe "build_initial_rail_link -> initial_rail_link_rejected when" do
     @describetag :start_game
     @describetag :auction_off_company
 
@@ -492,10 +493,10 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
       # WHEN we try building a rail link with completely invalid data,
       rail_link = ["philly", "newyork"]
-      game = handle_one_command(game, build_rail_link(2, "blue", rail_link))
+      game = handle_one_command(game, build_initial_rail_link(2, "blue", rail_link))
 
       # THEN the command is rejected for reasons other than the invalid data.
-      assert event = get_one_event(game, "rail_link_rejected")
+      assert event = get_one_event(game, "initial_rail_link_rejected")
 
       assert event.payload == %{
                player: 2,
@@ -513,12 +514,12 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
       # WHEN the wrong player tries to build a rail link,
       game =
-        build_rail_link(wrong_player, "blue", ["invalid rail link"])
+        build_initial_rail_link(wrong_player, "blue", ["invalid rail link"])
         |> injest_commands(game)
 
       # THEN the command is rejected because of the wrong player,
       # regardless of the other invalid data.
-      assert event = get_one_event(game, "rail_link_rejected")
+      assert event = get_one_event(game, "initial_rail_link_rejected")
 
       assert event.payload == %{
                player: wrong_player,
@@ -537,11 +538,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # WHEN the player tries to build a rail link for the wrong company
       # and with invalid rail_link,
       game =
-        build_rail_link(auction_winner, wrong_company, ["invalid rail link"])
+        build_initial_rail_link(auction_winner, wrong_company, ["invalid rail link"])
         |> injest_commands(game)
 
       # THEN the command is rejected because of the wrong company.
-      assert event = get_one_event(game, "rail_link_rejected")
+      assert event = get_one_event(game, "initial_rail_link_rejected")
 
       assert event.payload == %{
                player: auction_winner,
@@ -563,11 +564,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
             {["moscow", "nizhnynovgorod", "invalid"], reason: "list contains a non-existant city"}
           ] do
         game =
-          build_rail_link(auction_winner, "red", invalid_rail_link)
+          build_initial_rail_link(auction_winner, "red", invalid_rail_link)
           |> injest_commands(game)
 
         # THEN the command is rejected
-        assert event = get_one_event(game, "rail_link_rejected")
+        assert event = get_one_event(game, "initial_rail_link_rejected")
 
         assert event.payload == %{
                  player: auction_winner,
@@ -583,12 +584,12 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # GIVEN the "red" auction in already done
       game = context.game
       auction_winner = context.auction_winner
-      assert event = get_latest_event(game, "awaiting_rail_link")
+      assert event = get_latest_event(game, "awaiting_initial_rail_link")
       rail_link = Enum.random(event.payload.available_links)
 
       game =
         [
-          build_rail_link(auction_winner, "red", rail_link),
+          build_initial_rail_link(auction_winner, "red", rail_link),
           set_stock_value(auction_winner, "red", 8)
         ]
         |> injest_commands(game)
@@ -607,10 +608,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
         |> injest_commands(game)
 
       # WHEN the auction winner tries to build the same link again,
-      game = build_rail_link(next_auction_winner, "blue", rail_link) |> injest_commands(game)
+      game =
+        build_initial_rail_link(next_auction_winner, "blue", rail_link) |> injest_commands(game)
 
       # THEN the command is rejected
-      assert event = get_one_event(game, "rail_link_rejected")
+      assert event = get_one_event(game, "initial_rail_link_rejected")
 
       assert event.payload == %{
                player: next_auction_winner,
@@ -620,7 +622,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
              }
 
       # AND that link wasn't in the prompt command anyway
-      assert event = get_latest_event(game, "awaiting_rail_link")
+      assert event = get_latest_event(game, "awaiting_initial_rail_link")
       assert rail_link not in event.payload.available_links
     end
 
@@ -633,11 +635,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       unconnected_link = ~w(chita ext_chita)
 
       game =
-        build_rail_link(auction_winner, "red", unconnected_link)
+        build_initial_rail_link(auction_winner, "red", unconnected_link)
         |> injest_commands(game)
 
       # THEN the command is rejected
-      assert event = get_one_event(game, "rail_link_rejected")
+      assert event = get_one_event(game, "initial_rail_link_rejected")
 
       assert event.payload == %{
                player: auction_winner,
@@ -648,7 +650,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
     end
   end
 
-  describe "build_rail_link -> rail_link_built" do
+  describe "build_initial_rail_link -> initial_rail_link_built" do
     test "does not by itself end the auction phase (stock_value_set is also needed)"
   end
 
@@ -793,7 +795,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
     @tag :simple_setup
     @tag auction_off_company: false
-    test "after both rail_link_build and stock_value_set come in", context do
+    test "after both initial_rail_link_build and stock_value_set come in", context do
       # GIVEN
       game = context.game
 
@@ -804,14 +806,14 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       ]
 
       game = handle_commands(game, commands)
-      assert get_one_event(game, "awaiting_rail_link")
+      assert get_one_event(game, "awaiting_initial_rail_link")
       assert get_one_event(game, "awaiting_stock_value")
       refute get_latest_event(game, "company_auction_ended")
 
       [command1, command2] =
         Enum.shuffle([
           set_stock_value(3, "red", 8),
-          build_rail_link(3, "red", ["moscow", "nizhnynovgorod"])
+          build_initial_rail_link(3, "red", ["moscow", "nizhnynovgorod"])
         ])
 
       # WHEN the first command comes in, the the auction is still ongoing, but ...
@@ -834,7 +836,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       game =
         [
           set_stock_value(auction_winner, "red", 8),
-          build_rail_link(auction_winner, "red", ["moscow", "nizhnynovgorod"])
+          build_initial_rail_link(auction_winner, "red", ["moscow", "nizhnynovgorod"])
         ]
         |> Enum.shuffle()
         |> injest_commands(game)
@@ -852,7 +854,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
 
       game =
         [
-          build_rail_link(2, "red", ["moscow", "nizhnynovgorod"]),
+          build_initial_rail_link(2, "red", ["moscow", "nizhnynovgorod"]),
           set_stock_value(2, "red", 8)
         ]
         |> Enum.shuffle()
@@ -890,12 +892,12 @@ defmodule TransSiberianRailroad.Aggregator.AuctionTest do
       # WHEN
       game =
         [
-          build_rail_link(auction_winner, "yellow", ["moscow", "nizhnynovgorod"]),
+          build_initial_rail_link(auction_winner, "yellow", ["moscow", "nizhnynovgorod"]),
           set_stock_value(auction_winner, "yellow", 8)
         ]
         |> injest_commands(game)
 
-      assert get_one_event(game, "rail_link_built")
+      assert get_one_event(game, "initial_rail_link_built")
       assert get_one_event(game, "stock_value_set")
 
       # THEN
