@@ -48,11 +48,10 @@ defmodule TransSiberianRailroad.Messages do
     [company: company, from: from, to: to, quantity: quantity, reason: reason]
   end
 
-  ####### ##################################################
+  ##########################################################
   # Initializing Game
   #########################################################
 
-  # OK
   defcommand initialize_game() do
     game_id =
       1..6
@@ -74,7 +73,6 @@ defmodule TransSiberianRailroad.Messages do
   # Adding Players
   #########################################################
 
-  # OK
   defcommand add_player(player_name) when is_binary(player_name) do
     [player_name: player_name]
   end
@@ -92,7 +90,6 @@ defmodule TransSiberianRailroad.Messages do
   # SETUP - player order and starting player
   #########################################################
 
-  # OK
   defcommand set_start_player(start_player) when Constants.is_player(start_player) do
     [start_player: start_player]
   end
@@ -101,7 +98,6 @@ defmodule TransSiberianRailroad.Messages do
     [start_player: start_player]
   end
 
-  # OK
   defcommand set_player_order(player_order) when is_list(player_order) do
     for player <- player_order do
       unless Constants.is_player(player) do
@@ -126,7 +122,6 @@ defmodule TransSiberianRailroad.Messages do
   # Starting Game
   #########################################################
 
-  # OK
   defcommand start_game() do
     []
   end
@@ -219,7 +214,6 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - players pass on a company
   #########################################################
 
-  # OK
   defcommand pass_on_company(passing_player, company)
              when Constants.is_player(passing_player) and Constants.is_company(company) do
     [passing_player: passing_player, company: company]
@@ -240,7 +234,6 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - players bid on a company
   #########################################################
 
-  # OK
   defcommand submit_bid(bidder, company, amount)
              when Constants.is_player(bidder) and Constants.is_company(company) and
                     is_integer(amount) do
@@ -279,10 +272,10 @@ defmodule TransSiberianRailroad.Messages do
     [player: player, company: company, rail_link: rail_link, reason: reason]
   end
 
-  defevent initial_rail_link_built(player, company, rail_link)
+  defevent initial_rail_link_built(player, company, rail_link, link_income)
            when Constants.is_player(player) and Constants.is_company(company) and
-                  is_list(rail_link) do
-    [player: player, company: company, rail_link: rail_link]
+                  is_list(rail_link) and is_integer(link_income) and link_income > 0 do
+    [player: player, company: company, rail_link: rail_link, link_income: link_income]
   end
 
   #########################################################
@@ -403,19 +396,34 @@ defmodule TransSiberianRailroad.Messages do
     [player: player, company: company, rail_link: rail_link]
   end
 
-  defevent rail_link_rejected(player, company, rail_link, reason)
+  defevent rail_link_rejected(player, company, rail_link, reasons)
            when Constants.is_player(player) and
                   Constants.is_company(company) and
                   Constants.is_rail_link(rail_link) and
-                  is_binary(reason) do
-    [player: player, company: company, rail_link: rail_link, reason: reason]
+                  is_list(reasons) do
+    [player: player, company: company, rail_link: rail_link, reasons: reasons]
+  end
+
+  # -------------------------------------------------------
+  # Company must be public
+  # -------------------------------------------------------
+
+  defcommand check_is_company_public(company) when Constants.is_company(company) do
+    [company: company]
+  end
+
+  defevent company_is_public(company) when Constants.is_company(company) do
+    [company: company]
+  end
+
+  defevent company_is_not_public(company) when Constants.is_company(company) do
+    [company: company]
   end
 
   #########################################################
   # Player Action Option #3: Pass
   #########################################################
 
-  # OK
   defcommand pass(passing_player) when Constants.is_player(passing_player) do
     [passing_player: passing_player]
   end

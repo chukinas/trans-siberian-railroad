@@ -53,12 +53,14 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
       assert get_one_event(game, "rail_link_rejected")
       assert event = get_one_event(game, "rail_link_rejected")
 
-      assert event.payload == %{
-               player: any_player,
+      assert %{
+               player: ^any_player,
                company: "red",
                rail_link: @invalid_rail_link,
-               reason: "not a player turn"
-             }
+               reasons: reasons
+             } = event.payload
+
+      assert "not a player turn" in reasons
     end
 
     test "wrong player", context do
@@ -72,22 +74,71 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
       assert event.payload == %{player: wrong_player, reason: "incorrect player"}
       assert event = get_one_event(game, "rail_link_rejected")
 
-      assert event.payload == %{
-               player: wrong_player,
+      assert %{
+               player: ^wrong_player,
                company: "red",
                rail_link: @invalid_rail_link,
-               reason: "incorrect player"
-             }
+               reasons: reasons
+             } = event.payload
+
+      assert "incorrect player" in reasons
+    end
+
+    # StockCertificates
+    test "company not public (it's private or nationalized)", context do
+      # GIVEN completed first auction phase
+      game = context.game
+      # WHEN player attempts to build a rail link for a private company
+      # (There's a slight chance that all companies were passed on, in which case this random/1 will fail. Maybe fix later.)
+      event = filter_events(game, "player_won_company_auction") |> Enum.random()
+      %{auction_winner: player, company: company} = event.payload
+      game = build_rail_link(player, company, @invalid_rail_link) |> injest_commands(game)
+      # THEN
+      assert event = get_one_event(game, "company_is_not_public")
+      assert event.payload == %{company: company}
+      assert event = get_one_event(game, "rail_link_rejected")
+
+      assert %{
+               player: ^player,
+               company: ^company,
+               rail_link: @invalid_rail_link,
+               reasons: reasons
+             } = event.payload
+
+      assert "company is not public" in reasons
     end
 
     # StockCertificates
     test "player does not have controlling share in company"
-    # StockCertificates
-    test "company not public (it's private or nationalized)"
     # Money
     test "insufficient funds"
     # RailLinks
     test "rail link not connected to existing network"
     test "invalid rail link"
+
+    @tag random_first_auction_phase: false
+    test "another link is already being built", context do
+      # GIVEN completed first auction phase
+      game = context.game
+      # WHEN player attempts to build a rail link for a private company
+      game =
+        [
+          build_rail_link(1, "red", @invalid_rail_link),
+          build_rail_link(2, "blue", @invalid_rail_link)
+        ]
+        |> injest_commands(game, one_by_one: false)
+
+      # THEN
+      assert [_, event] = filter_events(game, "rail_link_rejected")
+
+      assert %{
+               player: 2,
+               company: "blue",
+               rail_link: @invalid_rail_link,
+               reasons: reasons
+             } = event.payload
+
+      assert "another rail link is already being built" in reasons
+    end
   end
 end

@@ -202,10 +202,10 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     with :ok <- validate_company_auction(projection),
          :ok <- validate_current_bidder(projection, building_player),
          :ok <- validate_current_company(projection, company),
-         :ok <- RailLinks.validate_rail_link(rail_link),
+         {:ok, link_income} <- RailLinks.fetch_rail_link_income(rail_link),
          :ok <- validate_unbuilt_rail_link(projection, rail_link),
          :ok <- validate_connected_link(rail_link) do
-      &Messages.initial_rail_link_built(building_player, company, rail_link, &1)
+      &Messages.initial_rail_link_built(building_player, company, rail_link, link_income, &1)
     else
       {:error, reason} ->
         &Messages.initial_rail_link_rejected(building_player, company, rail_link, reason, &1)

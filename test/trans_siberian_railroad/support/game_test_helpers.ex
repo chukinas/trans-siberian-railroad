@@ -12,8 +12,8 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   # State (Events) Converters
   #########################################################
 
-  def injest_commands(command_or_commands, game) do
-    handle_commands(game, List.wrap(command_or_commands))
+  def injest_commands(command_or_commands, game, opts \\ []) do
+    handle_commands(game, List.wrap(command_or_commands), opts)
   end
 
   #########################################################

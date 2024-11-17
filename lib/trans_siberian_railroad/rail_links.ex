@@ -98,7 +98,7 @@ defmodule TransSiberianRailroad.RailLinks do
        ]
        |> Enum.map(fn {income, rail_link} -> {income, Enum.sort(rail_link)} end)
 
-  @rail_links_set @raw |> Enum.map(fn {_, rail_link} -> rail_link end) |> MapSet.new()
+  @rail_link_incomes Map.new(@raw, fn {income, rail_link} -> {rail_link, income} end)
 
   def new() do
     Enum.with_index(@raw, fn {income, linked_locations}, index ->
@@ -120,11 +120,10 @@ defmodule TransSiberianRailroad.RailLinks do
     Enum.sort(links)
   end
 
-  def validate_rail_link(rail_link) when is_list(rail_link) do
-    if MapSet.member?(@rail_links_set, rail_link) do
-      :ok
-    else
-      {:error, "invalid rail link"}
+  def fetch_rail_link_income(rail_link) do
+    case Map.fetch(@rail_link_incomes, rail_link) do
+      {:ok, income} -> {:ok, income}
+      :error -> {:error, "invalid rail link"}
     end
   end
 end

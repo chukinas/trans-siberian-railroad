@@ -98,6 +98,21 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
   end
 
   ########################################################
+  # Check whether company is public or not.
+  # (Non-public companies cannot build rail)
+  ########################################################
+
+  handle_command "check_is_company_public", ctx do
+    %{company: company} = ctx.payload
+
+    if public_cert_count(ctx.projection, company) >= 2 do
+      &Messages.company_is_public(company, &1)
+    else
+      &Messages.company_is_not_public(company, &1)
+    end
+  end
+
+  ########################################################
   # pay dividends
   ########################################################
 
@@ -164,21 +179,13 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
         {company, stock_value}
       end)
 
-    players =
-      ctx.projection.cert_counts
-      |> Map.keys()
-      |> Enum.filter(&Constants.is_player/1)
-      |> Enum.sort()
+    players = players(ctx.projection)
 
     # A company is only worth anything if it has at least 2 certificates owned by players
     company_cert_count_owned_by_players =
       Constants.companies()
       |> Map.new(fn company ->
-        count =
-          players
-          |> Enum.map(&(ctx.projection.cert_counts[&1][company] || 0))
-          |> Enum.sum()
-
+        count = public_cert_count(ctx.projection, company)
         {company, count}
       end)
 
@@ -216,5 +223,23 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
 
   handle_event "game_end_player_stock_values_calculated", _ctx do
     [end_game_stock_valuation: nil]
+  end
+
+  ########################################################
+  # Converters
+  ########################################################
+
+  def public_cert_count(projection, company) do
+    projection
+    |> players
+    |> Enum.map(&(projection.cert_counts[&1][company] || 0))
+    |> Enum.sum()
+  end
+
+  def players(projection) do
+    projection.cert_counts
+    |> Map.keys()
+    |> Enum.filter(&Constants.is_player/1)
+    |> Enum.sort()
   end
 end

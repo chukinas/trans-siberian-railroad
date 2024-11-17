@@ -8,7 +8,7 @@ defmodule TransSiberianRailroad.Aggregator.IncomeTrack do
 
   aggregator_typedstruct do
     plugin TransSiberianRailroad.Reactions
-    field :company_incomes, %{Constants.company() => Income.t()}, default: %{"red" => 2}
+    field :company_incomes, %{Constants.company() => Income.t()}, default: %{}
 
     field :next_dividends_companies,
           [
@@ -65,5 +65,10 @@ defmodule TransSiberianRailroad.Aggregator.IncomeTrack do
 
   handle_event "dividends_paid", _ctx do
     [next_dividends_companies: nil]
+  end
+
+  handle_event "initial_rail_link_built", ctx do
+    %{company: company, link_income: link_income} = ctx.payload
+    [company_incomes: Map.put(ctx.projection.company_incomes, company, link_income)]
   end
 end

@@ -24,6 +24,7 @@ defmodule TransSiberianRailroad.GameHelpers do
     case filter_events(game, event_name) do
       [event] -> event
       [] -> nil
+      [_ | _] -> nil
     end
   end
 
@@ -54,13 +55,18 @@ defmodule TransSiberianRailroad.GameHelpers do
   # REDUCERS
   #########################################################
 
-  def handle_commands(game \\ Game.new(), commands) do
+  def handle_commands(game \\ Game.new(), commands, opts \\ []) do
     commands =
       commands
       |> List.flatten()
       |> Enum.reject(&is_nil/1)
 
-    Enum.reduce(commands, game, &handle_one_command(&2, &1))
+    if Keyword.get(opts, :one_by_one, true) do
+      Enum.reduce(commands, game, &handle_one_command(&2, &1))
+    else
+      Enum.reduce(commands, game, &Game.queue_command(&2, &1))
+      |> Game.execute()
+    end
   end
 
   def handle_one_command(game \\ Game.new(), command) do
@@ -178,12 +184,13 @@ defmodule TransSiberianRailroad.GameHelpers do
       end)
       |> Enum.sort_by(fn {_trace_id, [message | _]} -> message.global_version end)
 
-    Enum.chunk_by(grouped, fn {_trace_id, messages} ->
-      !!Enum.find(messages, &String.contains?(&1.name, "reject"))
-    end)
-    |> case do
-      [no_rejections, [first_rejection | _] | _] -> no_rejections ++ [first_rejection]
-      [no_rejections | _] -> no_rejections
-    end
+    # Enum.chunk_by(grouped, fn {_trace_id, messages} ->
+    #   !!Enum.find(messages, &String.contains?(&1.name, "reject"))
+    # end)
+    # |> case do
+    #   [no_rejections, [first_rejection | _] | _] -> no_rejections ++ [first_rejection]
+    #   [no_rejections | _] -> no_rejections
+    # end
+    grouped
   end
 end
