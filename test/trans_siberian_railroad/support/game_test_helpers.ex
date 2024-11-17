@@ -36,7 +36,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
       setup context do
         if context[:random_first_auction_phase],
-          do: rand_auction_phase(context),
+          do: random_first_auction_phase(context),
           else: :ok
       end
     end
@@ -102,7 +102,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   # Random Auction Phase 1
   #########################################################
 
-  def rand_auction_phase(context) do
+  def random_first_auction_phase(context) do
     game = do_rand_auction_phase(context.game)
     start_player = get_one_event(game, "auction_phase_ended").payload.start_player
     [game: game, start_player: start_player]

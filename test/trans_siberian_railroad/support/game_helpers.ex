@@ -34,6 +34,13 @@ defmodule TransSiberianRailroad.GameHelpers do
     end
   end
 
+  def fetch_latest_event!(game, event_name) do
+    case get_latest_event(game, event_name) do
+      nil -> raise "No #{event_name} event found"
+      event -> event
+    end
+  end
+
   def get_latest_event(%_{events: events}, event_name) do
     check_name(event_name)
     Enum.find(events, &(&1.name == event_name))
@@ -116,12 +123,16 @@ defmodule TransSiberianRailroad.GameHelpers do
   def players(game), do: 1..player_count(game)
 
   def current_player(game) do
-    get_latest_event(game, "player_turn_started").payload.player
+    fetch_latest_event!(game, "player_turn_started").payload.player
   end
 
   def wrong_player(game) do
     current_player = current_player(game)
     players(game) |> Enum.reject(&(&1 == current_player)) |> Enum.random()
+  end
+
+  def rand_player(game) do
+    players(game) |> Enum.random()
   end
 
   #########################################################

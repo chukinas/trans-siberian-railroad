@@ -5,8 +5,9 @@ defmodule TransSiberianRailroad.Aggregator.StockValueTest do
   import TransSiberianRailroad.GameTestHelpers
   alias TransSiberianRailroad.Players
 
-  setup :start_game
-  setup :rand_auction_phase
+  taggable_setups()
+  @moduletag :start_game
+  @moduletag :random_first_auction_phase
 
   test "dividends_paid after passing five times", context do
     # GIVEN we the first four player turns end in a "passed" action

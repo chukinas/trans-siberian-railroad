@@ -9,9 +9,8 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
   import TransSiberianRailroad.GameTestHelpers
 
   taggable_setups()
-  setup :start_game
-  setup :rand_auction_phase
-
+  @moduletag :start_game
+  @moduletag :random_first_auction_phase
   # NOTE: we have not yet implemented the concept of "jumping",
   # where a company pays another company to use its network.
   describe "build_rail_link -> rail_link_rejected when" do
@@ -38,20 +37,47 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
     #     The resources are committed.
     #     PlayerTurn
 
+    @invalid_rail_link ~w(A1 A2)
+
     test "a build_rail_link is already being bearbeitet"
-    # PlayerTurn
-    test "not a player turn"
-    # PlayerTurn
+    @tag random_first_auction_phase: false
+    test "not a player turn", context do
+      # GIVEN start game and in-progress auction phase
+      game = context.game
+      # WHEN player attempts to build a rail link
+      any_player = rand_player(game)
+      game = build_rail_link(any_player, "red", @invalid_rail_link) |> injest_commands(game)
+      # THEN player_action_rejected and (as a result) rail_link_rejected are issued
+      assert event = get_one_event(game, "player_action_rejected")
+      assert event.payload == %{player: any_player, reason: "not a player turn"}
+      assert get_one_event(game, "rail_link_rejected")
+      assert event = get_one_event(game, "rail_link_rejected")
+
+      assert event.payload == %{
+               player: any_player,
+               company: "red",
+               rail_link: @invalid_rail_link,
+               reason: "not a player turn"
+             }
+    end
+
     test "wrong player", context do
       # GIVEN completed first auction phase
       game = context.game
       # WHEN wrong player attempts to build a rail link
       wrong_player = wrong_player(game)
-      valid_rail_link = ~w(A1 A2)
-      game = build_rail_link(wrong_player, "red", valid_rail_link) |> injest_commands(game)
+      game = build_rail_link(wrong_player, "red", @invalid_rail_link) |> injest_commands(game)
       # THEN player_action_rejected and (as a result) rail_link_rejected are issued
-      assert get_one_event(game, "player_action_rejected")
-      assert get_one_event(game, "rail_link_rejected")
+      assert event = get_one_event(game, "player_action_rejected")
+      assert event.payload == %{player: wrong_player, reason: "incorrect player"}
+      assert event = get_one_event(game, "rail_link_rejected")
+
+      assert event.payload == %{
+               player: wrong_player,
+               company: "red",
+               rail_link: @invalid_rail_link,
+               reason: "incorrect player"
+             }
     end
 
     # StockCertificates
