@@ -45,7 +45,12 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
     validation_commands =
       [
         Messages.reserve_player_action(ctx.payload.player, metadata),
-        Messages.check_is_company_public(ctx.payload.company, metadata)
+        Messages.check_is_company_public(ctx.payload.company, metadata),
+        Messages.check_does_player_have_controlling_share(
+          ctx.payload.player,
+          ctx.payload.company,
+          metadata
+        )
       ]
       |> Enum.shuffle()
 
@@ -64,13 +69,21 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
   # Handle validation responses
   ########################################################
 
-  defp rm_command(
-         %__MODULE__{current_event: event, validation_commands: validation_commands},
-         command_name
-       ) do
-    Enum.reject(validation_commands, fn command ->
-      command.name == command_name and command.trace_id == event.trace_id
-    end)
+  defp update_commands_and_errors(event_ctx, command_name, error_msg \\ nil) do
+    %__MODULE__{current_event: event, validation_commands: validation_commands} =
+      event_ctx.projection
+
+    validation_commands =
+      Enum.reject(validation_commands, fn command ->
+        command.name == command_name and command.trace_id == event.trace_id
+      end)
+
+    if error_msg do
+      errors = [error_msg | event_ctx.projection.errors]
+      [validation_commands: validation_commands, errors: errors]
+    else
+      [validation_commands: validation_commands]
+    end
   end
 
   # ------------------------------------------------------
@@ -78,16 +91,11 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
   # ------------------------------------------------------
 
   handle_event "player_action_reserved", ctx do
-    [validation_commands: rm_command(ctx.projection, "reserve_player_action")]
+    update_commands_and_errors(ctx, "reserve_player_action")
   end
 
   handle_event "player_action_rejected", ctx do
-    error = ctx.payload.reason
-
-    [
-      validation_commands: rm_command(ctx.projection, "reserve_player_action"),
-      errors: [error | ctx.projection.errors]
-    ]
+    update_commands_and_errors(ctx, "reserve_player_action", ctx.payload.reason)
   end
 
   # ------------------------------------------------------
@@ -95,16 +103,27 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
   # ------------------------------------------------------
 
   handle_event "company_is_public", ctx do
-    [validation_commands: rm_command(ctx.projection, "check_is_company_public")]
+    update_commands_and_errors(ctx, "check_is_company_public")
   end
 
   handle_event "company_is_not_public", ctx do
-    error = "company is not public"
+    update_commands_and_errors(ctx, "check_is_company_public", "company is not public")
+  end
 
-    [
-      validation_commands: rm_command(ctx.projection, "check_is_company_public"),
-      errors: [error | ctx.projection.errors]
-    ]
+  # ------------------------------------------------------
+  # Player must have controlling share
+  # ------------------------------------------------------
+
+  handle_event "player_has_controlling_share", ctx do
+    update_commands_and_errors(ctx, "check_does_player_have_controlling_share")
+  end
+
+  handle_event "player_does_not_have_controlling_share", ctx do
+    update_commands_and_errors(
+      ctx,
+      "check_does_player_have_controlling_share",
+      "player does not have controlling share in company"
+    )
   end
 
   ########################################################
@@ -116,7 +135,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
 
     case projection do
       %__MODULE__{current_event: %Event{}, validation_commands: [], errors: []} ->
-        raise "not yet implemented"
+        raise "Not yet implemented. You're probably testing a \"rail_link_rejected\" event."
 
       %__MODULE__{
         current_event: %Event{payload: payload},

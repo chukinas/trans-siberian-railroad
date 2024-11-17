@@ -420,6 +420,25 @@ defmodule TransSiberianRailroad.Messages do
     [company: company]
   end
 
+  # -------------------------------------------------------
+  # Player must have controlling share
+  # -------------------------------------------------------
+
+  defcommand check_does_player_have_controlling_share(player, company)
+             when Constants.is_player(player) and Constants.is_company(company) do
+    [player: player, company: company]
+  end
+
+  defevent player_has_controlling_share(player, company)
+           when Constants.is_player(player) and Constants.is_company(company) do
+    [player: player, company: company]
+  end
+
+  defevent player_does_not_have_controlling_share(player, company)
+           when Constants.is_player(player) and Constants.is_company(company) do
+    [player: player, company: company]
+  end
+
   #########################################################
   # Player Action Option #3: Pass
   #########################################################

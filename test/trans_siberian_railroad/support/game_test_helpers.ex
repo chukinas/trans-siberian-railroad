@@ -103,12 +103,12 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   #########################################################
 
   def random_first_auction_phase(context) do
-    game = do_rand_auction_phase(context.game)
+    game = do_rand_auction_phase(context.game, Map.get(context, :rig_auctions, []))
     start_player = get_one_event(game, "auction_phase_ended").payload.start_player
     [game: game, start_player: start_player]
   end
 
-  defp do_rand_auction_phase(game) do
+  defp do_rand_auction_phase(game, rigged_auctions) do
     version_access = [Access.key!(:__test__), Access.key(:version, 0)]
     version = get_in(game, version_access)
 
@@ -130,31 +130,36 @@ defmodule TransSiberianRailroad.GameTestHelpers do
 
       case event.name do
         "awaiting_bid_or_pass" ->
-          game |> do_bid_or_pass(payload) |> do_rand_auction_phase()
+          game
+          |> do_bid_or_pass(payload, rigged_auctions)
+          |> do_rand_auction_phase(rigged_auctions)
 
         "awaiting_stock_value" ->
-          game |> do_stock_value(payload) |> do_rand_auction_phase()
+          game |> do_stock_value(payload) |> do_rand_auction_phase(rigged_auctions)
 
         "awaiting_initial_rail_link" ->
-          game |> do_rail_link(payload) |> do_rand_auction_phase()
+          game |> do_rail_link(payload) |> do_rand_auction_phase(rigged_auctions)
 
         event_name ->
           require Logger
           Logger.warning("event_name: #{event_name} not handled in do_rand_auction_phase/1.")
-          do_rand_auction_phase(game)
+          do_rand_auction_phase(game, rigged_auctions)
       end
     else
       game
     end
   end
 
-  defp do_bid_or_pass(game, payload) do
+  defp do_bid_or_pass(game, payload, rigged_auctions) do
     %{player: player, company: company, min_bid: min_bid} = payload
     player_money = current_money(game, player)
+
+    maybe_rigged_company_bid = Enum.find(rigged_auctions, &(&1[:company] == company))
 
     pass? =
       cond do
         player_money < min_bid -> true
+        maybe_rigged_company_bid -> maybe_rigged_company_bid[:player] != player
         true -> Enum.random([true, true, false])
       end
 
@@ -162,7 +167,15 @@ defmodule TransSiberianRailroad.GameTestHelpers do
       if pass? do
         pass_on_company(player, company)
       else
-        bid = Enum.to_list(min_bid..player_money) |> Enum.random()
+        rigged_bid =
+          with %{player: ^player, amount: amount} <-
+                 Enum.find(rigged_auctions, &(&1[:company] == company)) do
+            amount
+          else
+            _ -> nil
+          end
+
+        bid = rigged_bid || Enum.to_list(min_bid..player_money) |> Enum.random()
         submit_bid(player, company, bid)
       end
 

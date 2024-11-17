@@ -112,6 +112,29 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
     end
   end
 
+  handle_command "check_does_player_have_controlling_share", ctx do
+    %{company: company, player: player} = ctx.payload
+
+    players_and_cert_counts =
+      ctx.projection.cert_counts
+      |> Enum.filter(fn {owner, _certs} -> Constants.is_player(owner) end)
+      |> Map.new(fn {owner, certs} -> {owner, Map.get(certs, company, 0)} end)
+
+    player_cert_ownership = Map.get(players_and_cert_counts, player, 0)
+
+    max_cert_ownership =
+      case Map.values(players_and_cert_counts) do
+        [] -> 0
+        cert_counts -> Enum.max(cert_counts)
+      end
+
+    if player_cert_ownership == max_cert_ownership do
+      &Messages.player_has_controlling_share(player, company, &1)
+    else
+      &Messages.player_does_not_have_controlling_share(player, company, &1)
+    end
+  end
+
   ########################################################
   # pay dividends
   ########################################################

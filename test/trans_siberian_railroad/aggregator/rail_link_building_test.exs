@@ -11,32 +11,10 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
   taggable_setups()
   @moduletag :start_game
   @moduletag :random_first_auction_phase
+
   # NOTE: we have not yet implemented the concept of "jumping",
   # where a company pays another company to use its network.
   describe "build_rail_link -> rail_link_rejected when" do
-    # What's the general flow here?
-    # - RailLinks handles the command
-    # - If the rail link is invalid, RailLinks issues a "rail_link_rejected" event. Fields: player, company, rail_link, reason.
-    # - Otherwise, RailLinks issues a "rail_link_sequence_begun" event. Fields: player, company, rail_link, ref_id
-    # - PlayerTurn handles "rail_link_sequence_begun".
-    #   - PlayerTurn issues a "player_action_reserved" if valid. Fields: player, ref_id
-    #     PlayerTurn puts the action "on hold"
-    #   - PlayerTurn issues a "player_action_rejected" if invalid. Fields: player, ref_id, reason
-    # - StockCertificates handles "rail_link_sequence_begun"
-    #   - StockCertificates issues "stock_certificates_begun" if valid. Fields: player, company, ref_id
-    #     It puts the rail_link "on hold"
-    #   - StockCertificates issues "stock_certificates_rejected" if valid. Fields: player, company, ref_id, reason
-    # - Money handles "rail_link_sequence_begun"
-    #   - Money issues "money_set_aside" if valid. Fields: company, amount, ref_id
-    #     Money puts that company's money amount "on hold"
-    #   - Money issues "money_rejected" if invalid. Fields: company, amount, ref_id, reason
-    # - RailLinks handles all the above events.
-    #   - If there were rejections, it issues a "rail_link_rejected" event. Fields: player, company, rail_link, reason
-    #     The resources (player turn action, money, rail link) are released.
-    #   - Otherwise, issue "rail_link_built" event
-    #     The resources are committed.
-    #     PlayerTurn
-
     @invalid_rail_link ~w(A1 A2)
 
     test "a build_rail_link is already being bearbeitet"
@@ -108,8 +86,45 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
       assert "company is not public" in reasons
     end
 
-    # StockCertificates
-    test "player does not have controlling share in company"
+    @tag :simple_setup
+    @tag rig_auctions: [
+           %{company: "red", player: 1, amount: 8},
+           %{company: "blue"},
+           %{company: "green"},
+           %{company: "yellow"}
+         ]
+    test "player does not have controlling share in company", context do
+      # GIVEN completed first auction phase
+      game = context.game
+
+      game =
+        [
+          purchase_single_stock(1, "red", 8),
+          purchase_single_stock(2, "red", 8),
+          # Player 1 now has controlling share in Red
+          pass(3),
+          pass(1)
+        ]
+        |> injest_commands(game)
+
+      # WHEN player 2 (whose does not have controlling share in Red) attempts to build a rail link
+      game =
+        build_rail_link(2, "red", @invalid_rail_link)
+        |> injest_commands(game)
+
+      # THEN the attempt is rejected
+      assert event = get_one_event(game, "rail_link_rejected")
+
+      assert %{
+               player: 2,
+               company: "red",
+               rail_link: @invalid_rail_link,
+               reasons: reasons
+             } = event.payload
+
+      assert "player does not have controlling share in company" in reasons
+    end
+
     # Money
     test "insufficient funds"
     # RailLinks
