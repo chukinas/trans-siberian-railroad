@@ -48,7 +48,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
         Messages.reserve_player_action(player, metadata),
         Messages.validate_public_company(company, metadata),
         Messages.validate_controlling_share(player, company, metadata),
-        Messages.validate_rail_link_connection(company, rail_link, metadata)
+        Messages.validate_company_rail_link(company, rail_link, metadata)
       ]
       |> Enum.shuffle()
 
@@ -116,8 +116,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
   # Rail link must connect to network
   # ------------------------------------------------------
 
-  handle_event "rail_link_connection_validated", ctx do
-    update_commands_and_errors(ctx, "validate_rail_link_connection", ctx.payload.maybe_error)
+  handle_event "company_rail_link_validated", ctx do
+    update_commands_and_errors(ctx, "validate_company_rail_link", ctx.payload.maybe_error)
   end
 
   ########################################################

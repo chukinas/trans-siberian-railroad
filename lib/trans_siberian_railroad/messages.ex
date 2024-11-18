@@ -401,14 +401,17 @@ defmodule TransSiberianRailroad.Messages do
   end
 
   # -------------------------------------------------------
-  # Rail link must connect to network
+  # Rail link must
+  # - exist
+  # - connect to network
+  # - not already be built
   # -------------------------------------------------------
 
-  defcommand validate_rail_link_connection(company, rail_link) when c(company) and l(rail_link) do
+  defcommand validate_company_rail_link(company, rail_link) when c(company) and l(rail_link) do
     [company: company, rail_link: rail_link]
   end
 
-  defevent rail_link_connection_validated(company, rail_link, maybe_error)
+  defevent company_rail_link_validated(company, rail_link, maybe_error)
            when c(company) and l(rail_link) and e(maybe_error) do
     [company: company, rail_link: rail_link, maybe_error: maybe_error]
   end
