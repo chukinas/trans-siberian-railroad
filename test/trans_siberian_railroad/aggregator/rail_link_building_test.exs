@@ -124,8 +124,41 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
 
     # Money
     test "insufficient funds"
-    # RailLinks
-    test "rail link not connected to existing network"
+
+    @tag :simple_setup
+    @tag rig_auctions: [
+           %{company: "red", player: 1, amount: 8},
+           %{company: "blue"},
+           %{company: "green"},
+           %{company: "yellow"}
+         ]
+    test "rail link not connected to existing network", context do
+      # GIVEN player 1 has controlling share in "red"
+      game = context.game
+
+      game =
+        [
+          purchase_single_stock(1, "red", 8),
+          pass(2),
+          pass(3)
+        ]
+        |> injest_commands(game)
+
+      # WHEN player 1 attempts to build a non-existent rail link
+      unconnected_rail_link = ~w/kotlas pechora/
+      game = build_rail_link(1, "red", unconnected_rail_link) |> injest_commands(game)
+      # THEN the attempt is rejected
+      assert event = get_one_event(game, "rail_link_rejected")
+
+      assert %{
+               player: 1,
+               company: "red",
+               rail_link: ^unconnected_rail_link,
+               reasons: reasons
+             } = event.payload
+
+      assert "rail link not connected to company's built rail links" in reasons
+    end
 
     @tag :simple_setup
     @tag rig_auctions: [

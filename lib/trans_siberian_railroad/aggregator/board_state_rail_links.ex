@@ -33,7 +33,8 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.RailLinks do
 
     maybe_error =
       with :ok <- validate_rail_link_exists(rail_link),
-           :ok <- validate_rail_link_unbuilt(ctx.projection, rail_link) do
+           :ok <- validate_rail_link_unbuilt(ctx.projection, rail_link),
+           :ok <- validate_rail_link_connected(ctx.projection, company, rail_link) do
         nil
       else
         {:error, error} -> error
@@ -45,6 +46,26 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.RailLinks do
   #########################################################
   # Converters
   #########################################################
+
+  defp stream_company_cities(projection, company) do
+    stream_company_rail_links(projection, company)
+    |> Stream.flat_map(&elem(&1, 1))
+    |> Stream.uniq()
+  end
+
+  defp stream_company_rail_links(projection, company) do
+    Stream.filter(projection.built_rail_links, fn {built_company, _} ->
+      built_company == company
+    end)
+  end
+
+  defp validate_rail_link_connected(projection, company, rail_link) do
+    if stream_company_cities(projection, company) |> Enum.find(&(&1 in rail_link)) do
+      :ok
+    else
+      {:error, "rail link not connected to company's built rail links"}
+    end
+  end
 
   defp validate_rail_link_exists(rail_link) do
     case RailLinks.fetch_rail_link_income(rail_link) do
