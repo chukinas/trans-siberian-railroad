@@ -14,7 +14,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   """
 
   use TransSiberianRailroad.Aggregator
-  alias TransSiberianRailroad.Aggregator.StockValue
+  alias TransSiberianRailroad.Aggregator.BoardState.StockValue
   alias TransSiberianRailroad.Players
   alias TransSiberianRailroad.RailLinks
 

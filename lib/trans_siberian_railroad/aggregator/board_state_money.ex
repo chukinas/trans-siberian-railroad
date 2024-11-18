@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.Money do
+defmodule TransSiberianRailroad.Aggregator.BoardState.Money do
   @moduledoc """
   track money held by entities (players and companies)
   """

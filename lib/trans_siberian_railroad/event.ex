@@ -52,7 +52,7 @@ defmodule TransSiberianRailroad.Event do
           meta
         end
 
-      metadata_arg = {:\\, meta, [{:metadata, meta, nil}, []]}
+      metadata_arg = {:metadata, meta, nil}
       new_args = args ++ [metadata_arg]
       {fn_name, meta, new_args}
     end

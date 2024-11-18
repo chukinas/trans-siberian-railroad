@@ -32,19 +32,20 @@ defmodule TransSiberianRailroad.Game do
   alias TransSiberianRailroad.Reaction
 
   @aggregators [
-    TransSiberianRailroad.Aggregator.Setup,
     TransSiberianRailroad.Aggregator.AuctionPhase,
+    TransSiberianRailroad.Aggregator.BoardState.IncomeTrack,
+    TransSiberianRailroad.Aggregator.BoardState.Money,
+    TransSiberianRailroad.Aggregator.BoardState.RailLinks,
+    TransSiberianRailroad.Aggregator.BoardState.StockCertificates,
+    TransSiberianRailroad.Aggregator.BoardState.StockValue,
+    TransSiberianRailroad.Aggregator.BoardState.TimingTrack,
     TransSiberianRailroad.Aggregator.CompanyAuction,
+    TransSiberianRailroad.Aggregator.GameEndSequence,
+    TransSiberianRailroad.Aggregator.Interturn,
+    TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink,
     TransSiberianRailroad.Aggregator.PlayerTurn,
     TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration,
-    TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink,
-    TransSiberianRailroad.Aggregator.TimingTrack,
-    TransSiberianRailroad.Aggregator.Interturn,
-    TransSiberianRailroad.Aggregator.IncomeTrack,
-    TransSiberianRailroad.Aggregator.StockCertificates,
-    TransSiberianRailroad.Aggregator.StockValue,
-    TransSiberianRailroad.Aggregator.GameEndSequence,
-    TransSiberianRailroad.Aggregator.Money
+    TransSiberianRailroad.Aggregator.Setup
   ]
 
   typedstruct enforce: true do

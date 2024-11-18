@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.StockCertificates do
+defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
   @moduledoc """
   Track stock certificate ownership by companies, players, and bank.
 
@@ -102,17 +102,18 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
   # (Non-public companies cannot build rail)
   ########################################################
 
-  handle_command "check_is_company_public", ctx do
+  handle_command "validate_public_company", ctx do
     %{company: company} = ctx.payload
 
-    if public_cert_count(ctx.projection, company) >= 2 do
-      &Messages.company_is_public(company, &1)
-    else
-      &Messages.company_is_not_public(company, &1)
-    end
+    maybe_error =
+      if public_cert_count(ctx.projection, company) < 2 do
+        "company is not public"
+      end
+
+    &Messages.public_company_validated(company, maybe_error, &1)
   end
 
-  handle_command "check_does_player_have_controlling_share", ctx do
+  handle_command "validate_controlling_share", ctx do
     %{company: company, player: player} = ctx.payload
 
     players_and_cert_counts =
@@ -129,9 +130,10 @@ defmodule TransSiberianRailroad.Aggregator.StockCertificates do
       end
 
     if player_cert_ownership == max_cert_ownership do
-      &Messages.player_has_controlling_share(player, company, &1)
+      &Messages.controlling_share_validated(player, company, nil, &1)
     else
-      &Messages.player_does_not_have_controlling_share(player, company, &1)
+      error = "player does not have controlling share in company"
+      &Messages.controlling_share_validated(player, company, error, &1)
     end
   end
 

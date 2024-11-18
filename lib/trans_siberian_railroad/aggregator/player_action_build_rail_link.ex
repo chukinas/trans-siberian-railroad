@@ -41,16 +41,14 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
 
   handle_event "rail_link_sequence_begun", ctx do
     metadata = [user: :game, trace_id: ctx.event.trace_id]
+    %{player: player, company: company, rail_link: rail_link} = ctx.payload
 
     validation_commands =
       [
-        Messages.reserve_player_action(ctx.payload.player, metadata),
-        Messages.check_is_company_public(ctx.payload.company, metadata),
-        Messages.check_does_player_have_controlling_share(
-          ctx.payload.player,
-          ctx.payload.company,
-          metadata
-        )
+        Messages.reserve_player_action(player, metadata),
+        Messages.validate_public_company(company, metadata),
+        Messages.validate_controlling_share(player, company, metadata),
+        Messages.validate_rail_link_connection(company, rail_link, metadata)
       ]
       |> Enum.shuffle()
 
@@ -70,12 +68,12 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
   ########################################################
 
   defp update_commands_and_errors(event_ctx, command_name, error_msg \\ nil) do
-    %__MODULE__{current_event: event, validation_commands: validation_commands} =
+    %__MODULE__{current_event: current_event, validation_commands: validation_commands} =
       event_ctx.projection
 
     validation_commands =
       Enum.reject(validation_commands, fn command ->
-        command.name == command_name and command.trace_id == event.trace_id
+        command.name == command_name and command.trace_id == current_event.trace_id
       end)
 
     if error_msg do
@@ -102,28 +100,24 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
   # Company must be public
   # ------------------------------------------------------
 
-  handle_event "company_is_public", ctx do
-    update_commands_and_errors(ctx, "check_is_company_public")
-  end
-
-  handle_event "company_is_not_public", ctx do
-    update_commands_and_errors(ctx, "check_is_company_public", "company is not public")
+  handle_event "public_company_validated", ctx do
+    update_commands_and_errors(ctx, "validate_public_company", ctx.payload.maybe_error)
   end
 
   # ------------------------------------------------------
   # Player must have controlling share
   # ------------------------------------------------------
 
-  handle_event "player_has_controlling_share", ctx do
-    update_commands_and_errors(ctx, "check_does_player_have_controlling_share")
+  handle_event "controlling_share_validated", ctx do
+    update_commands_and_errors(ctx, "validate_controlling_share", ctx.payload.maybe_error)
   end
 
-  handle_event "player_does_not_have_controlling_share", ctx do
-    update_commands_and_errors(
-      ctx,
-      "check_does_player_have_controlling_share",
-      "player does not have controlling share in company"
-    )
+  # ------------------------------------------------------
+  # Rail link must connect to network
+  # ------------------------------------------------------
+
+  handle_event "rail_link_connection_validated", ctx do
+    update_commands_and_errors(ctx, "validate_rail_link_connection", ctx.payload.maybe_error)
   end
 
   ########################################################

@@ -72,8 +72,6 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
       %{auction_winner: player, company: company} = event.payload
       game = build_rail_link(player, company, @invalid_rail_link) |> injest_commands(game)
       # THEN
-      assert event = get_one_event(game, "company_is_not_public")
-      assert event.payload == %{company: company}
       assert event = get_one_event(game, "rail_link_rejected")
 
       assert %{
@@ -96,12 +94,11 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
     test "player does not have controlling share in company", context do
       # GIVEN completed first auction phase
       game = context.game
-
+      # AND player 1 has controlling share in Red,
       game =
         [
           purchase_single_stock(1, "red", 8),
           purchase_single_stock(2, "red", 8),
-          # Player 1 now has controlling share in Red
           pass(3),
           pass(1)
         ]
@@ -129,7 +126,42 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
     test "insufficient funds"
     # RailLinks
     test "rail link not connected to existing network"
-    test "invalid rail link"
+
+    @tag :simple_setup
+    @tag rig_auctions: [
+           %{company: "red", player: 1, amount: 8},
+           %{company: "blue"},
+           %{company: "green"},
+           %{company: "yellow"}
+         ]
+    test "invalid rail link", context do
+      # GIVEN player 1 has controlling share in "red"
+      game = context.game
+
+      game =
+        [
+          purchase_single_stock(1, "red", 8),
+          pass(2),
+          pass(3)
+        ]
+        |> injest_commands(game)
+
+      # WHEN player 1 attempts to build a non-existent rail link
+      game = build_rail_link(1, "red", @invalid_rail_link) |> injest_commands(game)
+      # THEN the attempt is rejected
+      assert event = get_one_event(game, "rail_link_rejected")
+
+      assert %{
+               player: 1,
+               company: "red",
+               rail_link: @invalid_rail_link,
+               reasons: reasons
+             } = event.payload
+
+      assert "invalid rail link" in reasons
+    end
+
+    test "link has already been built"
 
     @tag random_first_auction_phase: false
     test "another link is already being built", context do

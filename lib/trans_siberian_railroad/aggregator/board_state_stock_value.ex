@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.StockValue do
+defmodule TransSiberianRailroad.Aggregator.BoardState.StockValue do
   @moduledoc """
   Track the value of stock certificates.
 
