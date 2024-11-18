@@ -180,8 +180,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
           reason,
           &1
         ),
-        &Messages.money_transferred(transfers, reason, &1),
-        &Messages.player_turn_ended(purchasing_player, &1)
+        &Messages.money_transferred(transfers, reason, &1)
       ]
     else
       {:error, reason} ->
@@ -205,11 +204,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
     with :ok <- validate_player_turn(projection),
          :ok <- validate_current_player(projection, passing_player) do
-      [
-        &Messages.passed(passing_player, &1),
-        &Messages.timing_track_incremented(&1),
-        &Messages.player_turn_ended(passing_player, &1)
-      ]
+      &Messages.passed(passing_player, &1)
     else
       {:error, reason} -> &Messages.pass_rejected(passing_player, reason, &1)
     end

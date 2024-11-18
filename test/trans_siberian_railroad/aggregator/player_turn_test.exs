@@ -342,7 +342,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       # THEN
       assert event = get_one_event(game, "single_stock_purchased")
-      assert event.payload == %{company: "yellow", price: 8, purchasing_player: 3}
+      assert event.payload == %{company: "yellow", price: 8, player: 3}
     end
 
     test "-> money_transferred", context do

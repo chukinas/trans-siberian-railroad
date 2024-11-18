@@ -17,6 +17,7 @@ defmodule TransSiberianRailroad.Messages do
   defguardp e(maybe_error) when is_binary(maybe_error) or is_nil(maybe_error)
   defguardp l(player) when Constants.is_rail_link(player)
   defguardp p(player) when Constants.is_player(player)
+  defguardp is_pos_int(int) when is_integer(int) and int > 0
 
   #########################################################
   # "Broad Events"
@@ -321,14 +322,22 @@ defmodule TransSiberianRailroad.Messages do
     [purchasing_player: purchasing_player, company: company, price: price]
   end
 
-  defevent single_stock_purchased(purchasing_player, company, price)
-           when p(purchasing_player) and c(company) and is_integer(price) do
-    [purchasing_player: purchasing_player, company: company, price: price]
+  defevent single_stock_purchased(player, company, price)
+           when p(player) and c(company) and is_integer(price) do
+    [player: player, company: company, price: price]
   end
 
   defevent single_stock_purchase_rejected(purchasing_player, company, price, reason)
            when p(purchasing_player) and c(company) and is_integer(price) and is_binary(reason) do
     [purchasing_player: purchasing_player, company: company, price: price, reason: reason]
+  end
+
+  #########################################################
+  # Player Action Option #1A: Buy Two Stock Certificates
+  #########################################################
+
+  defevent two_stock_certificates_purchased(player) do
+    [player: player]
   end
 
   #########################################################
@@ -355,24 +364,24 @@ defmodule TransSiberianRailroad.Messages do
   # Player Action Option #2A: Build Rail Link (single)
   #########################################################
 
-  defcommand build_rail_link(player, company, rail_link)
-             when p(player) and c(company) and l(rail_link) do
-    [player: player, company: company, rail_link: rail_link]
+  defcommand build_rail_link(player, company, rail_link, rubles)
+             when p(player) and c(company) and l(rail_link) and is_integer(rubles) do
+    [player: player, company: company, rail_link: rail_link, rubles: rubles]
   end
 
-  defevent rail_link_sequence_begun(player, company, rail_link)
+  defevent rail_link_sequence_begun(player, company, rail_link, rubles)
            when p(player) and c(company) and l(rail_link) do
-    [player: player, company: company, rail_link: rail_link]
+    [player: player, company: company, rail_link: rail_link, rubles: rubles]
   end
 
-  defevent rail_link_built(player, company, rail_link)
-           when p(player) and c(company) and l(rail_link) do
-    [player: player, company: company, rail_link: rail_link]
+  defevent rail_link_built(player, company, rail_link, rubles)
+           when p(player) and c(company) and l(rail_link) and is_pos_int(rubles) do
+    [player: player, company: company, rail_link: rail_link, rubles: rubles]
   end
 
-  defevent rail_link_rejected(player, company, rail_link, reasons)
+  defevent rail_link_rejected(player, company, rail_link, rubles, reasons)
            when p(player) and c(company) and l(rail_link) and is_list(reasons) do
-    [player: player, company: company, rail_link: rail_link, reasons: reasons]
+    [player: player, company: company, rail_link: rail_link, reasons: reasons, rubles: rubles]
   end
 
   # -------------------------------------------------------
@@ -416,6 +425,27 @@ defmodule TransSiberianRailroad.Messages do
     [company: company, rail_link: rail_link, maybe_error: maybe_error]
   end
 
+  # -------------------------------------------------------
+  # Company must have the money
+  # -------------------------------------------------------
+
+  defcommand validate_company_money(company, rubles) when c(company) and is_integer(rubles) do
+    [company: company, rubles: rubles]
+  end
+
+  defevent company_money_validated(company, rubles, maybe_error)
+           when c(company) and is_integer(rubles) and e(maybe_error) do
+    [company: company, rubles: rubles, maybe_error: maybe_error]
+  end
+
+  #########################################################
+  # Player Action Option #2B: Build two Rail Link
+  #########################################################
+
+  defevent two_rail_links_built(player) do
+    [player: player]
+  end
+
   #########################################################
   # Player Action Option #3: Pass
   #########################################################
@@ -424,8 +454,8 @@ defmodule TransSiberianRailroad.Messages do
     [passing_player: passing_player]
   end
 
-  defevent passed(passing_player) when p(passing_player) do
-    [passing_player: passing_player]
+  defevent passed(player) when p(player) do
+    [player: player]
   end
 
   defevent pass_rejected(passing_player, reason) when p(passing_player) and is_binary(reason) do
@@ -452,7 +482,6 @@ defmodule TransSiberianRailroad.Messages do
   #########################################################
 
   simple_event(:timing_track_reset)
-  simple_event(:timing_track_incremented)
 
   #########################################################
   # Dividends

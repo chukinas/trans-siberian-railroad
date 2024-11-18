@@ -138,7 +138,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
           game |> do_stock_value(payload) |> do_rand_auction_phase(rigged_auctions)
 
         "awaiting_initial_rail_link" ->
-          game |> do_rail_link(payload) |> do_rand_auction_phase(rigged_auctions)
+          game |> do_rail_link(payload, rigged_auctions) |> do_rand_auction_phase(rigged_auctions)
 
         event_name ->
           require Logger
@@ -194,9 +194,16 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     |> injest_commands(game)
   end
 
-  defp do_rail_link(game, payload) do
+  defp do_rail_link(game, payload, rigged_auctions) do
     %{player: player, company: company, available_links: available_links} = payload
-    link = Enum.random(available_links)
+
+    link =
+      if rigged_rail_link = Enum.find(rigged_auctions, &(&1[:company] == company))[:rail_link] do
+        true = rigged_rail_link in available_links
+        rigged_rail_link
+      else
+        Enum.random(available_links)
+      end
 
     build_initial_rail_link(player, company, link)
     |> injest_commands(game)

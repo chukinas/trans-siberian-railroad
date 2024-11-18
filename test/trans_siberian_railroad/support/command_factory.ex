@@ -38,7 +38,8 @@ defmodule TransSiberianRailroad.CommandFactory do
   end
 
   def build_rail_link(player, company, rail_link) do
-    Messages.build_rail_link(player, company, rail_link, user: player)
+    rubles = 4
+    Messages.build_rail_link(player, company, rail_link, rubles, user: player)
   end
 
   def pass(player) do

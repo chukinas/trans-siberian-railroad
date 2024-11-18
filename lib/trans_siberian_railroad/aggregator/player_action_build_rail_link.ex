@@ -23,31 +23,33 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
 
   handle_command "build_rail_link", ctx do
     if ctx.projection.current_event do
-      %{player: player, company: company, rail_link: rail_link} = ctx.payload
+      %{player: player, company: company, rail_link: rail_link, rubles: rubles} = ctx.payload
       reason = "another rail link is already being built"
 
       &Messages.rail_link_rejected(
         player,
         company,
         rail_link,
+        rubles,
         [reason],
         &1
       )
     else
-      %{player: player, company: company, rail_link: rail_link} = ctx.payload
-      &Messages.rail_link_sequence_begun(player, company, rail_link, &1)
+      %{player: player, company: company, rail_link: rail_link, rubles: rubles} = ctx.payload
+      &Messages.rail_link_sequence_begun(player, company, rail_link, rubles, &1)
     end
   end
 
   handle_event "rail_link_sequence_begun", ctx do
     metadata = [user: :game, trace_id: ctx.event.trace_id]
-    %{player: player, company: company, rail_link: rail_link} = ctx.payload
+    %{player: player, company: company, rail_link: rail_link, rubles: rubles} = ctx.payload
 
     validation_commands =
       [
         Messages.reserve_player_action(player, metadata),
         Messages.validate_public_company(company, metadata),
         Messages.validate_controlling_share(player, company, metadata),
+        Messages.validate_company_money(company, rubles, metadata),
         Messages.validate_company_rail_link(company, rail_link, metadata)
       ]
       |> Enum.shuffle()
@@ -120,6 +122,14 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
     update_commands_and_errors(ctx, "validate_company_rail_link", ctx.payload.maybe_error)
   end
 
+  # ------------------------------------------------------
+  # Company must have enough money
+  # ------------------------------------------------------
+
+  handle_event "company_money_validated", ctx do
+    update_commands_and_errors(ctx, "validate_company_money", ctx.payload.maybe_error)
+  end
+
   ########################################################
   # End sequence
   ########################################################
@@ -128,16 +138,18 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
     projection = reaction_ctx.projection
 
     case projection do
-      %__MODULE__{current_event: %Event{}, validation_commands: [], errors: []} ->
-        raise "Not yet implemented. You're probably testing a \"rail_link_rejected\" event."
+      %__MODULE__{current_event: %Event{payload: payload}, validation_commands: [], errors: []} ->
+        %{player: player, company: company, rail_link: rail_link, rubles: rubles} = payload
+
+        &Messages.rail_link_built(player, company, rail_link, rubles, &1)
 
       %__MODULE__{
         current_event: %Event{payload: payload},
         validation_commands: [],
         errors: errors
       } ->
-        %{player: player, company: company, rail_link: rail_link} = payload
-        &Messages.rail_link_rejected(player, company, rail_link, errors, &1)
+        %{player: player, company: company, rail_link: rail_link, rubles: rubles} = payload
+        &Messages.rail_link_rejected(player, company, rail_link, rubles, errors, &1)
 
       _ ->
         nil

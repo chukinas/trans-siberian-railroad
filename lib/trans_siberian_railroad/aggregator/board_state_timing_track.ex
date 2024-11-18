@@ -23,7 +23,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.TimingTrack do
     [timing_track: 0]
   end
 
-  handle_event "timing_track_incremented", ctx do
+  handle_event "passed", ctx do
     timing_track = ctx.projection.timing_track + 1
     timing_track = min(5, timing_track)
     [timing_track: timing_track]

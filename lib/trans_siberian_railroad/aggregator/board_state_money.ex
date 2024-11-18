@@ -10,28 +10,50 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.Money do
   #########################################################
 
   aggregator_typedstruct do
-    field :player_money, %{Constants.player() => non_neg_integer()}, default: %{}
+    field :entity_rubles, %{Constants.player() => non_neg_integer()}, default: %{}
     field :do_game_end_player_money, boolean(), default: false
   end
 
   #########################################################
-  # :player_money
+  # :entity_rubles
   #########################################################
 
   handle_event "money_transferred", ctx do
     transfers = ctx.payload.transfers
-    player_money = ctx.projection.player_money
+    entity_rubles = ctx.projection.entity_rubles
 
-    new_player_money_balances =
-      Enum.reduce(transfers, player_money, fn
-        {entity, amount}, balances when Constants.is_player(entity) ->
-          Map.update(balances, entity, amount, &(&1 + amount))
-
-        _, balances ->
-          balances
+    entity_rubles =
+      Enum.reduce(transfers, entity_rubles, fn
+        {entity, amount}, balances -> Map.update(balances, entity, amount, &(&1 + amount))
       end)
 
-    [player_money: new_player_money_balances]
+    [entity_rubles: entity_rubles]
+  end
+
+  handle_event "rail_link_built", ctx do
+    %{company: company, rubles: rubles} = ctx.payload
+
+    entity_rubles =
+      ctx.projection.entity_rubles
+      |> Map.update(company, -rubles, &(&1 - rubles))
+      |> Map.update(:bank, rubles, &(&1 + rubles))
+
+    [entity_rubles: entity_rubles]
+  end
+
+  #########################################################
+  # company has to pay for rail link
+  #########################################################
+
+  handle_command "validate_company_money", ctx do
+    %{company: company, rubles: rubles} = ctx.payload
+
+    maybe_error =
+      if fetch_entity_money!(ctx.projection, company) < rubles do
+        "company has insufficient funds"
+      end
+
+    &Messages.company_money_validated(company, rubles, maybe_error, &1)
   end
 
   #########################################################
@@ -44,16 +66,25 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.Money do
 
   defreaction maybe_game_end_player_money(%{projection: projection}) do
     if projection.do_game_end_player_money do
-      player_money =
-        projection.player_money
-        |> Enum.map(fn {player, money} -> %{player: player, money: money} end)
+      entity_rubles =
+        projection.entity_rubles
+        |> Stream.filter(fn {player, _money} -> Constants.is_player(player) end)
+        |> Stream.map(fn {player, money} -> %{player: player, money: money} end)
         |> Enum.sort_by(& &1.player)
 
-      &Messages.game_end_player_money_calculated(player_money, &1)
+      &Messages.game_end_player_money_calculated(entity_rubles, &1)
     end
   end
 
   handle_event "game_end_player_money_calculated", _ctx do
     [do_game_end_player_money: false]
+  end
+
+  #########################################################
+  # Converters
+  #########################################################
+
+  defp fetch_entity_money!(projection, entity) do
+    Map.get(projection.entity_rubles, entity, 0)
   end
 end

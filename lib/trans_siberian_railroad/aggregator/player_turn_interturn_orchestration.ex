@@ -13,6 +13,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration do
   require TransSiberianRailroad.Reactions, as: Reactions
 
   aggregator_typedstruct do
+    field :end_turn, pos_integer()
     plugin Reactions
   end
 
@@ -23,10 +24,36 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration do
     end
   end
 
+  #########################################################
+  # End Player Turn
+  #########################################################
+
+  defp end_turn(ctx) do
+    %{player: player} = ctx.payload
+    [end_turn: player]
+  end
+
+  handle_event("single_stock_purchased", ctx, do: end_turn(ctx))
+  handle_event("two_stock_certificates_purchased", ctx, do: end_turn(ctx))
+  handle_event("rail_link_built", ctx, do: end_turn(ctx))
+  handle_event("two_rail_links_built", ctx, do: end_turn(ctx))
+  handle_event("passed", ctx, do: end_turn(ctx))
+
+  defreaction maybe_end_player_turn(reaction_ctx) do
+    if player = reaction_ctx.projection.end_turn do
+      &Messages.player_turn_ended(player, &1)
+    end
+  end
+
   handle_event "player_turn_ended", ctx do
     Messages.start_interturn(user: :game, trace_id: ctx.trace_id)
     |> set_next_command()
+    |> Keyword.put(:end_turn, nil)
   end
+
+  #########################################################
+  # Maybe Start Interturn
+  #########################################################
 
   handle_event "interturn_started", _projection do
     set_next_command(nil)

@@ -17,7 +17,6 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
   describe "build_rail_link -> rail_link_rejected when" do
     @invalid_rail_link ~w(A1 A2)
 
-    test "a build_rail_link is already being bearbeitet"
     @tag random_first_auction_phase: false
     test "not a player turn", context do
       # GIVEN start game and in-progress auction phase
@@ -122,8 +121,64 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
       assert "player does not have controlling share in company" in reasons
     end
 
-    # Money
-    test "insufficient funds"
+    @moscow_links [
+      ["bryansk", "moscow"],
+      #
+      ["kazan", "moscow"],
+      ["moscow", "nizhnynovgorod"],
+      ["moscow", "oryol"],
+      ["moscow", "samara"],
+      ["moscow", "saratov"],
+      ["moscow", "smolensk"],
+      #
+      ["moscow", "stpetersburg"],
+      ["moscow", "voronezh"],
+      ["moscow", "yaroslavl"]
+    ]
+
+    @tag :simple_setup
+    @tag rig_auctions: [
+           %{company: "red", player: 1, amount: 8, rail_link: List.first(@moscow_links)},
+           %{company: "blue"},
+           %{company: "green"},
+           %{company: "yellow"}
+         ]
+    test "company has insufficient funds", context do
+      # GIVEN all players have controlling share in "red"
+      game = context.game
+
+      game =
+        [
+          pass(1),
+          purchase_single_stock(2, "red", 8),
+          purchase_single_stock(3, "red", 8),
+          # all three players now have controlling share and the company has 24 rubles
+          # so we can build 6 links before running out of money
+          build_rail_link(1, "red", Enum.at(@moscow_links, 1)),
+          build_rail_link(2, "red", Enum.at(@moscow_links, 2)),
+          build_rail_link(3, "red", Enum.at(@moscow_links, 3)),
+          build_rail_link(1, "red", Enum.at(@moscow_links, 4)),
+          build_rail_link(2, "red", Enum.at(@moscow_links, 5)),
+          build_rail_link(3, "red", Enum.at(@moscow_links, 6))
+        ]
+        |> injest_commands(game)
+
+      # WHEN a player now attempts to build a rail link
+      rail_link = Enum.at(@moscow_links, 7)
+      game = build_rail_link(1, "red", rail_link) |> injest_commands(game)
+      # THEN the attempt is rejected
+
+      assert event = get_one_event(game, "rail_link_rejected")
+
+      assert %{
+               player: 1,
+               company: "red",
+               rail_link: ^rail_link,
+               reasons: reasons
+             } = event.payload
+
+      assert "company has insufficient funds" in reasons
+    end
 
     @tag :simple_setup
     @tag rig_auctions: [
@@ -135,14 +190,6 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
     test "rail link not connected to existing network", context do
       # GIVEN player 1 has controlling share in "red"
       game = context.game
-
-      game =
-        [
-          purchase_single_stock(1, "red", 8),
-          pass(2),
-          pass(3)
-        ]
-        |> injest_commands(game)
 
       # WHEN player 1 attempts to build a non-existent rail link
       unconnected_rail_link = ~w/kotlas pechora/
@@ -167,17 +214,9 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
            %{company: "green"},
            %{company: "yellow"}
          ]
-    test "invalid rail link", context do
+    test "rail link does not exist", context do
       # GIVEN player 1 has controlling share in "red"
       game = context.game
-
-      game =
-        [
-          purchase_single_stock(1, "red", 8),
-          pass(2),
-          pass(3)
-        ]
-        |> injest_commands(game)
 
       # WHEN player 1 attempts to build a non-existent rail link
       game = build_rail_link(1, "red", @invalid_rail_link) |> injest_commands(game)
@@ -201,17 +240,9 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
            %{company: "green"},
            %{company: "yellow"}
          ]
-    test "link has already been built", context do
+    test "rail link has already been built", context do
       # GIVEN player 1 has controlling share in "red"
       game = context.game
-
-      game =
-        [
-          purchase_single_stock(1, "red", 8),
-          pass(2),
-          pass(3)
-        ]
-        |> injest_commands(game)
 
       # WHEN player 1 attempts to build red's initial rail link
       initial_rail_link =
@@ -256,5 +287,9 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
 
       assert "another rail link is already being built" in reasons
     end
+  end
+
+  describe "rail_link_built" do
+    test "increases the income for the railroad"
   end
 end
