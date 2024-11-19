@@ -60,7 +60,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.Money do
   # game end money
   #########################################################
 
-  handle_event "game_end_sequence_begun", _ctx do
+  handle_event "game_end_sequence_started", _ctx do
     [do_game_end_player_money: true]
   end
 

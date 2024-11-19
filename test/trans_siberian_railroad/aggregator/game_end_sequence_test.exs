@@ -6,7 +6,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
     - RR stock value at 75 (companies_at_max_stock_value: […])
     - Fewer than 2 public railroads (public railroads: […])
 
-  game_end_sequence_begun (emitted by GameEndSequence)
+  game_end_sequence_started (emitted by GameEndSequence)
   - cause, same as above
 
   Game end Stock values determined
@@ -51,46 +51,39 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
   end
 
   describe "end_game (command)" do
-    test "always results in game_end_sequence_begun (event)", context do
+    test "always results in game_end_sequence_started (event)", context do
       # GIVEN a game with a completed phase-1 auction,
       game = context.game
-
       # WHEN we force an end_game command,
       game = force_end_game(game)
-
-      # THEN we should see a game_end_sequence_begun event
-      assert get_one_event(game, "game_end_sequence_begun")
+      # THEN we should see a game_end_sequence_started event
+      assert get_one_event(game, "game_end_sequence_started")
     end
 
     test "has one of three causes"
 
-    test "has the same cause as the resulting game_end_sequence_begun (event)", context do
+    test "has the same cause as the resulting game_end_sequence_started (event)", context do
       # GIVEN a game with a completed phase-1 auction,
       game = context.game
-
       # WHEN we force an end_game command,
       causes = [:stuff]
       game = force_end_game(game, causes)
-
-      # THEN we should see a game_end_sequence_begun event
-      assert event = get_one_event(game, "game_end_sequence_begun")
+      # THEN we should see a game_end_sequence_started event
+      assert event = get_one_event(game, "game_end_sequence_started")
       assert event.payload.causes == causes
     end
   end
 
-  describe "game_end_sequence_begun (event)" do
+  describe "game_end_sequence_started" do
     test "always results in one game_end_stock_values_determined (event)", context do
       # GIVEN a game with a completed phase-1 auction,
       game = context.game
-
       # AND one of the companies has been nationalized
       nationalized_company = Constants.companies() |> Enum.take(4) |> Enum.random()
       game = handle_one_event(game, &Messages.company_nationalized(nationalized_company, &1))
-
       # WHEN we force an end_game command,
       game = force_end_game(game)
-
-      # THEN we should see a game_end_sequence_begun event
+      # THEN we should see a game_end_sequence_started event
       assert event = get_one_event(game, "game_end_stock_values_determined")
 
       expected_company_stock_values =
@@ -113,11 +106,19 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
              }
     end
 
-    test "private companies are worth nothing"
-    test "public companies are worth something"
+    test "operating private companies are worth nothing"
+    test "operating public companies are worth something"
     test "nationalized companies are worth nothing"
     test "results in either winner_determined (event) or winners_determined (event)"
-    test "results in game_ended (event)"
+
+    test "results in game_ended (event)", context do
+      # GIVEN a game with a completed phase-1 auction,
+      game = context.game
+      # WHEN we force an end_game command,
+      game = force_end_game(game)
+      # THEN we see a bunch of events ending with "game_ended"
+      assert get_one_event(game, "game_ended")
+    end
   end
 
   test "end game simple, happy path", context do

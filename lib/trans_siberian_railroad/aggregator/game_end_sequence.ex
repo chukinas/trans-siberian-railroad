@@ -27,7 +27,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
 
   handle_command "end_game", ctx do
     %{causes: causes} = ctx.payload
-    &Messages.game_end_sequence_begun(causes, &1)
+    &Messages.game_end_sequence_started(causes, &1)
   end
 
   handle_event "game_end_player_money_calculated", ctx do

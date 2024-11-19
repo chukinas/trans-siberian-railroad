@@ -369,7 +369,7 @@ defmodule TransSiberianRailroad.Messages do
     [player: player, company: company, rail_link: rail_link, rubles: rubles]
   end
 
-  defevent rail_link_sequence_begun(player, company, rail_link, rubles)
+  defevent rail_link_sequence_started(player, company, rail_link, rubles)
            when p(player) and c(company) and l(rail_link) do
     [player: player, company: company, rail_link: rail_link, rubles: rubles]
   end
@@ -542,7 +542,7 @@ defmodule TransSiberianRailroad.Messages do
     [causes: causes]
   end
 
-  defevent game_end_sequence_begun(causes) when is_list(causes) do
+  defevent game_end_sequence_started(causes) when is_list(causes) do
     [causes: causes]
   end
 

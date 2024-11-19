@@ -72,7 +72,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockValue do
   # Messages.game_end_stock_values_determined
   ########################################################
 
-  handle_event "game_end_sequence_begun", _ctx do
+  handle_event "game_end_sequence_started", _ctx do
     [do_game_end_stock_values: true]
   end
 

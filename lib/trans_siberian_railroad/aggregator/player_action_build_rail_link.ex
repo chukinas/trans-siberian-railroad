@@ -6,7 +6,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
   use TransSiberianRailroad.Aggregator
 
   aggregator_typedstruct do
-    # The rail_link_sequence_begun is stored here.
+    # The rail_link_sequence_started is stored here.
     # This field being non-nil tells us that the sequence is in progress.
     field :current_event, Command.t()
 
@@ -36,11 +36,11 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
       )
     else
       %{player: player, company: company, rail_link: rail_link, rubles: rubles} = ctx.payload
-      &Messages.rail_link_sequence_begun(player, company, rail_link, rubles, &1)
+      &Messages.rail_link_sequence_started(player, company, rail_link, rubles, &1)
     end
   end
 
-  handle_event "rail_link_sequence_begun", ctx do
+  handle_event "rail_link_sequence_started", ctx do
     metadata = [user: :game, trace_id: ctx.event.trace_id]
     %{player: player, company: company, rail_link: rail_link, rubles: rubles} = ctx.payload
 
