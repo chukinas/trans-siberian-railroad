@@ -167,27 +167,21 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
   defp pay_company_dividends_events(command_id, company, income, player_cert_counts, stock_count)
        when stock_count > 0 do
     certificate_value = ceil(income / stock_count)
-    total_value = stock_count * certificate_value
 
-    transfers =
-      Map.new(player_cert_counts, fn {player, count} ->
-        {player, count * certificate_value}
+    player_payouts =
+      Enum.map(player_cert_counts, fn {player, count} ->
+        %{player: player, rubles: count * certificate_value}
       end)
-      |> Map.put(:bank, -total_value)
 
-    reason = "dividends paid by #{company} at #{certificate_value} per share"
-
-    [
-      &Messages.money_transferred(transfers, reason, &1),
-      &Messages.company_dividends_paid(
-        company,
-        income,
-        stock_count,
-        certificate_value,
-        command_id,
-        &1
-      )
-    ]
+    &Messages.company_dividends_paid(
+      company,
+      income,
+      stock_count,
+      certificate_value,
+      player_payouts,
+      command_id,
+      &1
+    )
   end
 
   ########################################################

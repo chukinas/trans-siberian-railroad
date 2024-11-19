@@ -7,6 +7,10 @@ defmodule TransSiberianRailroad.GameHelpers do
 
   @valid_event_names MapSet.new(Messages.event_names())
 
+  def injest_commands(command_or_commands, game, opts \\ []) do
+    handle_commands(game, List.wrap(command_or_commands), opts)
+  end
+
   def filter_events(%Game{events: events}, event_name, opts \\ []) do
     check_name(event_name)
     events = Enum.filter(events, &(&1.name == event_name))
@@ -54,6 +58,10 @@ defmodule TransSiberianRailroad.GameHelpers do
   #########################################################
   # REDUCERS
   #########################################################
+
+  def force_end_game(game, causes \\ [:nonsense]) do
+    Messages.end_game(causes, user: :game) |> injest_commands(game)
+  end
 
   def handle_commands(game \\ Game.new(), commands, opts \\ []) do
     commands =

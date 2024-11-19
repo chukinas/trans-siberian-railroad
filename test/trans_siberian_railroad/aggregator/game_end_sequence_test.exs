@@ -1,54 +1,8 @@
 defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
-  @moduledoc """
-  command: `end_game` (emitted by `CheckForEndGame`)
-  - cause
-    - Dividends at end (dividend_track: …)
-    - RR stock value at 75 (companies_at_max_stock_value: […])
-    - Fewer than 2 public railroads (public railroads: […])
+  use TransSiberianRailroad.Case, async: true
 
-  game_end_sequence_started (emitted by GameEndSequence)
-  - cause, same as above
-
-  Game end Stock values determined
-  Companies
-  Company
-  Stock value
-  Note: “this takes nationalization into account but ignores the effect of private companies, the value of whose stock certificates is actually zero at game end”
-  Emitted by StockValue after hearing “game end sequence begun”
-  Game end Player score calculated (make sure private companies have no value). Emitted by StockCertificates after hearing “game end stock values determined”
-  Player
-  Score total
-  Current money
-  Stocks (list of maps)
-  Company
-  Count
-  Value per
-  Total value
-  Company status: private or public
-  Winner determined
-  Winner
-  Score
-  Emitted by GameEndSequence after hearing a  “game end player score calculated”  for each player
-  Tied winners determined
-  Winners
-  Score
-  Emitted as alternative to above
-  game ended
-  Game id
-  Emitted by GameEndSequence after hearing one of the above two
-  """
-  use ExUnit.Case, async: true
-  import TransSiberianRailroad.GameHelpers
-  import TransSiberianRailroad.GameTestHelpers
-  alias TransSiberianRailroad.Constants
-  alias TransSiberianRailroad.Messages
-
-  taggable_setups()
   @moduletag :start_game
   @moduletag :random_first_auction_phase
-  defp force_end_game(game, causes \\ [:nonsense]) do
-    Messages.end_game(causes, user: :game) |> injest_commands(game)
-  end
 
   describe "end_game (command)" do
     test "always results in game_end_sequence_started (event)", context do

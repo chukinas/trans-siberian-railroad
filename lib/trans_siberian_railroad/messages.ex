@@ -4,6 +4,22 @@ defmodule TransSiberianRailroad.Messages do
   and `TransSiberianRailroad.Event`.
 
   The messages described in this file **completely** describe the game's player actions and events (found in rulebook.pdf).
+
+  ## Naming Conventions
+
+  - Commands start with an imperative verb, e.g. `add_player`.
+  - Events end with the corresponding past-tense verb, e.g. `player_added`.
+  - `..._sequence_started` - an event that kicks off a series of commands and events.
+    Usually needed where several domains need to coordinate.
+    Typically resolved with a `..._ended` event.
+    Sometimes preceeded by a `start_...` command.
+    Example: `pay_dividends` -> `dividends_sequence_started` -> `...` -> `dividends_paid`
+
+  ## Notes
+
+  - Sometimes, there are command-event pairs that seem unnecessary, where it seems that only the event is needed.
+    But the reason here to still include the command is to make that command available during testing.
+    Example: the `end_game` command is used often in the test suite to force a game-end sequence in order to check player's money balance.
   """
 
   use TransSiberianRailroad.Command
@@ -13,6 +29,7 @@ defmodule TransSiberianRailroad.Messages do
   alias Ecto.Changeset
   alias TransSiberianRailroad.Event
 
+  # These are called so often that it makes sense to heavily abbreviate them.
   defguardp c(company) when Constants.is_company(company)
   defguardp e(maybe_error) when is_binary(maybe_error) or is_nil(maybe_error)
   defguardp l(player) when Constants.is_rail_link(player)
@@ -491,7 +508,7 @@ defmodule TransSiberianRailroad.Messages do
   defcommand(pay_dividends(), do: [])
 
   # Emitted and consumed by IncomeTrack
-  defevent paying_dividends() do
+  defevent dividends_sequence_started() do
     []
   end
 
@@ -509,6 +526,7 @@ defmodule TransSiberianRailroad.Messages do
              company_income,
              stock_count,
              certificate_value,
+             player_payouts,
              command_id
            ) do
     [
@@ -516,6 +534,7 @@ defmodule TransSiberianRailroad.Messages do
       company_income: company_income,
       stock_count: stock_count,
       certificate_value: certificate_value,
+      player_payouts: player_payouts,
       command_id: command_id
     ]
   end

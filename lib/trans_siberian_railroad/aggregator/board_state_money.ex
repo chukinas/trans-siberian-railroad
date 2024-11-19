@@ -18,6 +18,12 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.Money do
   # :entity_rubles
   #########################################################
 
+  defp transfer(entity_rubles, rubles, from, to) do
+    entity_rubles
+    |> Map.update(to, rubles, &(&1 + rubles))
+    |> Map.update(from, -rubles, &(&1 - rubles))
+  end
+
   handle_event "money_transferred", ctx do
     transfers = ctx.payload.transfers
     entity_rubles = ctx.projection.entity_rubles
@@ -32,11 +38,17 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.Money do
 
   handle_event "rail_link_built", ctx do
     %{company: company, rubles: rubles} = ctx.payload
+    [entity_rubles: transfer(ctx.projection.entity_rubles, rubles, company, :bank)]
+  end
+
+  handle_event "company_dividends_paid", ctx do
+    %{player_payouts: player_payouts} = ctx.payload
 
     entity_rubles =
-      ctx.projection.entity_rubles
-      |> Map.update(company, -rubles, &(&1 - rubles))
-      |> Map.update(:bank, rubles, &(&1 + rubles))
+      Enum.reduce(player_payouts, ctx.projection.entity_rubles, fn
+        %{player: player, rubles: rubles}, entity_rubles ->
+          transfer(entity_rubles, rubles, :bank, player)
+      end)
 
     [entity_rubles: entity_rubles]
   end

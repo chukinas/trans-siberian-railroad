@@ -21,10 +21,10 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.IncomeTrack do
   end
 
   handle_command "pay_dividends", _ctx do
-    &Messages.paying_dividends(&1)
+    &Messages.dividends_sequence_started(&1)
   end
 
-  handle_event "paying_dividends", ctx do
+  handle_event "dividends_sequence_started", ctx do
     company_incomes = ctx.projection.company_incomes
 
     next_dividends_companies =
