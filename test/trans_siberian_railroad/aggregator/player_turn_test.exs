@@ -1,15 +1,8 @@
 defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
-  use ExUnit.Case, async: true
-  import TransSiberianRailroad.CommandFactory
-  import TransSiberianRailroad.GameHelpers
-  import TransSiberianRailroad.GameTestHelpers
-  alias TransSiberianRailroad.Constants
-  alias TransSiberianRailroad.Messages
+  use TransSiberianRailroad.Case, async: true
 
   taggable_setups()
-
-  @incorrect_price 76
-
+  @incorrect_stock_value 76
   @phase_1_companies Constants.companies() |> Enum.take(4)
 
   #########################################################
@@ -53,12 +46,12 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       refute Enum.find(game.events, &String.contains?(&1.name, "reject"))
 
       # WHEN we emit another start_player_turn command
-      command = Messages.start_player_turn(user: :game)
+      command = command("start_player_turn", user: :game)
       game = handle_one_command(game, command)
 
       # THEN the command is rejected
       assert event = get_one_event(game, "player_turn_rejected")
-      assert event.payload == %{message: "A player's turn is already in progress"}
+      assert event.payload == %{reason: "A player's turn is already in progress"}
     end
   end
 
@@ -79,16 +72,16 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
         context.one_round |> Enum.reject(&(&1 == context.start_player)) |> Enum.random()
 
       wrong_company = "black"
-      command = purchase_single_stock(wrong_player, wrong_company, @incorrect_price)
+      command = purchase_single_stock(wrong_player, wrong_company, @incorrect_stock_value)
       game = handle_one_command(context.game, command)
 
       # THEN
       assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
-               purchasing_player: wrong_player,
+               player: wrong_player,
                company: wrong_company,
-               price: @incorrect_price,
+               rubles: @incorrect_stock_value,
                reason: "not a player turn"
              }
     end
@@ -106,16 +99,16 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
         context.one_round |> Enum.reject(&(&1 == correct_player)) |> Enum.random()
 
       wrong_company = "black"
-      command = purchase_single_stock(wrong_player, wrong_company, @incorrect_price)
+      command = purchase_single_stock(wrong_player, wrong_company, @incorrect_stock_value)
       game = handle_one_command(context.game, command)
 
       # THEN
       assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
-               purchasing_player: wrong_player,
+               player: wrong_player,
                company: wrong_company,
-               price: @incorrect_price,
+               rubles: @incorrect_stock_value,
                reason: "incorrect player"
              }
     end
@@ -157,17 +150,17 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
-               purchasing_player: start_player,
+               player: start_player,
                company: attempted_company,
-               price: winning_bid,
+               rubles: winning_bid,
                reason: "company was never active"
              }
     end
 
     test "insufficient funds", context do
       # GIVEN
-      # Only one player (start player) wins an auction for all his money.
-      # He then sets the starting stock price at the same amount.
+      # Only one player (start player) wins an auction for all his rubles.
+      # He then sets the starting stock value at the same amount.
       game = context.game
       start_player = context.start_player
       winning_bid = current_money(game, start_player)
@@ -199,9 +192,9 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
-               purchasing_player: start_player,
+               player: start_player,
                company: only_auctioned_company,
-               price: winning_bid,
+               rubles: winning_bid,
                reason: "insufficient funds"
              }
     end
@@ -248,9 +241,9 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
-               purchasing_player: 1,
+               player: 1,
                company: "yellow",
-               price: 8,
+               rubles: 8,
                reason: "company has no stock to sell"
              }
     end
@@ -260,7 +253,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
     @tag start_player: 1
     @tag player_count: 3
     @tag player_order: [1, 2, 3]
-    test "does not match current stock price", context do
+    test "does not match current stock value", context do
       # GIVEN
       game = context.game
 
@@ -291,10 +284,10 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
       assert event = get_one_event(game, "single_stock_purchase_rejected")
 
       assert event.payload == %{
-               purchasing_player: 3,
+               player: 3,
                company: "yellow",
-               price: 12,
-               reason: "does not match current stock price"
+               rubles: 12,
+               reason: "does not match current stock value"
              }
     end
   end
@@ -342,23 +335,26 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       # THEN
       assert event = get_one_event(game, "single_stock_purchased")
-      assert event.payload == %{company: "yellow", price: 8, player: 3}
+      assert event.payload == %{company: "yellow", rubles: 8, player: 3}
     end
 
-    test "-> money_transferred", context do
+    test "-> rubles_transferred", context do
       # GIVEN
       game = context.game
-      money_transferred_events = filter_events(game, "money_transferred")
+      money_transferred_events = filter_events(game, "rubles_transferred")
 
       # WHEN
       game = handle_one_command(game, @purchase_single_stock)
 
       # THEN
       assert [event | ^money_transferred_events] =
-               filter_events(game, "money_transferred")
+               filter_events(game, "rubles_transferred")
 
       assert event.payload == %{
-               transfers: %{3 => -8, "yellow" => 8},
+               transfers: [
+                 %{entity: 3, rubles: -8},
+                 %{entity: "yellow", rubles: 8}
+               ],
                reason: "single stock purchased"
              }
     end
@@ -381,7 +377,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
                company: "yellow",
                from: "yellow",
                to: 3,
-               quantity: 1,
+               count: 1,
                reason: "single stock purchased"
              }
     end
@@ -416,7 +412,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       # THEN
       assert event = get_one_event(game, "pass_rejected")
-      assert event.payload.passing_player == 1
+      assert event.payload.player == 1
     end
 
     test "not a player turn (e.g. end-of-turn sequence)"
@@ -434,7 +430,7 @@ defmodule TransSiberinteanRailroad.Aggregator.PlayerTurnTest do
 
       # THEN
       assert event = get_one_event(game, "pass_rejected")
-      assert event.payload == %{passing_player: wrong_player, reason: "incorrect player"}
+      assert event.payload == %{player: wrong_player, reason: "incorrect player"}
     end
   end
 

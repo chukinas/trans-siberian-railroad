@@ -28,14 +28,15 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
   #########################################################
 
   handle_event "interturn_started", ctx do
-    command = Messages.pay_dividends(user: :game, trace_id: ctx.trace_id)
-    put_next_command(command)
+    command("pay_dividends", user: :game, trace_id: ctx.trace_id)
+    |> put_next_command()
   end
 
   handle_event "dividends_paid", ctx do
     metadata = Projection.next_metadata(ctx.projection)
-    next_event = Messages.timing_track_reset(metadata)
-    put_next_event(next_event)
+
+    Messages.event_builder("timing_track_reset").(metadata)
+    |> put_next_event()
   end
 
   defreaction maybe_next_event(%{projection: projection} = reaction_ctx) do

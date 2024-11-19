@@ -49,13 +49,12 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
 
     event_builders =
       for {company, cert_count} <- @bank_certs do
-        &Messages.stock_certificates_transferred(
-          company,
-          :bank,
-          company,
-          cert_count,
-          reason,
-          &1
+        event_builder("stock_certificates_transferred",
+          company: company,
+          from: :bank,
+          to: company,
+          count: cert_count,
+          reason: reason
         )
       end
 
@@ -67,21 +66,21 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
   end
 
   handle_event "stock_certificates_transferred", ctx do
-    %{company: company, from: from, to: to, quantity: quantity} = ctx.payload
+    %{company: company, from: from, to: to, count: count} = ctx.payload
 
     transfers = %{
-      from => -quantity,
-      to => quantity
+      from => -count,
+      to => count
     }
 
     cert_counts = ctx.projection.cert_counts
 
     cert_counts =
-      Enum.reduce(transfers, cert_counts, fn {entity, quantity}, cert_counts ->
+      Enum.reduce(transfers, cert_counts, fn {entity, count}, cert_counts ->
         update_in(
           cert_counts,
           [Access.key(entity, %{}), Access.key(company, 0)],
-          &(&1 + quantity)
+          &(&1 + count)
         )
       end)
 
@@ -110,7 +109,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
         "company is not public"
       end
 
-    &Messages.public_company_validated(company, maybe_error, &1)
+    Messages.event_builder("public_company_validated", company: company, maybe_error: maybe_error)
   end
 
   handle_command "validate_controlling_share", ctx do
@@ -130,10 +129,13 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
       end
 
     if player_cert_ownership == max_cert_ownership do
-      &Messages.controlling_share_validated(player, company, nil, &1)
+      Messages.event_builder("controlling_share_validated", company: company, player: player)
     else
-      error = "player does not have controlling share in company"
-      &Messages.controlling_share_validated(player, company, error, &1)
+      Messages.event_builder("controlling_share_validated",
+        company: company,
+        player: player,
+        maybe_error: "player does not have controlling share in company"
+      )
     end
   end
 
@@ -173,14 +175,13 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
         %{player: player, rubles: count * certificate_value}
       end)
 
-    &Messages.company_dividends_paid(
-      company,
-      income,
-      stock_count,
-      certificate_value,
-      player_payouts,
-      command_id,
-      &1
+    event_builder("company_dividends_paid",
+      company: company,
+      income: income,
+      stock_count: stock_count,
+      certificate_value: certificate_value,
+      player_payouts: player_payouts,
+      command_id: command_id
     )
   end
 
@@ -191,7 +192,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
   ########################################################
 
   handle_event "game_end_stock_values_determined", ctx do
-    %{companies: companies} = ctx.payload
+    %{company_stock_values: companies} = ctx.payload
 
     stock_values =
       Map.new(companies, fn %{company: company, stock_value: stock_value} ->
@@ -236,7 +237,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
 
   defreaction maybe_game_end_player_stock_values_calculated(%{projection: projection}) do
     if stock_values = projection.end_game_stock_valuation do
-      &Messages.game_end_player_stock_values_calculated(stock_values, &1)
+      event_builder("game_end_player_stock_values_calculated", player_stock_values: stock_values)
     end
   end
 

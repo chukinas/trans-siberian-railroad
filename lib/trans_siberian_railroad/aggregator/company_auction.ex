@@ -41,17 +41,17 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     [player_order: ctx.payload.player_order]
   end
 
-  handle_event "money_transferred", ctx do
+  handle_event "rubles_transferred", ctx do
     transfers = ctx.payload.transfers
     player_money = ctx.projection.player_money
 
     new_player_money_balances =
-      Enum.reduce(transfers, player_money, fn
-        {entity, amount}, balances when Constants.is_player(entity) ->
-          Map.update(balances, entity, amount, &(&1 + amount))
-
-        _, balances ->
+      Enum.reduce(transfers, player_money, fn %{entity: entity, rubles: rubles}, balances ->
+        if Constants.is_player(entity) do
+          Map.update(balances, entity, rubles, &(&1 + rubles))
+        else
           balances
+        end
       end)
 
     [player_money: new_player_money_balances]
@@ -62,13 +62,13 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   #########################################################
 
   handle_event "company_auction_started", ctx do
-    %{start_bidder: start_bidder, company: company} = ctx.payload
+    %{start_player: start_player, company: company} = ctx.payload
 
     [
       company: company,
       bidders:
         ctx.projection.player_order
-        |> Players.one_round(start_bidder)
+        |> Players.one_round(start_player)
         |> Enum.map(&{&1, nil})
     ]
   end
@@ -84,11 +84,11 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
          {:ok, player} <- fetch_current_bidder(projection) do
       min_bid =
         case fetch_highest_bid(projection) do
-          {:ok, amount} -> amount + 1
+          {:ok, rubles} -> rubles + 1
           {:error, _} -> 8
         end
 
-      &Messages.awaiting_bid_or_pass(player, company, min_bid, &1)
+      event_builder("awaiting_bid_or_pass", player: player, company: company, min_bid: min_bid)
     else
       _ -> nil
     end
@@ -103,21 +103,26 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   #########################################################
 
   handle_command "pass_on_company", ctx do
-    %{passing_player: passing_player, company: company} = ctx.payload
+    %{player: passing_player, company: company} = ctx.payload
     projection = ctx.projection
 
     with :ok <- validate_company_auction(projection),
          :ok <- validate_bidding_in_progress(projection),
          :ok <- validate_current_bidder(projection, passing_player),
          :ok <- validate_current_company(projection, company) do
-      &Messages.company_passed(passing_player, company, &1)
+      event_builder("company_passed", player: passing_player, company: company)
     else
-      {:error, reason} -> &Messages.company_pass_rejected(passing_player, company, reason, &1)
+      {:error, reason} ->
+        event_builder("company_pass_rejected",
+          player: passing_player,
+          company: company,
+          reason: reason
+        )
     end
   end
 
   handle_event "company_passed", ctx do
-    %{passing_player: passing_player} = ctx.payload
+    %{player: passing_player} = ctx.payload
     bidders = Enum.reject(ctx.projection.bidders, fn {player, _} -> player == passing_player end)
     [bidders: bidders, awaiting: nil]
   end
@@ -125,7 +130,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   defreaction maybe_all_players_passed_on_company(%{projection: projection}) do
     with :ok <- validate_no_bidders(projection),
          {:ok, company} <- fetch_current_company(projection) do
-      &Messages.all_players_passed_on_company(company, &1)
+      event_builder("all_players_passed_on_company", company: company)
     else
       _ -> nil
     end
@@ -136,29 +141,35 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   #########################################################
 
   handle_command "submit_bid", ctx do
-    %{bidder: bidder, company: company, amount: amount} = ctx.payload
+    %{player: bidder, company: company, rubles: rubles} = ctx.payload
     projection = ctx.projection
 
     with :ok <- validate_company_auction(projection),
          :ok <- validate_bidding_in_progress(projection),
          :ok <- validate_current_bidder(projection, bidder),
          :ok <- validate_current_company(projection, company),
-         :ok <- validate_min_bid(amount),
-         :ok <- validate_increasing_bid(projection, amount),
-         :ok <- validate_balance(projection, bidder, amount) do
-      &Messages.bid_submitted(bidder, company, amount, &1)
+         :ok <- validate_min_bid(rubles),
+         :ok <- validate_increasing_bid(projection, rubles),
+         :ok <- validate_balance(projection, bidder, rubles) do
+      event_builder("bid_submitted", player: bidder, company: company, rubles: rubles)
     else
-      {:error, reason} -> &Messages.bid_rejected(bidder, company, amount, reason, &1)
+      {:error, reason} ->
+        event_builder("bid_rejected",
+          player: bidder,
+          company: company,
+          rubles: rubles,
+          reason: reason
+        )
     end
   end
 
   handle_event "bid_submitted", ctx do
-    %{bidder: bidder, amount: amount} = ctx.payload
+    %{player: bidder, rubles: rubles} = ctx.payload
 
     [
       bidders:
         with [{^bidder, _} | rest] = ctx.projection.bidders do
-          rest ++ [{bidder, amount}]
+          rest ++ [{bidder, rubles}]
         end,
       awaiting: nil
     ]
@@ -169,17 +180,34 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
          :ok <- validate_company_auction(projection),
          {:ok, company} <- fetch_current_company(projection),
          {:ok, auction_winner} <- fetch_single_bidder(projection),
-         {:ok, amount} <- fetch_highest_bid(projection) do
+         {:ok, rubles} <- fetch_highest_bid(projection) do
       reason = "company stock auctioned off"
 
       available_links = RailLinks.connected_to("moscow") -- projection.built_rail_links
 
       [
-        &Messages.player_won_company_auction(auction_winner, company, amount, &1),
-        &Messages.stock_certificates_transferred(company, company, auction_winner, 1, reason, &1),
-        &Messages.money_transferred(%{auction_winner => -amount, company => amount}, reason, &1),
-        &Messages.awaiting_initial_rail_link(auction_winner, company, available_links, &1),
-        &Messages.awaiting_stock_value(auction_winner, company, amount, &1)
+        event_builder("player_won_company_auction",
+          player: auction_winner,
+          company: company,
+          rubles: rubles
+        ),
+        event_builder("stock_certificates_transferred",
+          company: company,
+          from: company,
+          to: auction_winner,
+          count: 1,
+          reason: reason
+        ),
+        event_builder("awaiting_initial_rail_link",
+          player: auction_winner,
+          company: company,
+          available_links: available_links
+        ),
+        event_builder("awaiting_stock_value",
+          player: auction_winner,
+          company: company,
+          max_stock_value: rubles
+        )
       ]
     else
       _ -> nil
@@ -187,8 +215,8 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   end
 
   handle_event "player_won_company_auction", ctx do
-    %{auction_winner: auction_winner, bid_amount: amount} = ctx.payload
-    [bidders: [{auction_winner, amount}]]
+    %{player: auction_winner, rubles: rubles} = ctx.payload
+    [bidders: [{auction_winner, rubles}]]
   end
 
   #########################################################
@@ -205,32 +233,51 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
          {:ok, link_income} <- RailLinks.fetch_rail_link_income(rail_link),
          :ok <- validate_unbuilt_rail_link(projection, rail_link),
          :ok <- validate_connected_link(rail_link) do
-      &Messages.initial_rail_link_built(building_player, company, rail_link, link_income, &1)
+      event_builder("initial_rail_link_built",
+        player: building_player,
+        company: company,
+        rail_link: rail_link,
+        link_income: link_income
+      )
     else
       {:error, reason} ->
-        &Messages.initial_rail_link_rejected(building_player, company, rail_link, reason, &1)
+        event_builder("initial_rail_link_rejected",
+          player: building_player,
+          company: company,
+          rail_link: rail_link,
+          reason: reason
+        )
     end
   end
 
   #########################################################
-  # setting starting stock price
+  # setting starting stock value
   # - must happen after a company opens
   #########################################################
 
   handle_command "set_stock_value", ctx do
-    %{auction_winner: auction_winner, company: company, price: price} = ctx.payload
+    %{player: auction_winner, company: company, stock_value: stock_value} = ctx.payload
     projection = ctx.projection
 
     with :ok <- validate_company_auction(projection),
          :ok <- validate_awaiting_stock_value(projection),
          :ok <- validate_bid_winner(projection, auction_winner),
          :ok <- validate_current_company(projection, company),
-         :ok <- validate_stock_value_not_exceeds_bid(projection, price),
-         :ok <- validate_stock_value_is_valid_spot_on_board(price) do
-      &Messages.stock_value_set(auction_winner, company, price, &1)
+         :ok <- validate_stock_value_not_exceeds_bid(projection, stock_value),
+         :ok <- validate_stock_value_is_valid_spot_on_board(stock_value) do
+      event_builder("stock_value_set",
+        player: auction_winner,
+        company: company,
+        stock_value: stock_value
+      )
     else
       {:error, reason} ->
-        &Messages.stock_value_rejected(auction_winner, company, price, reason, &1)
+        event_builder("stock_value_rejected",
+          player: auction_winner,
+          company: company,
+          stock_value: stock_value,
+          reason: reason
+        )
     end
   end
 
@@ -282,7 +329,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
 
   defreaction maybe_end_company_auction(%{projection: projection}) do
     if ["company_auction_ended"] == projection.awaiting do
-      &Messages.company_auction_ended(projection.company, &1)
+      event_builder("company_auction_ended", company: projection.company)
     end
   end
 
@@ -328,9 +375,9 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   # Bidders
   #########################################################
 
-  def fetch_start_bidder(projection) do
-    if start_bidder = projection.start_bidder do
-      {:ok, start_bidder}
+  def fetch_start_player(projection) do
+    if start_player = projection.start_player do
+      {:ok, start_player}
     else
       {:error, "no start bidder"}
     end
@@ -376,8 +423,8 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   end
 
   defp fetch_bid_winner(projection) do
-    with {:ok, {bidder, amount}} <- fetch_single_bidder_and_amount(projection) do
-      if is_integer(amount) do
+    with {:ok, {bidder, rubles}} <- fetch_single_bidder_and_amount(projection) do
+      if is_integer(rubles) do
         {:ok, bidder}
       else
         {:error, "There is one bidder left, but they haven't bid"}
@@ -406,8 +453,8 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
   # Bids
   #########################################################
 
-  defp validate_min_bid(amount) do
-    if amount >= 8 do
+  defp validate_min_bid(rubles) do
+    if rubles >= 8 do
       :ok
     else
       {:error, "bid must be at least 8"}
@@ -429,9 +476,9 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     end
   end
 
-  defp validate_increasing_bid(projection, amount) do
+  defp validate_increasing_bid(projection, rubles) do
     with {:ok, highest_bid} <- current_highest_bid(projection) do
-      if highest_bid < amount do
+      if highest_bid < rubles do
         :ok
       else
         {:error, "bid must be higher than the current bid"}
@@ -439,10 +486,10 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     end
   end
 
-  defp validate_balance(projection, bidder, amount) do
+  defp validate_balance(projection, bidder, rubles) do
     player_money_balance = projection.player_money[bidder] || 0
 
-    if player_money_balance < amount do
+    if player_money_balance < rubles do
       {:error, "insufficient funds"}
     else
       :ok
@@ -453,10 +500,10 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     with {:ok, bidders} <- fetch_bidders(projection) do
       case Enum.reverse(bidders) do
         [last_and_therefore_highest_bidder | _] ->
-          {_bidder, amount} = last_and_therefore_highest_bidder
+          {_bidder, rubles} = last_and_therefore_highest_bidder
 
-          if is_integer(amount) do
-            {:ok, amount}
+          if is_integer(rubles) do
+            {:ok, rubles}
           else
             {:error, "no bids"}
           end
@@ -487,7 +534,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     end
   end
 
-  # Setting stock price
+  # Setting stock value
   #########################################################
 
   # There is both a company up for auction,
@@ -506,24 +553,24 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     with {:ok, _} <- fetch_bid_winner(projection) do
       :ok
     else
-      _ -> {:error, "not awaiting stock price"}
+      _ -> {:error, "not awaiting stock value"}
     end
   end
 
-  defp validate_stock_value_is_valid_spot_on_board(price) do
-    if price in StockValue.stock_value_spaces() do
+  defp validate_stock_value_is_valid_spot_on_board(value) do
+    if value in StockValue.stock_value_spaces() do
       :ok
     else
-      {:error, "not one of the valid stock prices"}
+      {:error, "not one of the valid stock values"}
     end
   end
 
-  defp validate_stock_value_not_exceeds_bid(projection, price) do
+  defp validate_stock_value_not_exceeds_bid(projection, value) do
     with {:ok, bid} <- fetch_highest_bid(projection) do
-      if price <= bid do
+      if value <= bid do
         :ok
       else
-        {:error, "price exceeds winning bid"}
+        {:error, "stock value exceeds winning bid"}
       end
     end
   end

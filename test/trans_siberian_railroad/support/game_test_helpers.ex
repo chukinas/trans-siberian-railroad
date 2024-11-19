@@ -69,16 +69,16 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     # capture state before applying the bids and passing
     game_prior_to_bidding = context.game
     auction_winner = context[:auction_winner] || Enum.random(context.one_round)
-    amount = context[:winning_bid_amount] || 8
+    rubles = context[:winning_bid_amount] || 8
 
     game =
       handle_commands(
         context.game,
-        for player_id <- context.one_round do
-          if player_id == auction_winner do
-            submit_bid(player_id, "red", amount)
+        for player <- context.one_round do
+          if player == auction_winner do
+            submit_bid(player, "red", rubles)
           else
-            pass_on_company(player_id, "red")
+            pass_on_company(player, "red")
           end
         end
       )
@@ -86,7 +86,7 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     {:ok,
      game_prior_to_bidding: game_prior_to_bidding,
      auction_winner: auction_winner,
-     amount: amount,
+     rubles: rubles,
      game: game}
   end
 
@@ -160,9 +160,9 @@ defmodule TransSiberianRailroad.GameTestHelpers do
         pass_on_company(player, company)
       else
         rigged_bid =
-          with %{player: ^player, amount: amount} <-
+          with %{player: ^player, rubles: rubles} <-
                  Enum.find(rigged_auctions, &(&1[:company] == company)) do
-            amount
+            rubles
           else
             _ -> nil
           end
@@ -175,14 +175,14 @@ defmodule TransSiberianRailroad.GameTestHelpers do
   end
 
   defp do_stock_value(game, payload) do
-    %{player: player, company: company, max_price: max_price} = payload
+    %{player: player, company: company, max_stock_value: max_stock_value} = payload
 
-    price =
+    stock_value =
       @stock_value_spaces
-      |> Enum.take_while(&(&1 <= max_price))
+      |> Enum.take_while(&(&1 <= max_stock_value))
       |> Enum.random()
 
-    set_stock_value(player, company, price)
+    set_stock_value(player, company, stock_value)
     |> injest_commands(game)
   end
 

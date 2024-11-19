@@ -35,9 +35,9 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.TimingTrack do
 
   handle_command "start_interturn", ctx do
     if ctx.projection.timing_track >= 5 do
-      &Messages.interturn_started(&1)
+      Messages.event_builder("interturn_started")
     else
-      &Messages.interturn_skipped(&1)
+      Messages.event_builder("interturn_skipped")
     end
   end
 end

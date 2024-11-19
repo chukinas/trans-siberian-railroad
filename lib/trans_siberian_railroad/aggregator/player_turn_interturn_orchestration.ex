@@ -18,8 +18,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration do
   end
 
   handle_event "auction_phase_ended", ctx do
-    if ctx.payload.phase_number == 1 do
-      Messages.start_player_turn(user: :game, trace_id: ctx.trace_id)
+    if ctx.payload.phase == 1 do
+      command("start_player_turn", user: :game, trace_id: ctx.trace_id)
       |> set_next_command()
     end
   end
@@ -35,18 +35,18 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration do
 
   handle_event("single_stock_purchased", ctx, do: end_turn(ctx))
   handle_event("two_stock_certificates_purchased", ctx, do: end_turn(ctx))
-  handle_event("rail_link_built", ctx, do: end_turn(ctx))
-  handle_event("two_rail_links_built", ctx, do: end_turn(ctx))
+  handle_event("internal_rail_link_built", ctx, do: end_turn(ctx))
+  handle_event("two_internal_rail_links_built", ctx, do: end_turn(ctx))
   handle_event("passed", ctx, do: end_turn(ctx))
 
   defreaction maybe_end_player_turn(reaction_ctx) do
     if player = reaction_ctx.projection.end_turn do
-      &Messages.player_turn_ended(player, &1)
+      event_builder("player_turn_ended", player: player)
     end
   end
 
   handle_event "player_turn_ended", ctx do
-    Messages.start_interturn(user: :game, trace_id: ctx.trace_id)
+    command("start_interturn", user: :game, trace_id: ctx.trace_id)
     |> set_next_command()
     |> Keyword.put(:end_turn, nil)
   end
@@ -60,12 +60,12 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration do
   end
 
   handle_event "interturn_ended", ctx do
-    Messages.start_player_turn(user: :game, trace_id: ctx.trace_id)
+    command("start_player_turn", user: :game, trace_id: ctx.trace_id)
     |> set_next_command()
   end
 
   handle_event "interturn_skipped", ctx do
-    Messages.start_player_turn(user: :game, trace_id: ctx.trace_id)
+    command("start_player_turn", user: :game, trace_id: ctx.trace_id)
     |> set_next_command()
   end
 end

@@ -21,7 +21,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
 
     # THEN
     assert event = get_one_event(game, "company_auction_started")
-    assert event.payload == %{company: "red", start_bidder: context.start_player}
+    assert event.payload == %{company: "red", start_player: context.start_player}
   end
 
   for {phase_number, companies} <- [{1, @phase_1_companies}, {2, @phase_2_companies}] do
@@ -39,10 +39,16 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
 
           2 = phase_number ->
             game = context.game
-            start_bidder = context.start_player
+            start_player = context.start_player
             [last_event | _] = game.events
             metadata = Metadata.new(last_event.version + 1, Ecto.UUID.generate())
-            event = Messages.auction_phase_started(phase_number, start_bidder, metadata)
+
+            event =
+              Messages.event_builder("auction_phase_started",
+                phase: phase_number,
+                start_player: start_player
+              ).(metadata)
+
             handle_one_event(game, event)
         end
 
@@ -51,8 +57,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
         handle_commands(
           game,
           for company <- expected_companies,
-              player_id <- context.one_round do
-            pass_on_company(player_id, company)
+              player <- context.one_round do
+            pass_on_company(player, company)
           end
         )
 
@@ -78,7 +84,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "company_pass_rejected")
 
       assert event.payload == %{
-               passing_player: 3,
+               player: 3,
                company: "red",
                reason: "no company auction in progress"
              }
@@ -90,8 +96,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
         handle_commands(
           context.game,
           for company <- @phase_1_companies,
-              player_id <- context.one_round do
-            pass_on_company(player_id, company)
+              player <- context.one_round do
+            pass_on_company(player, company)
           end
         )
 
@@ -102,7 +108,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "company_pass_rejected")
 
       assert event.payload == %{
-               passing_player: 1,
+               player: 1,
                company: "red",
                reason: "no company auction in progress"
              }
@@ -113,7 +119,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       # GIVEN
       # We've now auctioned off a company and are waiting for the bid winner to
       # - build the initial rail link and
-      # - set the starting stock price.
+      # - set the starting stock value.
       # It's no one's turn to pass on a company.
       auction_winner = context.auction_winner
 
@@ -125,7 +131,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "company_pass_rejected")
 
       assert event.payload == %{
-               passing_player: auction_winner,
+               player: auction_winner,
                company: "red",
                reason: "bidding is closed"
              }
@@ -144,7 +150,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "company_pass_rejected")
 
       assert event.payload == %{
-               passing_player: wrong_player,
+               player: wrong_player,
                company: "blue",
                reason: "incorrect player"
              }
@@ -162,7 +168,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "company_pass_rejected")
 
       assert event.payload == %{
-               passing_player: start_player,
+               player: start_player,
                company: "blue",
                reason: "incorrect company"
              }
@@ -174,8 +180,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       game =
         handle_commands(
           context.game,
-          for player_id <- context.one_round do
-            pass_on_company(player_id, "red")
+          for player <- context.one_round do
+            pass_on_company(player, "red")
           end
         )
 
@@ -206,7 +212,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert [blue_auction, _red_auction] =
                filter_events(context.game, "company_auction_started")
 
-      assert %{company: "blue", start_bidder: ^start_player} = blue_auction.payload
+      assert %{company: "blue", start_player: ^start_player} = blue_auction.payload
     end
 
     test "-> auction_phase_ended when it's the last company", context do
@@ -216,8 +222,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       # We haven't ended the auction phase yet.
       commands =
         for company <- ~w/blue green/,
-            player_id <- context.one_round do
-          pass_on_company(player_id, company)
+            player <- context.one_round do
+          pass_on_company(player, company)
         end
 
       game = handle_commands(context.game, commands)
@@ -225,8 +231,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
 
       # WHEN
       commands =
-        for player_id <- context.one_round do
-          pass_on_company(player_id, "yellow")
+        for player <- context.one_round do
+          pass_on_company(player, "yellow")
         end
 
       game = handle_commands(game, commands)
@@ -250,9 +256,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "bid_rejected")
 
       assert event.payload == %{
-               bidder: wrong_player,
+               player: wrong_player,
                company: "blue",
-               amount: 0,
+               rubles: 0,
                reason: "no company auction in progress"
              }
     end
@@ -273,9 +279,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "bid_rejected")
 
       assert event.payload == %{
-               bidder: incorrect_player,
+               player: incorrect_player,
                company: "black",
-               amount: 0,
+               rubles: 0,
                reason: "bidding is closed"
              }
     end
@@ -293,9 +299,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "bid_rejected")
 
       assert event.payload == %{
-               bidder: incorrect_bidder,
+               player: incorrect_bidder,
                company: "blue",
-               amount: 0,
+               rubles: 0,
                reason: "incorrect player"
              }
     end
@@ -312,14 +318,14 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "bid_rejected")
 
       assert event.payload == %{
-               bidder: start_player,
+               player: start_player,
                company: "blue",
-               amount: 0,
+               rubles: 0,
                reason: "incorrect company"
              }
     end
 
-    test "amount is less than 8", context do
+    test "rubles is less than 8", context do
       # GIVEN
       start_player = context.start_player
 
@@ -330,9 +336,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "bid_rejected")
 
       assert event.payload == %{
-               bidder: start_player,
+               player: start_player,
                company: "red",
-               amount: 7,
+               rubles: 7,
                reason: "bid must be at least 8"
              }
     end
@@ -349,9 +355,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "bid_rejected")
 
       assert event.payload == %{
-               bidder: second_player,
+               player: second_player,
                company: "red",
-               amount: 8,
+               rubles: 8,
                reason: "bid must be higher than the current bid"
              }
     end
@@ -361,18 +367,18 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       start_player = context.start_player
 
       # WHEN
-      amount = 100
+      rubles = 100
 
       game =
-        handle_one_command(context.game, submit_bid(start_player, "red", amount))
+        handle_one_command(context.game, submit_bid(start_player, "red", rubles))
 
       # THEN
       assert event = get_one_event(game, "bid_rejected")
 
       assert event.payload == %{
-               bidder: start_player,
+               player: start_player,
                company: "red",
-               amount: amount,
+               rubles: rubles,
                reason: "insufficient funds"
              }
     end
@@ -381,19 +387,19 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
   describe "player_won_company_auction" do
     @describetag :auction_off_company
 
-    test "-> auction_winner is charged the winning bid amount", context do
+    test "-> auction_winner is charged the winning bid rubles", context do
       # GIVEN: see :start_game
       auction_winner = context.auction_winner
-      start_bidder_money = current_money(context.game_prior_to_bidding, auction_winner)
+      start_player = current_money(context.game_prior_to_bidding, auction_winner)
       game = context.game
 
       # WHEN: see this descibe block's setup
 
       # THEN
       current_bidder_money = current_money(game, auction_winner)
-      assert current_bidder_money == start_bidder_money - context.amount
+      assert current_bidder_money == start_player - context.rubles
 
-      assert event = get_latest_event(game, "money_transferred")
+      assert event = get_latest_event(game, "rubles_transferred")
       assert event.payload.reason == "company stock auctioned off"
     end
 
@@ -410,7 +416,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event.payload == %{
                player: auction_winner,
                company: "red",
-               max_price: 8
+               max_stock_value: 8
              }
     end
 
@@ -454,8 +460,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
 
       assert event.payload == %{
                company: "red",
-               auction_winner: context.auction_winner,
-               bid_amount: context.amount
+               player: context.auction_winner,
+               rubles: context.rubles
              }
     end
 
@@ -670,9 +676,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "stock_value_rejected")
 
       assert event.payload == %{
-               auction_winner: 1,
+               player: 1,
                company: "red",
-               price: 10,
+               stock_value: 10,
                reason: "no company auction in progress"
              }
     end
@@ -689,10 +695,10 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "stock_value_rejected")
 
       assert event.payload == %{
-               auction_winner: 1,
+               player: 1,
                company: "red",
-               price: 10,
-               reason: "not awaiting stock price"
+               stock_value: 10,
+               reason: "not awaiting stock value"
              }
     end
 
@@ -715,9 +721,9 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "stock_value_rejected")
 
       assert event.payload == %{
-               auction_winner: incorrect_player,
+               player: incorrect_player,
                company: "red",
-               price: 10,
+               stock_value: 10,
                reason: "incorrect player"
              }
     end
@@ -734,15 +740,15 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "stock_value_rejected")
 
       assert event.payload == %{
-               auction_winner: auction_winner,
+               player: auction_winner,
                company: "blue",
-               price: 7,
+               stock_value: 7,
                reason: "incorrect company"
              }
     end
 
     @tag winning_bid_amount: 10
-    test "the price is more than the winning bid", context do
+    test "the stock value is more than the winning bid", context do
       # GIVEN: see :start_game setup
 
       # WHEN
@@ -758,15 +764,15 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "stock_value_rejected")
 
       assert event.payload == %{
-               auction_winner: auction_winner,
+               player: auction_winner,
                company: "red",
-               price: 50,
-               reason: "price exceeds winning bid"
+               stock_value: 50,
+               reason: "stock value exceeds winning bid"
              }
     end
 
     @tag winning_bid_amount: 16
-    test "invalid amount", context do
+    test "invalid rubles", context do
       # GIVEN: see :start_game setup
 
       # WHEN
@@ -782,10 +788,10 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
       assert event = get_one_event(game, "stock_value_rejected")
 
       assert event.payload == %{
-               auction_winner: auction_winner,
+               player: auction_winner,
                company: "red",
-               price: 9,
-               reason: "not one of the valid stock prices"
+               stock_value: 9,
+               reason: "not one of the valid stock values"
              }
     end
   end
@@ -867,7 +873,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
 
       # THEN
       assert event = get_latest_event(game, "company_passed")
-      assert event.payload == %{company: "blue", passing_player: 2}
+      assert event.payload == %{company: "blue", player: 2}
     end
 
     @tag auction_off_company: false
@@ -902,7 +908,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
 
       # THEN
       assert event = get_one_event(game, "auction_phase_ended")
-      assert event.payload == %{phase_number: 1, start_player: auction_winner}
+      assert event.payload == %{phase: 1, start_player: auction_winner}
     end
   end
 end

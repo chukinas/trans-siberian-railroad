@@ -52,7 +52,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
   @phase_1_companies Constants.companies() |> Enum.take(4)
   handle_event "player_won_company_auction", ctx do
-    %{auction_winner: next_player, company: company} = ctx.payload
+    %{player: next_player, company: company} = ctx.payload
     companies = put_in(ctx.projection.companies, [company, :state], :active)
 
     if company in @phase_1_companies do
@@ -66,14 +66,14 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   # :player_money
   #########################################################
 
-  handle_event "money_transferred", ctx do
+  handle_event "rubles_transferred", ctx do
     transfers = ctx.payload.transfers
     player_money = ctx.projection.player_money
 
     new_player_money_balances =
       Enum.reduce(transfers, player_money, fn
-        {entity, amount}, balances when Constants.is_player(entity) ->
-          Map.update(balances, entity, amount, &(&1 + amount))
+        %{entity: entity, rubles: rubles}, balances when Constants.is_player(entity) ->
+          Map.update(balances, entity, rubles, &(&1 + rubles))
 
         _, balances ->
           balances
@@ -87,13 +87,13 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   #########################################################
 
   handle_event "stock_certificates_transferred", ctx do
-    %{from: from, to: to, quantity: quantity} = ctx.payload
-    transfers = %{from => -quantity, to => quantity}
+    %{from: from, to: to, count: count} = ctx.payload
+    transfers = %{from => -count, to => count}
 
     companies =
-      Enum.reduce(transfers, ctx.projection.companies, fn {entity, amount}, companies ->
+      Enum.reduce(transfers, ctx.projection.companies, fn {entity, count}, companies ->
         if Constants.is_company(entity) do
-          update_in(companies, [entity, :stock_count], &(&1 + amount))
+          update_in(companies, [entity, :stock_count], &(&1 + count))
         else
           companies
         end
@@ -107,7 +107,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   #########################################################
 
   handle_event "stock_value_set", ctx do
-    %{company: company, value: stock_value} = ctx.payload
+    %{company: company, stock_value: stock_value} = ctx.payload
     companies = ctx.projection.companies |> put_in([company, :stock_value], stock_value)
     [companies: companies]
   end
@@ -121,9 +121,9 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
     with {:ok, next_player} <- projection.fetched_next_player,
          :ok <- validate_not_player_turn(projection) do
-      &Messages.player_turn_started(next_player, &1)
+      event_builder("player_turn_started", player: next_player)
     else
-      {:error, msg} -> &Messages.player_turn_rejected(msg, &1)
+      {:error, msg} -> event_builder("player_turn_rejected", reason: msg)
     end
   end
 
@@ -147,9 +147,10 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
 
     with :ok <- validate_player_turn(projection),
          :ok <- validate_current_player(projection, player) do
-      &Messages.player_action_reserved(player, &1)
+      Messages.event_builder("player_action_reserved", player: player)
     else
-      {:error, reason} -> &Messages.player_action_rejected(player, reason, &1)
+      {:error, reason} ->
+        Messages.event_builder("player_action_rejected", player: player, reason: reason)
     end
   end
 
@@ -158,38 +159,38 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   #########################################################
 
   handle_command "purchase_single_stock", ctx do
-    %{purchasing_player: purchasing_player, company: company, price: price} = ctx.payload
+    %{player: purchasing_player, company: company, rubles: rubles} = ctx.payload
     projection = ctx.projection
 
     with :ok <- validate_player_turn(projection),
          :ok <- validate_current_player(projection, purchasing_player),
          :ok <- validate_active_company(projection, company),
-         :ok <- validate_funds(projection, purchasing_player, price),
+         :ok <- validate_funds(projection, purchasing_player, rubles),
          :ok <- validate_company_stock_count(projection, company),
-         :ok <- validate_company_stock_value(projection, company, price) do
-      transfers = %{purchasing_player => -price, company => price}
+         :ok <- validate_company_stock_value(projection, company, rubles) do
       reason = "single stock purchased"
 
       [
-        &Messages.single_stock_purchased(purchasing_player, company, price, &1),
-        &Messages.stock_certificates_transferred(
-          company,
-          company,
-          purchasing_player,
-          1,
-          reason,
-          &1
+        event_builder("single_stock_purchased",
+          player: purchasing_player,
+          company: company,
+          rubles: rubles
         ),
-        &Messages.money_transferred(transfers, reason, &1)
+        event_builder("stock_certificates_transferred",
+          company: company,
+          from: company,
+          to: purchasing_player,
+          count: 1,
+          reason: reason
+        )
       ]
     else
       {:error, reason} ->
-        Messages.single_stock_purchase_rejected(
-          purchasing_player,
-          company,
-          price,
-          reason,
-          ctx.metadata.(0)
+        event_builder("single_stock_purchase_rejected",
+          player: purchasing_player,
+          company: company,
+          rubles: rubles,
+          reason: reason
         )
     end
   end
@@ -199,14 +200,14 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   #########################################################
 
   handle_command "pass", ctx do
-    %{passing_player: passing_player} = ctx.payload
+    %{player: passing_player} = ctx.payload
     projection = ctx.projection
 
     with :ok <- validate_player_turn(projection),
          :ok <- validate_current_player(projection, passing_player) do
-      &Messages.passed(passing_player, &1)
+      event_builder("passed", player: passing_player)
     else
-      {:error, reason} -> &Messages.pass_rejected(passing_player, reason, &1)
+      {:error, reason} -> event_builder("pass_rejected", player: passing_player, reason: reason)
     end
   end
 
@@ -274,17 +275,17 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     end
   end
 
-  defp validate_company_stock_value(projection, company, price) do
+  defp validate_company_stock_value(projection, company, stock_value) do
     case projection.companies[company][:stock_value] do
-      ^price -> :ok
-      _ -> {:error, "does not match current stock price"}
+      ^stock_value -> :ok
+      _ -> {:error, "does not match current stock value"}
     end
   end
 
-  defp validate_funds(projection, player, price) do
+  defp validate_funds(projection, player, rubles) do
     case Map.get(projection.player_money, player) do
       nil -> {:error, "player does not exist"}
-      balance when is_integer(balance) and balance >= price -> :ok
+      balance when is_integer(balance) and balance >= rubles -> :ok
       _ -> {:error, "insufficient funds"}
     end
   end

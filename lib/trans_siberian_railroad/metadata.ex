@@ -20,7 +20,7 @@ defmodule TransSiberianRailroad.Metadata do
 
   def override(metadata, overrides) do
     Enum.reduce(overrides, metadata, fn
-      {k, v}, metadata when k in [:id] -> Keyword.put(metadata, k, v)
+      {k, v}, metadata when k in [:id, :trace_id] -> Keyword.put(metadata, k, v)
     end)
   end
 end

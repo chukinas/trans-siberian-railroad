@@ -15,7 +15,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
   # invariant: all three fields are either all nil or all non-nil
   aggregator_typedstruct do
     field :phase_number, 1..2
-    field :start_bidder, Constants.player()
+    field :start_player, Constants.player()
 
     # default to nil
     # e: auction_phase_started: populate the list
@@ -41,7 +41,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
   #########################################################
 
   handle_event "auction_phase_started", ctx do
-    %{phase_number: phase_number, start_bidder: start_bidder} = ctx.payload
+    %{phase: phase_number, start_player: start_player} = ctx.payload
 
     companies =
       case phase_number do
@@ -56,7 +56,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
 
     [
       phase_number: phase_number,
-      start_bidder: start_bidder,
+      start_player: start_player,
       next_steps: next_steps
     ]
   end
@@ -68,7 +68,10 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
   defreaction maybe_start_company_auction(%{projection: projection}) do
     case projection.next_steps do
       [{company, :start} | _] ->
-        &Messages.company_auction_started(projection.start_bidder, company, &1)
+        event_builder("company_auction_started",
+          start_player: projection.start_player,
+          company: company
+        )
 
       _ ->
         nil
@@ -80,11 +83,11 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
   end
 
   #########################################################
-  # Keep :start_bidder up to date
+  # Keep :start_player up to date
   #########################################################
 
   handle_event "player_won_company_auction", ctx do
-    [start_bidder: ctx.payload.auction_winner]
+    [start_player: ctx.payload.player]
   end
 
   #########################################################
@@ -101,7 +104,8 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
 
   defreaction maybe_end_auction_phase(%{projection: projection}) do
     if [] == projection.next_steps do
-      &Messages.auction_phase_ended(projection.phase_number, projection.start_bidder, &1)
+      %{phase_number: phase, start_player: start_player} = projection
+      event_builder("auction_phase_ended", phase: phase, start_player: start_player)
     end
   end
 
@@ -109,7 +113,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
     [
       phase_number: nil,
       next_steps: nil,
-      start_bidder: nil
+      start_player: nil
     ]
   end
 end

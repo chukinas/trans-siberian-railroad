@@ -19,7 +19,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.RailLinks do
     [built_rail_links: [{company, rail_link} | ctx.projection.built_rail_links]]
   end
 
-  handle_event "rail_link_built", ctx do
+  handle_event "internal_rail_link_built", ctx do
     %{company: company, rail_link: rail_link} = ctx.payload
     [built_rail_links: [{company, rail_link} | ctx.projection.built_rail_links]]
   end
@@ -40,7 +40,11 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.RailLinks do
         {:error, error} -> error
       end
 
-    &Messages.company_rail_link_validated(company, rail_link, maybe_error, &1)
+    Messages.event_builder("company_rail_link_validated", %{
+      company: company,
+      rail_link: rail_link,
+      maybe_error: maybe_error
+    })
   end
 
   #########################################################

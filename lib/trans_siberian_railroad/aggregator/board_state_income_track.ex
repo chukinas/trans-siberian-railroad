@@ -21,7 +21,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.IncomeTrack do
   end
 
   handle_command "pay_dividends", _ctx do
-    &Messages.dividends_sequence_started(&1)
+    event_builder("dividends_sequence_started")
   end
 
   handle_event "dividends_sequence_started", ctx do
@@ -42,9 +42,9 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.IncomeTrack do
   defreaction maybe_pay_company_dividends(%{projection: projection} = reaction_ctx) do
     if next_company = get_in(projection.next_dividends_companies, [Access.at(0)]) do
       {event_id, company, income} = next_company
+      payload = [company: company, income: income]
       metadata = Projection.metadata(projection, id: event_id, user: :game)
-
-      command = Messages.pay_company_dividends(company, income, metadata)
+      command = command("pay_company_dividends", payload, metadata)
       ReactionCtx.issue_if_unsent(reaction_ctx, command)
     end
   end
@@ -58,7 +58,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.IncomeTrack do
 
   defreaction maybe_end_dividends(%{projection: projection}) do
     case projection.next_dividends_companies do
-      [] -> &Messages.dividends_paid(&1)
+      [] -> event_builder("dividends_paid")
       _ -> nil
     end
   end

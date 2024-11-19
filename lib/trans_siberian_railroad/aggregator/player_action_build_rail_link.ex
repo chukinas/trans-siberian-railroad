@@ -1,12 +1,12 @@
 defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
   @moduledoc """
-  Handles the `build_rail_link` command, ultimately emitting either a `rail_link_built` or `rail_link_rejected` event.
+  Handles the `build_internal_rail_link` command, ultimately emitting either a `internal_rail_link_built` or `internal_rail_link_rejected` event.
   """
 
   use TransSiberianRailroad.Aggregator
 
   aggregator_typedstruct do
-    # The rail_link_sequence_started is stored here.
+    # The internal_rail_link_sequence_started is stored here.
     # This field being non-nil tells us that the sequence is in progress.
     field :current_event, Command.t()
 
@@ -21,37 +21,33 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
   # Begin sequence
   ########################################################
 
-  handle_command "build_rail_link", ctx do
+  handle_command "build_internal_rail_link", ctx do
     if ctx.projection.current_event do
-      %{player: player, company: company, rail_link: rail_link, rubles: rubles} = ctx.payload
       reason = "another rail link is already being built"
 
-      &Messages.rail_link_rejected(
-        player,
-        company,
-        rail_link,
-        rubles,
-        [reason],
-        &1
+      Messages.event_builder(
+        "internal_rail_link_rejected",
+        Map.put(ctx.payload, :reasons, [reason])
       )
     else
-      %{player: player, company: company, rail_link: rail_link, rubles: rubles} = ctx.payload
-      &Messages.rail_link_sequence_started(player, company, rail_link, rubles, &1)
+      Messages.event_builder("internal_rail_link_sequence_started", ctx.payload)
     end
   end
 
-  handle_event "rail_link_sequence_started", ctx do
+  handle_event "internal_rail_link_sequence_started", ctx do
     metadata = [user: :game, trace_id: ctx.event.trace_id]
-    %{player: player, company: company, rail_link: rail_link, rubles: rubles} = ctx.payload
+    %{player: player, company: company, rail_link: rail_link} = ctx.payload
+    rubles = 4
 
     validation_commands =
       [
-        Messages.reserve_player_action(player, metadata),
-        Messages.validate_public_company(company, metadata),
-        Messages.validate_controlling_share(player, company, metadata),
-        Messages.validate_company_money(company, rubles, metadata),
-        Messages.validate_company_rail_link(company, rail_link, metadata)
+        {"reserve_player_action", player: player},
+        {"validate_public_company", company: company},
+        {"validate_controlling_share", player: player, company: company},
+        {"validate_company_money", company: company, rubles: rubles},
+        {"validate_company_rail_link", company: company, rail_link: rail_link}
       ]
+      |> Enum.map(fn {n, kv} -> command(n, kv, metadata) end)
       |> Enum.shuffle()
 
     [
@@ -86,10 +82,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
     end
   end
 
-  # ------------------------------------------------------
   # It must be this player's turn
-  # ------------------------------------------------------
-
   handle_event "player_action_reserved", ctx do
     update_commands_and_errors(ctx, "reserve_player_action")
   end
@@ -98,36 +91,24 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
     update_commands_and_errors(ctx, "reserve_player_action", ctx.payload.reason)
   end
 
-  # ------------------------------------------------------
   # Company must be public
-  # ------------------------------------------------------
-
   handle_event "public_company_validated", ctx do
-    update_commands_and_errors(ctx, "validate_public_company", ctx.payload.maybe_error)
+    update_commands_and_errors(ctx, "validate_public_company", ctx.payload[:maybe_error])
   end
 
-  # ------------------------------------------------------
   # Player must have controlling share
-  # ------------------------------------------------------
-
   handle_event "controlling_share_validated", ctx do
-    update_commands_and_errors(ctx, "validate_controlling_share", ctx.payload.maybe_error)
+    update_commands_and_errors(ctx, "validate_controlling_share", ctx.payload[:maybe_error])
   end
 
-  # ------------------------------------------------------
   # Rail link must connect to network
-  # ------------------------------------------------------
-
   handle_event "company_rail_link_validated", ctx do
-    update_commands_and_errors(ctx, "validate_company_rail_link", ctx.payload.maybe_error)
+    update_commands_and_errors(ctx, "validate_company_rail_link", ctx.payload[:maybe_error])
   end
 
-  # ------------------------------------------------------
-  # Company must have enough money
-  # ------------------------------------------------------
-
+  # Company must have enough rubles
   handle_event "company_money_validated", ctx do
-    update_commands_and_errors(ctx, "validate_company_money", ctx.payload.maybe_error)
+    update_commands_and_errors(ctx, "validate_company_money", ctx.payload[:maybe_error])
   end
 
   ########################################################
@@ -139,26 +120,23 @@ defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
 
     case projection do
       %__MODULE__{current_event: %Event{payload: payload}, validation_commands: [], errors: []} ->
-        %{player: player, company: company, rail_link: rail_link, rubles: rubles} = payload
-
-        &Messages.rail_link_built(player, company, rail_link, rubles, &1)
+        Messages.event_builder("internal_rail_link_built", payload)
 
       %__MODULE__{
         current_event: %Event{payload: payload},
         validation_commands: [],
         errors: errors
       } ->
-        %{player: player, company: company, rail_link: rail_link, rubles: rubles} = payload
-        &Messages.rail_link_rejected(player, company, rail_link, rubles, errors, &1)
+        Messages.event_builder("internal_rail_link_rejected", Map.put(payload, :reasons, errors))
 
       _ ->
         nil
     end
   end
 
-  handle_event("rail_link_built", _ctx, do: clear())
+  handle_event("internal_rail_link_built", _ctx, do: clear())
 
-  handle_event "rail_link_rejected", ctx do
+  handle_event "internal_rail_link_rejected", ctx do
     with %Event{trace_id: trace_id} <- ctx.projection.current_event,
          ^trace_id <- ctx.event.trace_id do
       clear()

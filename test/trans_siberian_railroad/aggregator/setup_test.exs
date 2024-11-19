@@ -123,7 +123,7 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
   test "player and company balances may never be negative"
   test "all events have incrementing sequence numbers"
 
-  describe "players' starting money" do
+  describe "players' starting rubles" do
     test "is zero prior to game_started" do
       # GIVEN
       player_count = Enum.random(1..5)
@@ -132,8 +132,8 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
       game = init_and_add_players(player_count)
 
       # THEN
-      for player_id <- 1..player_count do
-        assert current_money(game, player_id) == 0
+      for player <- 1..player_count do
+        assert current_money(game, player) == 0
       end
     end
 
@@ -150,8 +150,8 @@ defmodule TransSiberianRailroad.Aggregator.SetupTest do
         game = handle_one_command(game, start_game())
 
         # THEN
-        for player_id <- 1..player_count do
-          assert current_money(game, player_id) == expected_money
+        for player <- 1..player_count do
+          assert current_money(game, player) == expected_money
         end
       end
     end

@@ -34,7 +34,7 @@ defmodule TransSiberianRailroad.Game do
   @aggregators [
     TransSiberianRailroad.Aggregator.AuctionPhase,
     TransSiberianRailroad.Aggregator.BoardState.IncomeTrack,
-    TransSiberianRailroad.Aggregator.BoardState.Money,
+    TransSiberianRailroad.Aggregator.BoardState.Rubles,
     TransSiberianRailroad.Aggregator.BoardState.RailLinks,
     TransSiberianRailroad.Aggregator.BoardState.StockCertificates,
     TransSiberianRailroad.Aggregator.BoardState.StockValue,

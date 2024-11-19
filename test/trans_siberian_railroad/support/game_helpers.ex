@@ -59,8 +59,9 @@ defmodule TransSiberianRailroad.GameHelpers do
   # REDUCERS
   #########################################################
 
-  def force_end_game(game, causes \\ [:nonsense]) do
-    Messages.end_game(causes, user: :game) |> injest_commands(game)
+  def force_end_game(game, causes \\ ["nonsense"]) do
+    Messages.command("end_game", %{reasons: causes}, user: :game)
+    |> injest_commands(game)
   end
 
   def handle_commands(game \\ Game.new(), commands, opts \\ []) do
@@ -99,12 +100,17 @@ defmodule TransSiberianRailroad.GameHelpers do
   # Converters
   #########################################################
 
-  def current_money(game, player_id) do
+  def current_money(game, player) do
     Enum.reduce(game.events, 0, fn event, balance ->
       case event.name do
-        "money_transferred" ->
-          amount = Map.get(event.payload.transfers, player_id, 0)
-          balance + amount
+        "rubles_transferred" ->
+          rubles =
+            Enum.find_value(event.payload.transfers, fn
+              %{entity: ^player, rubles: rubles} -> rubles
+              _ -> nil
+            end) || 0
+
+          balance + rubles
 
         _ ->
           balance
@@ -115,11 +121,11 @@ defmodule TransSiberianRailroad.GameHelpers do
   def players_money(game) do
     Enum.reduce(game.events, %{}, fn event, balances ->
       case event.name do
-        "money_transferred" ->
+        "rubles_transferred" ->
           event.payload.transfers
-          |> Enum.filter(fn {player_id, _} -> Constants.is_player(player_id) end)
-          |> Enum.reduce(balances, fn {player_id, amount}, balances ->
-            Map.update(balances, player_id, amount, &(&1 + amount))
+          |> Enum.filter(&Constants.is_player(&1.player))
+          |> Enum.reduce(balances, fn %{player: player, rubles: rubles}, balances ->
+            Map.update(balances, player, rubles, &(&1 + rubles))
           end)
 
         _ ->

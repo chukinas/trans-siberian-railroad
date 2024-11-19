@@ -1,0 +1,2 @@
+defmodule TransSiberianRailroad.Interturn.StockAdjustmentsTest do
+end

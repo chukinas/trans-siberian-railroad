@@ -9,7 +9,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockValue do
   At the end of the game, players receive this value for each stock they own.
 
   Stock value dictates
-  - The price a player must pay to buy a stock certificate
+  - The rubles a player must pay to buy a stock certificate
   - When a company gets nationalized,
     the tsar buys out the owner of each stock certificate at the current stock value
   - During Interturn, the company with the highest stock value has its stock value increased by 1.
@@ -42,8 +42,8 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockValue do
   ########################################################
 
   handle_event "stock_value_set", ctx do
-    %{company: company, value: value} = ctx.payload
-    [stock_values: Map.put(ctx.projection.stock_values, company, value)]
+    %{company: company, stock_value: stock_value} = ctx.payload
+    [stock_values: Map.put(ctx.projection.stock_values, company, stock_value)]
   end
 
   handle_event "stock_value_incremented", ctx do
@@ -89,7 +89,14 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockValue do
           end
         )
 
-      &Messages.game_end_stock_values_determined(companies, &1)
+      note =
+        "this takes nationalization into account but ignores the effect of private companies, " <>
+          "the value of whose stock certificates is actually zero at game end"
+
+      event_builder("game_end_stock_values_determined",
+        company_stock_values: companies,
+        note: note
+      )
     end
   end
 

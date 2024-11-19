@@ -26,8 +26,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
   #########################################################
 
   handle_command "end_game", ctx do
-    %{causes: causes} = ctx.payload
-    &Messages.game_end_sequence_started(causes, &1)
+    event_builder("game_end_sequence_started", ctx.payload)
   end
 
   handle_event "game_end_player_money_calculated", ctx do
@@ -44,7 +43,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
       player_scores =
         Stream.concat(player_money, player_stock_values)
         |> Enum.group_by(& &1.player, fn
-          %{money: money} -> money
+          %{rubles: rubles} -> rubles
           %{total_value: total_stock_value} -> total_stock_value
         end)
         |> Enum.map(fn {player, individual_scores} ->
@@ -53,7 +52,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
         end)
         |> Enum.sort_by(& &1.player)
 
-      &Messages.player_scores_calculated(player_scores, &1)
+      event_builder("player_scores_calculated", player_scores: player_scores)
     end
   end
 
@@ -74,8 +73,8 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
       game_id = projection.game_id
 
       [
-        &Messages.winners_determined(winners, max_score, &1),
-        &Messages.game_ended(game_id, &1)
+        event_builder("winners_determined", players: winners, score: max_score),
+        event_builder("game_ended", game_id: game_id)
       ]
     end
   end

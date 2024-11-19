@@ -16,6 +16,7 @@ defmodule TransSiberianRailroad.Aggregator do
       alias TransSiberianRailroad.Command
       alias TransSiberianRailroad.Event
       alias TransSiberianRailroad.Messages
+      import Messages, only: [command: 2, command: 3, event_builder: 1, event_builder: 2]
       alias TransSiberianRailroad.Metadata
       alias TransSiberianRailroad.ReactionCtx
     end

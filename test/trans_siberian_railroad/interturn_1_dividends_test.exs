@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.DividendsTest do
+defmodule TransSiberianRailroad.Interturn.DividendsTest do
   use TransSiberianRailroad.Case, async: true
 
   @moduletag :simple_setup
@@ -7,7 +7,7 @@ defmodule TransSiberianRailroad.DividendsTest do
 
   describe "dividends" do
     @tag rig_auctions: [
-           %{company: "red", player: 1, amount: 8},
+           %{company: "red", player: 1, rubles: 8},
            %{company: "blue"},
            %{company: "green"},
            %{company: "yellow"}
@@ -34,11 +34,11 @@ defmodule TransSiberianRailroad.DividendsTest do
     end
 
     test "the certificate value is always rounded up (and make sure we test various stock counts too)"
-    test "money actually gets transferred"
+    test "rubles actually gets transferred"
 
     @tag rig_auctions: [
-           %{company: "red", player: 1, amount: 8},
-           %{company: "blue", player: 2, amount: 8},
+           %{company: "red", player: 1, rubles: 8},
+           %{company: "blue", player: 2, rubles: 8},
            %{company: "green"},
            %{company: "yellow"}
          ]
@@ -70,7 +70,7 @@ defmodule TransSiberianRailroad.DividendsTest do
 
       assert %{
                company: "red",
-               company_income: company_income,
+               income: company_income,
                stock_count: 2,
                player_payouts: [
                  %{player: 1, rubles: red_certificate_value},
@@ -91,7 +91,7 @@ defmodule TransSiberianRailroad.DividendsTest do
 
       assert %{
                company: "blue",
-               company_income: company_income,
+               income: company_income,
                stock_count: 1,
                player_payouts: [%{player: 2, rubles: blue_certificate_value}],
                certificate_value: blue_certificate_value,
@@ -113,17 +113,17 @@ defmodule TransSiberianRailroad.DividendsTest do
                player_money: [
                  %{
                    player: 1,
-                   money: starting_rubles - stock_cert_cost + red_certificate_value
+                   rubles: starting_rubles - stock_cert_cost + red_certificate_value
                  },
                  %{
                    player: 2,
-                   money:
+                   rubles:
                      starting_rubles - 2 * stock_cert_cost + red_certificate_value +
                        blue_certificate_value
                  },
                  %{
                    player: 3,
-                   money: starting_rubles
+                   rubles: starting_rubles
                  }
                ]
              }

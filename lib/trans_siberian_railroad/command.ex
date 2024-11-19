@@ -1,6 +1,11 @@
 defmodule TransSiberianRailroad.Command do
   use TypedStruct
   alias TransSiberianRailroad.Constants
+  alias TransSiberianRailroad.Message
+
+  #########################################################
+  # Struct
+  #########################################################
 
   typedstruct enforce: true do
     field :name, String.t()
@@ -14,20 +19,6 @@ defmodule TransSiberianRailroad.Command do
     field :global_version, pos_integer(), enforce: false
   end
 
-  defmacro __using__(_) do
-    quote do
-      import unquote(__MODULE__)
-      Module.register_attribute(__MODULE__, :__command_names__, accumulate: true)
-      @before_compile unquote(__MODULE__)
-    end
-  end
-
-  defmacro __before_compile__(_env) do
-    quote do
-      def command_names(), do: @__command_names__
-    end
-  end
-
   defimpl Inspect do
     import Inspect.Algebra
 
@@ -38,73 +29,56 @@ defmodule TransSiberianRailroad.Command do
     end
   end
 
-  defmacro defcommand(function_name) do
+  #########################################################
+  # Metaprogramming
+  #########################################################
+
+  defmacro __using__(_) do
     quote do
-      defcommand unquote(function_name)() do
-        []
+      import unquote(__MODULE__)
+      Module.register_attribute(__MODULE__, :__commands__, accumulate: true)
+      @before_compile unquote(__MODULE__)
+    end
+  end
+
+  defmacro defcommand(command_name, keys \\ []) do
+    quote do
+      if Enum.find(@__commands__, &(elem(&1, 0) == unquote(command_name))) do
+        raise """
+        Command #{unquote(command_name)} has already been defined.
+        """
+      end
+
+      @__commands__ {unquote(command_name), unquote(keys)}
+    end
+  end
+
+  defmacro __before_compile__(_env) do
+    quote do
+      @command_names_and_keys Map.new(@__commands__)
+      def command(command_name, payload \\ %{}, metadata) do
+        keys = Map.fetch!(@command_names_and_keys, command_name)
+        unquote(__MODULE__).__new__(command_name, payload, keys, metadata)
+      end
+
+      @command_names Map.keys(@command_names_and_keys)
+      def command_names() do
+        @command_names
       end
     end
   end
 
-  defmacro defcommand(function_head, do: block) do
-    modify_function_args = fn {fn_name, meta, args} ->
-      meta =
-        if Enum.any?(args) do
-          {_, meta, _} = Enum.at(args, -1)
-          meta
-        else
-          meta
-        end
+  #########################################################
+  # Other
+  #########################################################
 
-      metadata_arg = {:\\, meta, [{:metadata, meta, nil}, []]}
-      new_args = args ++ [metadata_arg]
-      {fn_name, meta, new_args}
-    end
-
-    command_name =
-      case function_head do
-        {:when, _, stuff} -> hd(stuff)
-        _ -> function_head
-      end
-      |> elem(0)
-      |> to_string()
-
-    function_head =
-      case function_head do
-        {:when, _, _} ->
-          update_in(function_head, [Access.elem(2), Access.at(0)], modify_function_args)
-
-        _ ->
-          modify_function_args.(function_head)
-      end
-
-    quote do
-      @__command_name__ unquote(command_name)
-      @__command_names__ @__command_name__
-      def unquote(function_head) do
-        metadata = var!(metadata)
-
-        user =
-          case Keyword.fetch(metadata, :user) do
-            {:ok, user} ->
-              user
-
-            :error ->
-              raise """
-              Commands must have a :user key in the metadata arg.
-              command name: #{inspect(@__command_name__)}
-              metadata: #{inspect(metadata)}
-              """
-          end
-
-        %unquote(__MODULE__){
-          name: @__command_name__,
-          payload: Map.new(unquote(block)),
-          id: metadata[:id] || Ecto.UUID.generate(),
-          trace_id: metadata[:trace_id] || Ecto.UUID.generate(),
-          user: user
-        }
-      end
-    end
+  def __new__(command_name, payload, keys, metadata) when is_list(keys) do
+    %__MODULE__{
+      name: command_name,
+      payload: Message.validated_payload!(command_name, payload, keys),
+      id: metadata[:id] || Ecto.UUID.generate(),
+      trace_id: metadata[:trace_id] || Ecto.UUID.generate(),
+      user: Keyword.fetch!(metadata, :user)
+    }
   end
 end

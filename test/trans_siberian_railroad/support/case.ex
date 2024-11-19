@@ -8,6 +8,7 @@ defmodule TransSiberianRailroad.Case do
       import TransSiberianRailroad.GameTestHelpers
       alias TransSiberianRailroad.Constants
       alias TransSiberianRailroad.Messages
+      import Messages, only: [command: 2, command: 3]
       taggable_setups()
     end
   end

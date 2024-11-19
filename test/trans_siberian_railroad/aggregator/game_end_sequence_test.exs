@@ -20,11 +20,11 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
       # GIVEN a game with a completed phase-1 auction,
       game = context.game
       # WHEN we force an end_game command,
-      causes = [:stuff]
-      game = force_end_game(game, causes)
+      reasons = ["stuff"]
+      game = force_end_game(game, reasons)
       # THEN we should see a game_end_sequence_started event
       assert event = get_one_event(game, "game_end_sequence_started")
-      assert event.payload.causes == causes
+      assert event.payload.reasons == reasons
     end
   end
 
@@ -34,7 +34,8 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
       game = context.game
       # AND one of the companies has been nationalized
       nationalized_company = Constants.companies() |> Enum.take(4) |> Enum.random()
-      game = handle_one_event(game, &Messages.company_nationalized(nationalized_company, &1))
+      event = Messages.event_builder("company_nationalized", company: nationalized_company)
+      game = handle_one_event(game, event)
       # WHEN we force an end_game command,
       game = force_end_game(game)
       # THEN we should see a game_end_sequence_started event
@@ -43,7 +44,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
       expected_company_stock_values =
         with company_stock_values =
                filter_events(game, "stock_value_set")
-               |> Map.new(&{&1.payload.company, &1.payload.value}) do
+               |> Map.new(&{&1.payload.company, &1.payload.stock_value}) do
           Enum.flat_map(Constants.companies(), fn company ->
             if (value = company_stock_values[company]) && company != nationalized_company do
               [%{company: company, stock_value: value}]
@@ -54,7 +55,7 @@ defmodule TransSiberianRailroad.Aggregator.GameEndSequenceTest do
         end
 
       assert event.payload == %{
-               companies: expected_company_stock_values,
+               company_stock_values: expected_company_stock_values,
                note:
                  "this takes nationalization into account but ignores the effect of private companies, the value of whose stock certificates is actually zero at game end"
              }
