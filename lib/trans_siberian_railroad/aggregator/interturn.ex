@@ -19,56 +19,62 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
   use TransSiberianRailroad.Aggregator
 
   aggregator_typedstruct do
-    plugin TransSiberianRailroad.Reactions
-    field :next_event, Event.t()
+    field :next_steps,
+          [{message_name :: String.t(), command_or_event_builder :: (String.t() -> term())}],
+          default: []
   end
 
   #########################################################
   # Start and end the sequence
   #########################################################
 
-  handle_event "interturn_started", ctx do
-    command("pay_dividends", user: :game, trace_id: ctx.trace_id)
-    |> put_next_command()
-  end
-
-  handle_event "dividends_paid", ctx do
-    metadata = Projection.next_metadata(ctx.projection)
-
-    Messages.event_builder("timing_track_reset").(metadata)
-    |> put_next_event()
-  end
-
-  defreaction maybe_next_event(%{projection: projection} = reaction_ctx) do
-    if event = projection.next_event, do: ReactionCtx.issue_if_unsent(reaction_ctx, event)
-  end
-
-  handle_event "timing_track_reset", ctx do
-    case ctx.projection.next_event do
-      %Event{id: id} when id == ctx.event.id -> clear()
+  defreaction maybe_next_step(reaction_ctx) do
+    with [next_step | _] <- reaction_ctx.projection.next_steps do
+      {message_name, message_builder} = next_step
+      message_builder.(reaction_ctx, message_name)
+    else
       _ -> nil
     end
   end
 
-  handle_event "interturn_ended", _ctx do
-    clear()
+  defp remove_completed_step(event_ctx, message_name) do
+    next_steps = event_ctx.projection.next_steps |> Enum.reject(&(elem(&1, 0) == message_name))
+    [next_steps: next_steps]
   end
 
-  #########################################################
-  # REDUCERS
-  #########################################################
+  handle_event "interturn_started", ctx do
+    trace_id = ctx.trace_id
+    metadata = [user: :game, trace_id: trace_id]
+    to_command = &ReactionCtx.command_if_unsent(&1, &2, metadata)
+    to_event = &ReactionCtx.event_if_unsent(&1, &2, trace_id)
 
-  defp put_next_command(command) do
-    set_next_command(command)
-    |> Keyword.put(:next_event, nil)
+    next_steps = [
+      {"pay_dividends", to_command},
+      {"check_phase_shift", to_command},
+      {"timing_track_reset", to_event},
+      {"interturn_ended", to_event}
+    ]
+
+    [next_steps: next_steps]
   end
 
-  defp put_next_event(event) do
-    set_next_command(nil)
-    |> Keyword.put(:next_event, event)
+  handle_event "dividends_paid", ctx do
+    remove_completed_step(ctx, "pay_dividends")
   end
 
-  defp clear() do
-    put_next_event(nil)
+  handle_event "phase_1_continues", ctx do
+    remove_completed_step(ctx, "check_phase_shift")
+  end
+
+  handle_event "phase_2_started", ctx do
+    remove_completed_step(ctx, "check_phase_shift")
+  end
+
+  handle_event "timing_track_reset", ctx do
+    remove_completed_step(ctx, "timing_track_reset")
+  end
+
+  handle_event "interturn_ended", ctx do
+    remove_completed_step(ctx, "interturn_ended")
   end
 end

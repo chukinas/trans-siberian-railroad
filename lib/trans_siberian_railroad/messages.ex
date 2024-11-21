@@ -235,12 +235,6 @@ defmodule TransSiberianRailroad.Messages do
   defevent("interturn_ended")
 
   #########################################################
-  # Timing Track
-  #########################################################
-
-  defevent("timing_track_reset")
-
-  #########################################################
   # Dividends
   #########################################################
 
@@ -267,12 +261,20 @@ defmodule TransSiberianRailroad.Messages do
   #########################################################
 
   defcommand("check_phase_shift")
+  defevent("phase_1_continues")
+  defevent("phase_2_started")
 
   #########################################################
   # Nationalization
   #########################################################
 
   defevent("company_nationalized", [:company])
+
+  #########################################################
+  # Timing Track
+  #########################################################
+
+  defevent("timing_track_reset")
 
   #########################################################
   # Game End Sequence

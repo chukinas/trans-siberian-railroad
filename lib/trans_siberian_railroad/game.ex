@@ -30,6 +30,7 @@ defmodule TransSiberianRailroad.Game do
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Projection
   alias TransSiberianRailroad.Reaction
+  alias TransSiberianRailroad.ReactionCtx
 
   @aggregators [
     TransSiberianRailroad.Aggregator.AuctionPhase,
@@ -42,6 +43,7 @@ defmodule TransSiberianRailroad.Game do
     TransSiberianRailroad.Aggregator.CompanyAuction,
     TransSiberianRailroad.Aggregator.GameEndSequence,
     TransSiberianRailroad.Aggregator.Interturn,
+    TransSiberianRailroad.Aggregator.Interturn.PhaseShiftCheck,
     TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink,
     TransSiberianRailroad.Aggregator.PlayerTurn,
     TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration,
@@ -138,9 +140,12 @@ defmodule TransSiberianRailroad.Game do
       |> Stream.map(& &1.id)
       |> MapSet.new()
 
+    events = game.event_queue ++ game.events
+    commands = game.command_queue ++ game.commands
+
     result =
       Enum.find_value(game.aggregators, fn agg ->
-        reaction_ctx = Reaction.build_reaction_ctx(agg, sent_id_mapset)
+        reaction_ctx = ReactionCtx.new(agg, sent_id_mapset, events, commands)
 
         if reaction = Reaction.get_reaction(agg, reaction_ctx) do
           {agg, reaction}

@@ -18,7 +18,15 @@ defmodule TransSiberianRailroad.Interturn.PhaseShiftTest do
       # GIVEN it's player 1's turn
       game = context.game
       # WHEN player 1 takes a turn
-      game = pass(1) |> injest_commands(game)
+      game =
+        [
+          pass(1),
+          pass(2),
+          pass(3),
+          pass(1)
+        ]
+        |> injest_commands(game)
+
       [game: game]
     end
 
@@ -28,7 +36,13 @@ defmodule TransSiberianRailroad.Interturn.PhaseShiftTest do
       refute find_command(context.game, "check_phase_shift")
     end
 
-    test "during the interturn"
+    test "during the interturn", context do
+      # WHEN the 5th timing-track action occurs,
+      game = pass(2) |> injest_commands(context.game)
+      # THEN we finally see a phase shift check
+      assert command = find_command(game, "check_phase_shift")
+      assert command.payload == %{}
+    end
 
     test "during the interturn, but not if we're already in phase 2"
   end

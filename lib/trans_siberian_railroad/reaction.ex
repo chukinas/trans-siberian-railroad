@@ -72,8 +72,4 @@ defmodule TransSiberianRailroad.Reaction do
       kv -> Map.new(kv)
     end
   end
-
-  defdelegate build_reaction_ctx(projection, sent_id_mapset),
-    to: TransSiberianRailroad.ReactionCtx,
-    as: :new
 end
