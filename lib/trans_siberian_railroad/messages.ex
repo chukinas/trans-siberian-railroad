@@ -263,6 +263,12 @@ defmodule TransSiberianRailroad.Messages do
   defevent("dividends_paid")
 
   #########################################################
+  # Phase Shift Check
+  #########################################################
+
+  defcommand("check_phase_shift")
+
+  #########################################################
   # Nationalization
   #########################################################
 

@@ -3,12 +3,7 @@ defmodule TransSiberianRailroad.Aggregator.RailLinkBuildingTest do
   # It's a domain complicated enough to warrant its own test module.
   # This module does not test the "build_initial_rail_link" command, which is tested in the AuctionTest module.
 
-  use ExUnit.Case, async: true
-  import TransSiberianRailroad.CommandFactory
-  import TransSiberianRailroad.GameHelpers
-  import TransSiberianRailroad.GameTestHelpers
-
-  taggable_setups()
+  use TransSiberianRailroad.Case, async: true
   @moduletag :start_game
   @moduletag :random_first_auction_phase
 

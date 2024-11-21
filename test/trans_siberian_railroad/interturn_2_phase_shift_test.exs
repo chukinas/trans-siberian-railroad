@@ -3,10 +3,35 @@ defmodule TransSiberianRailroad.Interturn.PhaseShiftTest do
   # Exception: the two bullets towards the bottom are handled by the Interturn.AuctionTest module
 
   use TransSiberianRailroad.Case, async: true
-  # CHECK
-  test "the phase shift check does not happen if the interturn doesn't happen"
-  test "the phase shift check happens during the interturn, but not if we're already in phase 2"
-  test "the phase shift check happens during the interturn, and only if we're in phase 1"
+  @moduletag :start_game
+  @moduletag :random_first_auction_phase
+
+  describe "phase shift check occurs" do
+    @describetag :simple_setup
+    @describetag rig_auctions: [
+                   %{company: "red", player: 1},
+                   %{company: "blue"},
+                   %{company: "green"},
+                   %{company: "yellow"}
+                 ]
+    setup context do
+      # GIVEN it's player 1's turn
+      game = context.game
+      # WHEN player 1 takes a turn
+      game = pass(1) |> injest_commands(game)
+      [game: game]
+    end
+
+    test ", but not if the interturn doesn't happen", context do
+      # THEN we don't see a phase shift check because the
+      # timing track has not advanced sufficiently
+      refute find_command(context.game, "check_phase_shift")
+    end
+
+    test "during the interturn"
+
+    test "during the interturn, but not if we're already in phase 2"
+  end
 
   # SHIFT CRITERIA
   test "the phase shift does happen when all companies have stock values less than 48"
