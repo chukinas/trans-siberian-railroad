@@ -27,7 +27,7 @@ defmodule TransSiberianRailroad.Interturn.PhaseShiftTest do
     |> injest_commands(game)
   end
 
-  describe "phase shift check occurs" do
+  describe "check_phase_shift occurs" do
     test "during the interturn", context do
       # GIVEN the timing track has advanced 4 times
       game = context.game
@@ -48,6 +48,7 @@ defmodule TransSiberianRailroad.Interturn.PhaseShiftTest do
       game = get_players(1, 5) |> pass(game)
       assert [internal] = filter_events(game, "interturn_started")
       assert [check_phase_shift] = filter_commands(game, "check_phase_shift")
+      assert get_one_event(game, "phase_2_started")
       game = get_players(6, 3) |> pass_on_company("black", game)
       game = get_players(9, 3) |> pass_on_company("white", game)
       # WHEN we have another interurn
@@ -59,7 +60,24 @@ defmodule TransSiberianRailroad.Interturn.PhaseShiftTest do
   end
 
   # SHIFT CRITERIA
-  test "the phase shift does happen when all companies have stock values less than 48"
+  @tag rig_auctions: [
+         %{company: "red", player: 1, rubles: 47},
+         %{company: "blue"},
+         %{company: "green"},
+         %{company: "yellow"}
+       ]
+  test "check_phase_shift -> phase_1_continues if all companies have stock values less than 48",
+       context do
+    # GIVEN no company has a stock value of 48 or greater
+    game = context.game
+    refute get_one_event(game, "phase_1_continues")
+    refute get_one_event(game, "phase_2_started")
+    # WHEN we force a phase shift check
+    game = check_phase_shift() |> injest_commands(game)
+    # THEN the phase shift does not happen
+    assert get_one_event(game, "phase_1_continues")
+  end
+
   test "the phase shift happens when a company has a stock value greater than or equal to 48"
   test "the check happens before the `stock adjustments` step"
 

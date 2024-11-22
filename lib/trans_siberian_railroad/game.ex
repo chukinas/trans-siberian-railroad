@@ -43,7 +43,6 @@ defmodule TransSiberianRailroad.Game do
     TransSiberianRailroad.Aggregator.CompanyAuction,
     TransSiberianRailroad.Aggregator.GameEndSequence,
     TransSiberianRailroad.Aggregator.Interturn,
-    TransSiberianRailroad.Aggregator.Interturn.PhaseShiftCheck,
     TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink,
     TransSiberianRailroad.Aggregator.PlayerTurn,
     TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration,

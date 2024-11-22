@@ -65,4 +65,8 @@ defmodule TransSiberianRailroad.CommandFactory do
     payload = [player: player, company: company, rubles: rubles]
     command("purchase_single_stock", payload, user: player)
   end
+
+  def check_phase_shift() do
+    command("check_phase_shift", user: :game)
+  end
 end

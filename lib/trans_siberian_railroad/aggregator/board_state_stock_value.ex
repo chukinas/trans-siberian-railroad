@@ -69,6 +69,18 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockValue do
   end
 
   ########################################################
+  # Phase Shift Check
+  ########################################################
+
+  handle_command "check_phase_shift", ctx do
+    if Enum.any?(ctx.projection.stock_values, fn {_, value} -> value >= 48 end) do
+      event_builder("phase_2_started")
+    else
+      event_builder("phase_1_continues")
+    end
+  end
+
+  ########################################################
   # Messages.game_end_stock_values_determined
   ########################################################
 

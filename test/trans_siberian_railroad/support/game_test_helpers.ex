@@ -127,7 +127,9 @@ defmodule TransSiberianRailroad.GameTestHelpers do
           |> do_rand_auction_phase(rigged_auctions)
 
         "awaiting_stock_value" ->
-          game |> do_stock_value(payload) |> do_rand_auction_phase(rigged_auctions)
+          game
+          |> do_stock_value(payload, rigged_auctions)
+          |> do_rand_auction_phase(rigged_auctions)
 
         "awaiting_initial_rail_link" ->
           game |> do_rail_link(payload, rigged_auctions) |> do_rand_auction_phase(rigged_auctions)
@@ -160,10 +162,8 @@ defmodule TransSiberianRailroad.GameTestHelpers do
         pass_on_company(player, company)
       else
         rigged_bid =
-          with %{player: ^player, rubles: rubles} <-
-                 Enum.find(rigged_auctions, &(&1[:company] == company)) do
-            rubles
-          else
+          case Enum.find(rigged_auctions, &(&1[:company] == company)) do
+            %{rubles: rubles} -> rubles
             _ -> nil
           end
 
@@ -174,13 +174,22 @@ defmodule TransSiberianRailroad.GameTestHelpers do
     handle_commands(game, [command])
   end
 
-  defp do_stock_value(game, payload) do
+  defp do_stock_value(game, payload, rigged_auctions) do
     %{player: player, company: company, max_stock_value: max_stock_value} = payload
 
-    stock_value =
+    available_stock_values =
       @stock_value_spaces
       |> Enum.take_while(&(&1 <= max_stock_value))
-      |> Enum.random()
+
+    maybe_rigged_company_bid = Enum.find(rigged_auctions, &(&1[:company] == company))
+
+    stock_value =
+      if maybe_rigged_company_bid[:rubles] do
+        Enum.at(available_stock_values, -1)
+      else
+        available_stock_values
+        |> Enum.random()
+      end
 
     set_stock_value(player, company, stock_value)
     |> injest_commands(game)
