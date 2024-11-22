@@ -7,6 +7,7 @@ defmodule TransSiberianRailroad.ReactionCtx do
   alias TransSiberianRailroad.Command
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
+  alias TransSiberianRailroad.Metadata
 
   typedstruct enforce: true do
     field :projection, struct()
@@ -32,11 +33,22 @@ defmodule TransSiberianRailroad.ReactionCtx do
   # Converters
   ########################################################
 
+  def get_latest_event(%__MODULE__{events: events}, event_name) do
+    Enum.find(events, &(&1.name == event_name))
+  end
+
   defp message_sent?(messages, name, trace_id) do
     !!Enum.find(messages, &(&1.name == name and &1.trace_id == trace_id))
   end
 
-  def command_if_unsent(reaction_ctx, command_name, payload \\ %{}, metadata) do
+  def command_if_unsent(reaction_ctx, command_name, payload \\ %{}, metadata_overrides \\ [])
+      when is_list(metadata_overrides) do
+    metadata =
+      metadata_overrides
+      |> Keyword.put_new(:trace_id, reaction_ctx.projection.__trace_id__)
+      |> Keyword.put_new(:user, :game)
+      |> Metadata.for_command()
+
     trace_id = Keyword.fetch!(metadata, :trace_id)
 
     if !message_sent?(reaction_ctx.commands, command_name, trace_id) do

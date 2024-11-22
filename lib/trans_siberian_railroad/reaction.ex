@@ -42,11 +42,6 @@ defmodule TransSiberianRailroad.Reaction do
   """
   @spec get_reaction(Projection.t(), map()) :: reaction() | nil
   def get_reaction(%mod{} = projection, reaction_ctx) do
-    coerce =
-      with metadata = Projection.event_from_offset_builder(projection) do
-        &Event.coerce_to_events(&1, metadata)
-      end
-
     result = mod.get_reaction(projection, reaction_ctx)
 
     maybe_events =
@@ -57,7 +52,7 @@ defmodule TransSiberianRailroad.Reaction do
         %{events: events} -> events
         _ -> []
       end
-      |> coerce.()
+      |> Event.coerce_to_events(projection.__version__, projection.__trace_id__)
 
     maybe_commands =
       case result do

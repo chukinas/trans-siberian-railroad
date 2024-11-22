@@ -43,7 +43,14 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.IncomeTrack do
     if next_company = get_in(projection.next_dividends_companies, [Access.at(0)]) do
       {event_id, company, income} = next_company
       payload = [company: company, income: income]
-      metadata = Projection.metadata(projection, id: event_id, user: :game)
+
+      metadata =
+        Metadata.for_command(
+          trace_id: projection.__trace_id__,
+          id: event_id,
+          user: :game
+        )
+
       command = command("pay_company_dividends", payload, metadata)
       ReactionCtx.issue_if_unsent(reaction_ctx, command)
     end

@@ -7,7 +7,6 @@ defmodule TransSiberianRailroad.CommandHandling do
   alias TransSiberianRailroad.Command
   alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Projection
 
   #########################################################
   # For use in Aggregators
@@ -63,20 +62,15 @@ defmodule TransSiberianRailroad.CommandHandling do
     %Command{name: command_name, payload: payload, trace_id: trace_id} = command
 
     if command_name in projection_mod.__handled_command_names__() do
-      metadata = Projection.event_from_offset_builder(projection, trace_id)
-      next_metadata = metadata.(0)
-
       ctx = %{
         projection: projection,
         payload: payload,
-        next_metadata: next_metadata,
-        metadata: metadata,
         id: command.id
       }
 
       orig_result = projection_mod.__handle_command__(command_name, ctx)
 
-      case Event.coerce_to_events(orig_result, metadata) do
+      case Event.coerce_to_events(orig_result, projection.__version__, trace_id) do
         [] -> nil
         events when is_list(events) -> events
       end

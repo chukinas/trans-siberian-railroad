@@ -97,8 +97,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.Rubles do
       ]
 
       fn metadata ->
-        alias TransSiberianRailroad.Metadata
-        metadata = Metadata.override(metadata, trace_id: pt.trace_id)
+        metadata = Metadata.for_event(metadata, trace_id: pt.trace_id)
 
         event_builder("rubles_transferred", transfers: transfers, reason: pt.reason).(metadata)
       end

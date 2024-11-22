@@ -2,6 +2,7 @@ defmodule TransSiberianRailroad.Command do
   use TypedStruct
   alias TransSiberianRailroad.Constants
   alias TransSiberianRailroad.Message
+  alias TransSiberianRailroad.Metadata
 
   #########################################################
   # Struct
@@ -73,12 +74,14 @@ defmodule TransSiberianRailroad.Command do
   #########################################################
 
   def __new__(command_name, payload, keys, metadata) when is_list(keys) do
+    metadata = Metadata.for_command(metadata, []) |> Map.new()
+
     %__MODULE__{
+      id: metadata.id,
       name: command_name,
       payload: Message.validated_payload!(command_name, payload, keys),
-      id: metadata[:id] || Ecto.UUID.generate(),
-      trace_id: metadata[:trace_id] || Ecto.UUID.generate(),
-      user: Keyword.fetch!(metadata, :user)
+      trace_id: metadata.trace_id,
+      user: metadata.user
     }
   end
 end

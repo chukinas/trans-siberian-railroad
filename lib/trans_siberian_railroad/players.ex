@@ -6,7 +6,7 @@ defmodule TransSiberianRailroad.Players do
   """
 
   def one_round(player_order, start_player) do
-    player_count = length(player_order)
+    player_count = length(Enum.to_list(player_order))
     next_n_turns(player_order, start_player, player_count)
   end
 

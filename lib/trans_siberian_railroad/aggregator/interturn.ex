@@ -32,31 +32,45 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
 
   defreaction maybe_next_step(reaction_ctx) do
     with [next_step | _] <- reaction_ctx.projection.next_steps do
-      {message_name, message_builder} = next_step
-      message_builder.(reaction_ctx, message_name)
+      case next_step do
+        {message_name, message_builder} ->
+          message_builder.(reaction_ctx, message_name, %{})
+
+        {message_name, payload, message_builder} ->
+          message_builder.(reaction_ctx, message_name, payload)
+      end
     else
       _ -> nil
     end
   end
 
   defp remove_completed_step(event_ctx, message_name) do
-    next_steps = event_ctx.projection.next_steps |> Enum.reject(&(elem(&1, 0) == message_name))
+    remove_completed_steps(event_ctx, [message_name])
+  end
+
+  defp remove_completed_steps(event_ctx, message_names) do
+    next_steps = event_ctx.projection.next_steps |> Enum.reject(&(elem(&1, 0) in message_names))
     [next_steps: next_steps]
   end
 
   handle_event "interturn_started", ctx do
     trace_id = ctx.trace_id
-    metadata = [user: :game, trace_id: trace_id]
-    to_command = &ReactionCtx.command_if_unsent(&1, &2, metadata)
-    to_event = &ReactionCtx.event_if_unsent(&1, &2, trace_id)
+    to_command = &ReactionCtx.command_if_unsent(&1, &2, &3, trace_id: trace_id)
+    to_event = &ReactionCtx.event_if_unsent(&1, &2, &3, trace_id)
 
     next_steps =
       [
         {"pay_dividends", to_command},
-        if(ctx.projection.phase == 1, do: {"check_phase_shift", to_command}),
+        if(ctx.projection.phase == 1,
+          do: [
+            {"check_phase_shift", to_command},
+            {"start_auction_phase", [phase: 2], to_command}
+          ]
+        ),
         {"timing_track_reset", to_event},
         {"interturn_ended", to_event}
       ]
+      |> List.flatten()
       |> Enum.filter(& &1)
 
     [next_steps: next_steps]
@@ -67,12 +81,16 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
   end
 
   handle_event "phase_1_continues", ctx do
-    remove_completed_step(ctx, "check_phase_shift")
+    remove_completed_steps(ctx, ["check_phase_shift", "start_auction_phase"])
   end
 
   handle_event "phase_2_started", ctx do
     remove_completed_step(ctx, "check_phase_shift")
     |> Keyword.put(:phase, 2)
+  end
+
+  handle_event "auction_phase_ended", ctx do
+    remove_completed_step(ctx, "start_auction_phase")
   end
 
   handle_event "timing_track_reset", ctx do

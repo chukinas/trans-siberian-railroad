@@ -32,6 +32,20 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
         )
   end
 
+  handle_command "start_auction_phase", ctx do
+    %{phase: phase} = ctx.payload
+    {:ok, next_player} = ctx.projection.fetched_next_player
+    player_order = ctx.projection.player_order
+
+    start_player =
+      case phase do
+        1 -> next_player
+        2 -> TransSiberianRailroad.Players.previous_player(player_order, next_player)
+      end
+
+    event_builder("auction_phase_started", phase: phase, start_player: start_player)
+  end
+
   #########################################################
   # :player_order
   #########################################################

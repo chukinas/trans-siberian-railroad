@@ -60,7 +60,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
 
     List.update_at(event_builders, -1, fn event_from_metadata ->
       &(&1
-        |> Metadata.override(id: event_id)
+        |> Metadata.for_event(id: event_id)
         |> event_from_metadata.())
     end)
   end

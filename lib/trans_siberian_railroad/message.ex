@@ -10,8 +10,7 @@ defmodule TransSiberianRailroad.Message do
     def cast(company) when Constants.is_company(company), do: {:ok, company}
     def cast(:bank), do: {:ok, :bank}
 
-    def cast(other) do
-      dbg(other)
+    def cast(_other) do
       :error
     end
 

@@ -16,7 +16,6 @@ defmodule TransSiberianRailroad.Event do
 
   use TypedStruct
   require TransSiberianRailroad.Metadata, as: Metadata
-  alias TransSiberianRailroad.Event
   alias TransSiberianRailroad.Message
 
   #########################################################
@@ -40,12 +39,14 @@ defmodule TransSiberianRailroad.Event do
   end
 
   def __new__(event_name, validated_payload, metadata) do
+    metadata = Metadata.for_event(metadata, []) |> Map.new()
+
     %__MODULE__{
+      id: metadata.id,
       name: event_name,
       payload: validated_payload,
-      id: metadata[:id] || Ecto.UUID.generate(),
-      trace_id: Keyword.fetch!(metadata, :trace_id),
-      version: Keyword.fetch!(metadata, :version)
+      trace_id: metadata.trace_id,
+      version: metadata.version
     }
   end
 
@@ -130,17 +131,17 @@ defmodule TransSiberianRailroad.Event do
 
   This function takes one of the above and returns a list of events.
   """
-  @type event_or_function() :: Event.t() | (Metadata.t() -> Event.t())
-  @type metadata_from_offset() :: (offset :: non_neg_integer() -> Metadata.t())
-  @spec coerce_to_events([event_or_function()], metadata_from_offset()) :: [Event.t()]
-  def coerce_to_events(events_or_functions, metadata_from_index) do
+  def coerce_to_events(events_or_functions, version, trace_id) do
     events_or_functions
     |> List.wrap()
     |> case do
       [fun | _] = events_or_functions when is_function(fun, 1) ->
         events_or_functions
         |> Enum.with_index()
-        |> Enum.map(fn {build_msg, idx} -> build_msg.(metadata_from_index.(idx)) end)
+        |> Enum.map(fn {build_msg, idx} ->
+          Metadata.for_event(version: version + 1 + idx, trace_id: trace_id)
+          |> build_msg.()
+        end)
 
       events ->
         events

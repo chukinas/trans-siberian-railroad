@@ -59,6 +59,12 @@ defmodule TransSiberianRailroad.GameHelpers do
     Enum.filter(game.commands, &(&1.name == command_name))
   end
 
+  def rejection_events(game) do
+    Enum.filter(game.events, fn event ->
+      String.ends_with?(event.name, "_rejected")
+    end)
+  end
+
   #########################################################
   # REDUCERS
   #########################################################
@@ -92,7 +98,7 @@ defmodule TransSiberianRailroad.GameHelpers do
     event =
       cond do
         is_struct(event, Event) -> event
-        is_function(event, 1) -> Metadata.new(version + 1) |> event.()
+        is_function(event, 1) -> Metadata.for_event(version: version + 1) |> event.()
       end
 
     game

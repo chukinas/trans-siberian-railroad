@@ -5,7 +5,6 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
   import TransSiberianRailroad.GameTestHelpers
   alias TransSiberianRailroad.Constants
   alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Metadata
   alias TransSiberianRailroad.Players
 
   @phase_1_companies Constants.companies() |> Enum.take(4)
@@ -40,14 +39,12 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhaseTest do
           2 = phase_number ->
             game = context.game
             start_player = context.start_player
-            [last_event | _] = game.events
-            metadata = Metadata.new(last_event.version + 1, Ecto.UUID.generate())
 
             event =
               Messages.event_builder("auction_phase_started",
                 phase: phase_number,
                 start_player: start_player
-              ).(metadata)
+              )
 
             handle_one_event(game, event)
         end

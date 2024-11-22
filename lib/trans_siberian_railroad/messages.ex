@@ -79,6 +79,7 @@ defmodule TransSiberianRailroad.Messages do
   # Auctioning - open and close an auction phase
   #########################################################
 
+  defcommand("start_auction_phase", [:phase])
   defevent("auction_phase_started", [:phase, :start_player])
   defevent("auction_phase_ended", [:phase, :start_player])
 

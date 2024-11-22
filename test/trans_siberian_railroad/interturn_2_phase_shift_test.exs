@@ -49,10 +49,11 @@ defmodule TransSiberianRailroad.Interturn.PhaseShiftTest do
       assert [internal] = filter_events(game, "interturn_started")
       assert [check_phase_shift] = filter_commands(game, "check_phase_shift")
       assert get_one_event(game, "phase_2_started")
-      game = get_players(6, 3) |> pass_on_company("black", game)
-      game = get_players(9, 3) |> pass_on_company("white", game)
+      game = get_players(5, 3) |> pass_on_company("black", game)
+      game = get_players(8, 3) |> pass_on_company("white", game)
       # WHEN we have another interurn
       game = get_players(6, 5) |> pass(game)
+      assert [] == rejection_events(game)
       assert [_new_internal, ^internal] = filter_events(game, "interturn_started")
       # THEN there is not another phase shift check
       assert [^check_phase_shift] = filter_commands(game, "check_phase_shift")
@@ -91,7 +92,18 @@ defmodule TransSiberianRailroad.Interturn.PhaseShiftTest do
   test "the check happens before the `stock adjustments` step"
 
   # IF SHIFT
-  test "when a phase shift happens, we auction off black and white companies"
+  test "when a phase shift happens, we auction off black and white companies", context do
+    # GIVEN the phase shift has already occurred
+    game = context.game
+    game = get_players(1, 5) |> pass(game)
+    assert [_internal] = filter_events(game, "interturn_started")
+    assert [_check_phase_shift] = filter_commands(game, "check_phase_shift")
+    assert get_one_event(game, "phase_2_started")
+    game = get_players(5, 3) |> pass_on_company("black", game)
+    game = get_players(8, 3) |> pass_on_company("white", game)
+    assert [] == rejection_events(game)
+  end
+
   test "that auction begins with the player who just had their turn"
   test "an initial rail link can be connected to ANY link built previously by any company"
   test "this initial rail link cannot be an external link"
