@@ -66,8 +66,7 @@ defmodule TransSiberianRailroad.Interturn.PhaseShiftTest do
          %{company: "green"},
          %{company: "yellow"}
        ]
-  test "check_phase_shift -> phase_1_continues if all companies have stock values less than 48",
-       context do
+  test "check_phase_shift -> phase_1_continues if companies have stock values < 48", context do
     # GIVEN no company has a stock value of 48 or greater
     game = context.game
     refute get_one_event(game, "phase_1_continues")
@@ -78,7 +77,17 @@ defmodule TransSiberianRailroad.Interturn.PhaseShiftTest do
     assert get_one_event(game, "phase_1_continues")
   end
 
-  test "the phase shift happens when a company has a stock value greater than or equal to 48"
+  test "phase_shift_check -> phase_2_started when company has a stock value >= 48", context do
+    # GIVEN a company has a stock value of 48 or greater
+    game = context.game
+    refute get_one_event(game, "phase_1_continues")
+    refute get_one_event(game, "phase_2_started")
+    # WHEN we force a phase shift check
+    game = check_phase_shift() |> injest_commands(game)
+    # THEN the phase shift does not happen
+    assert get_one_event(game, "phase_2_started")
+  end
+
   test "the check happens before the `stock adjustments` step"
 
   # IF SHIFT
