@@ -11,6 +11,6 @@ defmodule TransSiberianRailroad.Aggregator.Interturn.PhaseShiftCheck do
   end
 
   handle_command "check_phase_shift", _ctx do
-    Messages.event_builder("phase_1_continues")
+    Messages.event_builder("phase_2_started")
   end
 end

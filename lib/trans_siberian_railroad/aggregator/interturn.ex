@@ -19,6 +19,8 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
   use TransSiberianRailroad.Aggregator
 
   aggregator_typedstruct do
+    field :phase, 1..2, default: 1
+
     field :next_steps,
           [{message_name :: String.t(), command_or_event_builder :: (String.t() -> term())}],
           default: []
@@ -48,12 +50,14 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
     to_command = &ReactionCtx.command_if_unsent(&1, &2, metadata)
     to_event = &ReactionCtx.event_if_unsent(&1, &2, trace_id)
 
-    next_steps = [
-      {"pay_dividends", to_command},
-      {"check_phase_shift", to_command},
-      {"timing_track_reset", to_event},
-      {"interturn_ended", to_event}
-    ]
+    next_steps =
+      [
+        {"pay_dividends", to_command},
+        if(ctx.projection.phase == 1, do: {"check_phase_shift", to_command}),
+        {"timing_track_reset", to_event},
+        {"interturn_ended", to_event}
+      ]
+      |> Enum.filter(& &1)
 
     [next_steps: next_steps]
   end
@@ -68,6 +72,7 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
 
   handle_event "phase_2_started", ctx do
     remove_completed_step(ctx, "check_phase_shift")
+    |> Keyword.put(:phase, 2)
   end
 
   handle_event "timing_track_reset", ctx do

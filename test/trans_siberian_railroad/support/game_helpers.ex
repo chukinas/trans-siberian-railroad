@@ -55,6 +55,10 @@ defmodule TransSiberianRailroad.GameHelpers do
     Enum.find(game.commands, &(&1.name == command_name))
   end
 
+  def filter_commands(game, command_name) do
+    Enum.filter(game.commands, &(&1.name == command_name))
+  end
+
   #########################################################
   # REDUCERS
   #########################################################
