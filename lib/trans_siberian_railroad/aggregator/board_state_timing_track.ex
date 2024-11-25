@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.BoardState.TimingTrack do
+defmodule Tsr.Aggregator.BoardState.TimingTrack do
   @moduledoc """
   The timing track is a track of 6 spaces that determines when the interturn phase begins.
 
@@ -8,10 +8,10 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.TimingTrack do
   - passing
   """
 
-  use TransSiberianRailroad.Aggregator
+  use Tsr.Aggregator
 
   aggregator_typedstruct do
-    plugin TransSiberianRailroad.Reactions
+    plugin Tsr.Reactions
     field :timing_track, 0..5, default: 0
   end
 

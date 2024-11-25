@@ -1,7 +1,7 @@
-defmodule TransSiberianRailroad.Messages do
+defmodule Tsr.Messages do
   @moduledoc """
-  This module contains **all** the constructors for `TransSiberianRailroad.Command`
-  and `TransSiberianRailroad.Event`.
+  This module contains **all** the constructors for `Tsr.Command`
+  and `Tsr.Event`.
 
   The messages described in this file **completely** describe the game's player actions and events (found in rulebook.pdf).
 
@@ -22,9 +22,9 @@ defmodule TransSiberianRailroad.Messages do
     Example: the `end_game` command is used often in the test suite to force a game-end sequence in order to check player's rubles balance.
   """
 
-  use TransSiberianRailroad.Command
-  use TransSiberianRailroad.Event
-  require TransSiberianRailroad.Constants, as: Constants
+  use Tsr.Command
+  use Tsr.Event
+  require Tsr.Constants, as: Constants
 
   #########################################################
   # "Broad Events"

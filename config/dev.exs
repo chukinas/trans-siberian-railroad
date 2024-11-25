@@ -6,7 +6,7 @@ import Config
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
-config :trans_siberian_railroad, TransSiberianRailroadWeb.Endpoint,
+config :tsr, TsrWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}, port: 4000],
@@ -15,9 +15,8 @@ config :trans_siberian_railroad, TransSiberianRailroadWeb.Endpoint,
   debug_errors: true,
   secret_key_base: "0Uyf1Dn4iP21wqPh/Nwj7cwmSCCo+WYQgoeB6I3ce5wLE16tl1b3XxL5/1MkG1Yo",
   watchers: [
-    esbuild:
-      {Esbuild, :install_and_run, [:trans_siberian_railroad, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:trans_siberian_railroad, ~w(--watch)]}
+    esbuild: {Esbuild, :install_and_run, [:tsr, ~w(--sourcemap=inline --watch)]},
+    tailwind: {Tailwind, :install_and_run, [:tsr, ~w(--watch)]}
   ]
 
 # ## SSL Support
@@ -44,16 +43,16 @@ config :trans_siberian_railroad, TransSiberianRailroadWeb.Endpoint,
 # different ports.
 
 # Watch static and templates for browser reloading.
-config :trans_siberian_railroad, TransSiberianRailroadWeb.Endpoint,
+config :tsr, TsrWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/(?!uploads/).*(js|css|png|jpeg|jpg|gif|svg)$",
-      ~r"lib/trans_siberian_railroad_web/(controllers|live|components)/.*(ex|heex)$"
+      ~r"lib/tsr_web/(controllers|live|components)/.*(ex|heex)$"
     ]
   ]
 
 # Enable dev routes for dashboard and mailbox
-config :trans_siberian_railroad, dev_routes: true
+config :tsr, dev_routes: true
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"

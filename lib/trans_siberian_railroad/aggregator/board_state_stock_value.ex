@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.BoardState.StockValue do
+defmodule Tsr.Aggregator.BoardState.StockValue do
   @moduledoc """
   Track the value of stock certificates.
 
@@ -15,7 +15,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockValue do
   - During Interturn, the company with the highest stock value has its stock value increased by 1.
   """
 
-  use TransSiberianRailroad.Aggregator
+  use Tsr.Aggregator
 
   aggregator_typedstruct do
     field :stock_values, %{Constants.company() => non_neg_integer()}, default: %{}

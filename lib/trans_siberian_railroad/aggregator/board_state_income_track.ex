@@ -1,13 +1,13 @@
-defmodule TransSiberianRailroad.Aggregator.BoardState.IncomeTrack do
+defmodule Tsr.Aggregator.BoardState.IncomeTrack do
   @moduledoc """
   Tracks the income of each company and pays out dividends
   (`company_dividends_paid` and `dividends_paid`) in response to a `pay_dividends` command.
   """
-  use TransSiberianRailroad.Aggregator
-  alias TransSiberianRailroad.Income
+  use Tsr.Aggregator
+  alias Tsr.Income
 
   aggregator_typedstruct do
-    plugin TransSiberianRailroad.Reactions
+    plugin Tsr.Reactions
     field :company_incomes, %{Constants.company() => Income.t()}, default: %{}
 
     field :next_dividends_companies,

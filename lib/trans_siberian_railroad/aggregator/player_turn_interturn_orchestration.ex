@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration do
+defmodule Tsr.Aggregator.PlayerTurnInterturnOrchestration do
   @moduledoc """
   This handles the housekeeping in between players' turns
 
@@ -9,8 +9,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration do
   - nationalize companies that are performing poorly
   """
 
-  use TransSiberianRailroad.Aggregator
-  require TransSiberianRailroad.Reactions, as: Reactions
+  use Tsr.Aggregator
+  require Tsr.Reactions, as: Reactions
 
   aggregator_typedstruct do
     field :end_turn, pos_integer()

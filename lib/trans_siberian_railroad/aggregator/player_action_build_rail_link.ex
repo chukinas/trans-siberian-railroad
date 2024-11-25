@@ -1,9 +1,9 @@
-defmodule TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink do
+defmodule Tsr.Aggregator.PlayerAction.BuildRailLink do
   @moduledoc """
   Handles the `build_internal_rail_link` command, ultimately emitting either a `internal_rail_link_built` or `internal_rail_link_rejected` event.
   """
 
-  use TransSiberianRailroad.Aggregator
+  use Tsr.Aggregator
 
   aggregator_typedstruct do
     # The internal_rail_link_sequence_started is stored here.

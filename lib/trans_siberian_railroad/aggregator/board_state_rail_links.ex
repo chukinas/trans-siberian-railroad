@@ -1,10 +1,10 @@
-defmodule TransSiberianRailroad.Aggregator.BoardState.RailLinks do
+defmodule Tsr.Aggregator.BoardState.RailLinks do
   @moduledoc """
   Tracks which rail links have been built and by which company.
   """
 
-  use TransSiberianRailroad.Aggregator
-  alias TransSiberianRailroad.RailLinks
+  use Tsr.Aggregator
+  alias Tsr.RailLinks
 
   aggregator_typedstruct do
     field :built_rail_links, [{Constants.company(), RailLinks.rail_link()}], default: []
@@ -72,7 +72,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.RailLinks do
   end
 
   defp validate_rail_link_exists(rail_link) do
-    case RailLinks.fetch_rail_link_income(rail_link) do
+    case RailLinks.fetch_income(rail_link) do
       {:ok, _} -> :ok
       {:error, error} -> {:error, error}
     end

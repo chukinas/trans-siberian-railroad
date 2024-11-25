@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
+defmodule Tsr.Aggregator.BoardState.StockCertificates do
   @moduledoc """
   Track stock certificate ownership by companies, players, and bank.
 
@@ -9,7 +9,7 @@ defmodule TransSiberianRailroad.Aggregator.BoardState.StockCertificates do
   - it fails to auction off its first certificate or
   - it gets nationalized.
   """
-  use TransSiberianRailroad.Aggregator
+  use Tsr.Aggregator
 
   @bank_certs Constants.companies()
               |> Enum.zip([5, 5, 5, 5, 3, 3])

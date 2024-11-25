@@ -1,6 +1,6 @@
-defmodule TransSiberianRailroad.Message do
+defmodule Tsr.Message do
   require Logger
-  require TransSiberianRailroad.Constants, as: Constants
+  require Tsr.Constants, as: Constants
   alias Ecto.Changeset
 
   defmodule Entity do
@@ -42,7 +42,7 @@ defmodule TransSiberianRailroad.Message do
     def init(keys), do: %{keys: keys}
 
     def cast(map, %{keys: keys}) do
-      changeset = TransSiberianRailroad.Message.__changeset__(map, keys)
+      changeset = Tsr.Message.__changeset__(map, keys)
 
       if changeset.valid? and map_size(map) == length(keys) do
         {:ok, Changeset.apply_changes(changeset)}

@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Constants do
+defmodule Tsr.Constants do
   #########################################################
   # Players
   #########################################################

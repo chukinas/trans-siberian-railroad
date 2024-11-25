@@ -1,11 +1,11 @@
-defmodule TransSiberianRailroad.Event do
+defmodule Tsr.Event do
   @moduledoc """
   Events are a type of message that describes what happened in a game.
   In other words, a collection of game events fully describes the state of a game.
   The game state can be 100% reconstructed from the events.
 
   The version (number) is a one-indexed number (`t:pos_integer/0`) that represents the order in which the events were created.
-  [Aggregators](`TransSiberianRailroad.Aggregator`) start off with a version though of 0 so we're always working with non-negative integers.
+  [Aggregators](`Tsr.Aggregator`) start off with a version though of 0 so we're always working with non-negative integers.
 
   ## Notes
   - Give every event a timestamp.
@@ -15,8 +15,8 @@ defmodule TransSiberianRailroad.Event do
   """
 
   use TypedStruct
-  require TransSiberianRailroad.Metadata, as: Metadata
-  alias TransSiberianRailroad.Message
+  require Tsr.Metadata, as: Metadata
+  alias Tsr.Message
 
   #########################################################
   # Struct

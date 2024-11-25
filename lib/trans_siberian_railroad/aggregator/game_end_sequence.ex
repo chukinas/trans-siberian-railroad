@@ -1,10 +1,10 @@
-defmodule TransSiberianRailroad.Aggregator.GameEndSequence do
+defmodule Tsr.Aggregator.GameEndSequence do
   @moduledoc """
   Determines the winner of the game after the game ends.
 
   The end-game conditions are handled elsewhere.
   """
-  use TransSiberianRailroad.Aggregator
+  use Tsr.Aggregator
 
   aggregator_typedstruct do
     field :game_id, term()

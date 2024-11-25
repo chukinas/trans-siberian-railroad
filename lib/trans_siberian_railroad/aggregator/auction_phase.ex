@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
+defmodule Tsr.Aggregator.AuctionPhase do
   @moduledoc """
   This module orchestates the one or two auction phases of the game.
 
@@ -10,7 +10,7 @@ defmodule TransSiberianRailroad.Aggregator.AuctionPhase do
   - in phase 2, we auction off the black and white companies
   """
 
-  use TransSiberianRailroad.Aggregator
+  use Tsr.Aggregator
 
   # invariant: all three fields are either all nil or all non-nil
   aggregator_typedstruct do

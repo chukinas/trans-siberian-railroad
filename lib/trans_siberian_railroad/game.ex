@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Game do
+defmodule Tsr.Game do
   @moduledoc """
   This is taking over for game.ex
 
@@ -25,28 +25,28 @@ defmodule TransSiberianRailroad.Game do
 
   use TypedStruct
   require Logger
-  alias TransSiberianRailroad.Command
-  alias TransSiberianRailroad.CommandHandling
-  alias TransSiberianRailroad.Event
-  alias TransSiberianRailroad.Projection
-  alias TransSiberianRailroad.Reaction
-  alias TransSiberianRailroad.ReactionCtx
+  alias Tsr.Command
+  alias Tsr.CommandHandling
+  alias Tsr.Event
+  alias Tsr.Projection
+  alias Tsr.Reaction
+  alias Tsr.ReactionCtx
 
   @aggregators [
-    TransSiberianRailroad.Aggregator.AuctionPhase,
-    TransSiberianRailroad.Aggregator.BoardState.IncomeTrack,
-    TransSiberianRailroad.Aggregator.BoardState.Rubles,
-    TransSiberianRailroad.Aggregator.BoardState.RailLinks,
-    TransSiberianRailroad.Aggregator.BoardState.StockCertificates,
-    TransSiberianRailroad.Aggregator.BoardState.StockValue,
-    TransSiberianRailroad.Aggregator.BoardState.TimingTrack,
-    TransSiberianRailroad.Aggregator.CompanyAuction,
-    TransSiberianRailroad.Aggregator.GameEndSequence,
-    TransSiberianRailroad.Aggregator.Interturn,
-    TransSiberianRailroad.Aggregator.PlayerAction.BuildRailLink,
-    TransSiberianRailroad.Aggregator.PlayerTurn,
-    TransSiberianRailroad.Aggregator.PlayerTurnInterturnOrchestration,
-    TransSiberianRailroad.Aggregator.Setup
+    Tsr.Aggregator.AuctionPhase,
+    Tsr.Aggregator.BoardState.IncomeTrack,
+    Tsr.Aggregator.BoardState.Rubles,
+    Tsr.Aggregator.BoardState.RailLinks,
+    Tsr.Aggregator.BoardState.StockCertificates,
+    Tsr.Aggregator.BoardState.StockValue,
+    Tsr.Aggregator.BoardState.TimingTrack,
+    Tsr.Aggregator.CompanyAuction,
+    Tsr.Aggregator.GameEndSequence,
+    Tsr.Aggregator.Interturn,
+    Tsr.Aggregator.PlayerAction.BuildRailLink,
+    Tsr.Aggregator.PlayerTurn,
+    Tsr.Aggregator.PlayerTurnInterturnOrchestration,
+    Tsr.Aggregator.Setup
   ]
 
   typedstruct enforce: true do

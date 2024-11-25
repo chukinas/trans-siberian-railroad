@@ -1,9 +1,9 @@
-defmodule TransSiberianRailroad.Reactions do
+defmodule Tsr.Reactions do
   @moduledoc """
   Abstraction for defining reactions.
   """
 
-  alias TransSiberianRailroad.ReactionCtx
+  alias Tsr.ReactionCtx
 
   def set_next_command(command) do
     [next_command: command]
@@ -19,7 +19,7 @@ defmodule TransSiberianRailroad.Reactions do
   @impl true
   defmacro init(_opts) do
     quote do
-      field :next_command, TransSiberianRailroad.Command.t()
+      field :next_command, Tsr.Command.t()
 
       defdelegate set_next_command(command), to: unquote(__MODULE__)
 

@@ -1,18 +1,18 @@
-defmodule TransSiberianRailroad.CommandHandling do
+defmodule Tsr.CommandHandling do
   @moduledoc """
   An aggregator has the ability to respond to commands.
   This module provides the machinery to do so.
   """
 
-  alias TransSiberianRailroad.Command
-  alias TransSiberianRailroad.Event
-  alias TransSiberianRailroad.Messages
+  alias Tsr.Command
+  alias Tsr.Event
+  alias Tsr.Messages
 
   #########################################################
   # For use in Aggregators
   #########################################################
 
-  # Not to be called directly. Called by TransSiberianRailroad.Aggregator.
+  # Not to be called directly. Called by Tsr.Aggregator.
   defmacro __using__(_) do
     quote do
       import unquote(__MODULE__), only: [handle_command: 3]

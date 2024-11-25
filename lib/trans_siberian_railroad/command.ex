@@ -1,8 +1,8 @@
-defmodule TransSiberianRailroad.Command do
+defmodule Tsr.Command do
   use TypedStruct
-  alias TransSiberianRailroad.Constants
-  alias TransSiberianRailroad.Message
-  alias TransSiberianRailroad.Metadata
+  alias Tsr.Constants
+  alias Tsr.Message
+  alias Tsr.Metadata
 
   #########################################################
   # Struct

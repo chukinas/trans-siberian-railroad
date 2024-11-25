@@ -1,12 +1,12 @@
-defmodule TransSiberianRailroadWeb do
+defmodule TsrWeb do
   @moduledoc """
   The entrypoint for defining your web interface, such
   as controllers, components, channels, and so on.
 
   This can be used in your application as:
 
-      use TransSiberianRailroadWeb, :controller
-      use TransSiberianRailroadWeb, :html
+      use TsrWeb, :controller
+      use TsrWeb, :html
 
   The definitions below will be executed for every controller,
   component, etc, so keep them short and clean, focused
@@ -40,7 +40,7 @@ defmodule TransSiberianRailroadWeb do
     quote do
       use Phoenix.Controller,
         formats: [:html, :json],
-        layouts: [html: TransSiberianRailroadWeb.Layouts]
+        layouts: [html: TsrWeb.Layouts]
 
       import Plug.Conn
 
@@ -51,7 +51,7 @@ defmodule TransSiberianRailroadWeb do
   def live_view do
     quote do
       use Phoenix.LiveView,
-        layout: {TransSiberianRailroadWeb.Layouts, :app}
+        layout: {TsrWeb.Layouts, :app}
 
       unquote(html_helpers())
     end
@@ -83,7 +83,7 @@ defmodule TransSiberianRailroadWeb do
       # HTML escaping functionality
       import Phoenix.HTML
       # Core UI components and translation
-      import TransSiberianRailroadWeb.CoreComponents
+      import TsrWeb.CoreComponents
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS
@@ -96,9 +96,9 @@ defmodule TransSiberianRailroadWeb do
   def verified_routes do
     quote do
       use Phoenix.VerifiedRoutes,
-        endpoint: TransSiberianRailroadWeb.Endpoint,
-        router: TransSiberianRailroadWeb.Router,
-        statics: TransSiberianRailroadWeb.static_paths()
+        endpoint: TsrWeb.Endpoint,
+        router: TsrWeb.Router,
+        statics: TsrWeb.static_paths()
     end
   end
 

@@ -1,18 +1,18 @@
-defmodule TransSiberianRailroad.Projection do
+defmodule Tsr.Projection do
   @moduledoc """
   A projection is a read model of the domain events.
   It takes a list of those events and reduces them into a single struct.
   This internals of this struct should never be public knowledge.
   It exists only to allow that struct's module to make decisions about what new events to emit.
 
-  This module *could* have been part of TransSiberianRailroad.Aggregator,
+  This module *could* have been part of Tsr.Aggregator,
   but the projection concerns are atomic enough that it justified its own module.
   Plus, perhaps in the future, we'll want to project events into read models that are used
   e.g. to power the front end.
   """
 
-  require TransSiberianRailroad.Messages, as: Messages
-  alias TransSiberianRailroad.Event
+  require Tsr.Messages, as: Messages
+  alias Tsr.Event
 
   @type t() :: struct()
 
@@ -23,7 +23,7 @@ defmodule TransSiberianRailroad.Projection do
       @before_compile unquote(__MODULE__)
       Module.register_attribute(__MODULE__, :handle_event_names, accumulate: true)
 
-      import TransSiberianRailroad.Projection, only: [handle_event: 3, projection_fields: 0]
+      import Tsr.Projection, only: [handle_event: 3, projection_fields: 0]
     end
   end
 

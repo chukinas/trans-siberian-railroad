@@ -1,1 +1,1 @@
-alias TransSiberianRailroad.Projection
+alias Tsr.Projection

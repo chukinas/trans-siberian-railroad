@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
+defmodule Tsr.Aggregator.CompanyAuction do
   @moduledoc """
   This module handles all the events and commands related to the auctioning
   of a company's first stock certificate to players.
@@ -13,10 +13,10 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     The company is now "open".
   """
 
-  use TransSiberianRailroad.Aggregator
-  alias TransSiberianRailroad.Aggregator.BoardState.StockValue
-  alias TransSiberianRailroad.Players
-  alias TransSiberianRailroad.RailLinks
+  use Tsr.Aggregator
+  alias Tsr.Aggregator.BoardState.StockValue
+  alias Tsr.Players
+  alias Tsr.RailLinks
 
   aggregator_typedstruct do
     # These are tracked continuously throughout the game
@@ -183,7 +183,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
          {:ok, rubles} <- fetch_highest_bid(projection) do
       reason = "company stock auctioned off"
 
-      available_links = RailLinks.connected_to("moscow") -- projection.built_rail_links
+      available_links = RailLinks.get_connecting("moscow") -- projection.built_rail_links
 
       [
         event_builder("player_won_company_auction",
@@ -230,7 +230,7 @@ defmodule TransSiberianRailroad.Aggregator.CompanyAuction do
     with :ok <- validate_company_auction(projection),
          :ok <- validate_current_bidder(projection, building_player),
          :ok <- validate_current_company(projection, company),
-         {:ok, link_income} <- RailLinks.fetch_rail_link_income(rail_link),
+         {:ok, link_income} <- RailLinks.fetch_income(rail_link),
          :ok <- validate_unbuilt_rail_link(projection, rail_link),
          :ok <- validate_connected_link(rail_link) do
       event_builder("initial_rail_link_built",

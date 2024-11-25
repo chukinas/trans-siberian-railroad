@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Players do
+defmodule Tsr.Players do
   @moduledoc """
   Currently, just provides a helper for simplifying a common task:
   given the player order and a start player, return the a list of players

@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.Interturn do
+defmodule Tsr.Aggregator.Interturn do
   @moduledoc """
   This handles the housekeeping in between players' turns
 
@@ -16,7 +16,7 @@ defmodule TransSiberianRailroad.Aggregator.Interturn do
   - nationalize companies that are performing poorly
   """
 
-  use TransSiberianRailroad.Aggregator
+  use Tsr.Aggregator
 
   aggregator_typedstruct do
     field :phase, 1..2, default: 1

@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Metadata do
+defmodule Tsr.Metadata do
   @moduledoc """
   Metadata is data used by the messaging engine that is NOT the state of the domain.
   """

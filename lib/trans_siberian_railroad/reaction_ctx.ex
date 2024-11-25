@@ -1,13 +1,13 @@
-defmodule TransSiberianRailroad.ReactionCtx do
+defmodule Tsr.ReactionCtx do
   @moduledoc """
   The data available inside a `defreaction` call
   """
 
   use TypedStruct
-  alias TransSiberianRailroad.Command
-  alias TransSiberianRailroad.Event
-  alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Metadata
+  alias Tsr.Command
+  alias Tsr.Event
+  alias Tsr.Messages
+  alias Tsr.Metadata
 
   typedstruct enforce: true do
     field :projection, struct()

@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
+defmodule Tsr.Aggregator.PlayerTurn do
   @moduledoc """
   This module handles the player's turn.
 
@@ -8,8 +8,8 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   - lay rail for a company they have a majority stake in (one or two rail links)
   """
 
-  use TransSiberianRailroad.Aggregator
-  alias TransSiberianRailroad.Players
+  use Tsr.Aggregator
+  alias Tsr.Players
 
   aggregator_typedstruct do
     field :player_order, [Constants.player()]
@@ -40,7 +40,7 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     start_player =
       case phase do
         1 -> next_player
-        2 -> TransSiberianRailroad.Players.previous_player(player_order, next_player)
+        2 -> Tsr.Players.previous_player(player_order, next_player)
       end
 
     event_builder("auction_phase_started", phase: phase, start_player: start_player)

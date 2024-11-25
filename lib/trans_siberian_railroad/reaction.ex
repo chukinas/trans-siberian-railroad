@@ -1,7 +1,7 @@
-defmodule TransSiberianRailroad.Reaction do
-  alias TransSiberianRailroad.Command
-  alias TransSiberianRailroad.Event
-  alias TransSiberianRailroad.Projection
+defmodule Tsr.Reaction do
+  alias Tsr.Command
+  alias Tsr.Event
+  alias Tsr.Projection
 
   defmacro __using__(_) do
     quote do

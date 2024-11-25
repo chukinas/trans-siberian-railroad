@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Aggregator do
+defmodule Tsr.Aggregator do
   @moduledoc """
   An aggregator is responsible for emitting new events.
   It does this by building a projection from the current events list, then:
@@ -8,17 +8,17 @@ defmodule TransSiberianRailroad.Aggregator do
 
   defmacro __using__(_) do
     quote do
-      use TransSiberianRailroad.CommandHandling
-      use TransSiberianRailroad.Projection
-      use TransSiberianRailroad.Reaction
-      import TransSiberianRailroad.Aggregator, only: :macros
-      require TransSiberianRailroad.Constants, as: Constants
-      alias TransSiberianRailroad.Command
-      alias TransSiberianRailroad.Event
-      alias TransSiberianRailroad.Messages
+      use Tsr.CommandHandling
+      use Tsr.Projection
+      use Tsr.Reaction
+      import Tsr.Aggregator, only: :macros
+      require Tsr.Constants, as: Constants
+      alias Tsr.Command
+      alias Tsr.Event
+      alias Tsr.Messages
       import Messages, only: [command: 2, command: 3, event_builder: 1, event_builder: 2]
-      alias TransSiberianRailroad.Metadata
-      alias TransSiberianRailroad.ReactionCtx
+      alias Tsr.Metadata
+      alias Tsr.ReactionCtx
     end
   end
 

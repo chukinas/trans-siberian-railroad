@@ -8,13 +8,16 @@ const path = require("path")
 module.exports = {
   content: [
     "./js/**/*.js",
-    "../lib/trans_siberian_railroad_web.ex",
-    "../lib/trans_siberian_railroad_web/**/*.*ex"
+    "../lib/tsr_web.ex",
+    "../lib/tsr_web/**/*.*ex"
   ],
   theme: {
     extend: {
       colors: {
         brand: "#FD4F00",
+      },
+      strokeWidth: {
+        '50': '50px',
       }
     },
   },

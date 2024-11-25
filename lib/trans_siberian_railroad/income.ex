@@ -1,4 +1,4 @@
-defmodule TransSiberianRailroad.Income do
+defmodule Tsr.Income do
   @moduledoc """
   Rail Companies move up the income track whenever they lay track.
   Periodically, doing so causes their stock value to increase

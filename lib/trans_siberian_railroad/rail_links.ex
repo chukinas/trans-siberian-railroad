@@ -1,13 +1,10 @@
-defmodule TransSiberianRailroad.RailLinks do
+defmodule Tsr.RailLinks do
   @moduledoc """
   Defines the map of locations and rail links.
   """
 
-  alias TransSiberianRailroad.RailLink
-
   @type rail_link() :: [String.t(), ...]
 
-  @type t() :: [RailLink.t(), ...]
   @raw [
          # Moscow (starting links, CCW from Peter)
          {3, ~w(moscow stpetersburg)},
@@ -99,28 +96,26 @@ defmodule TransSiberianRailroad.RailLinks do
        |> Enum.map(fn {income, rail_link} -> {income, Enum.sort(rail_link)} end)
 
   @rail_link_incomes Map.new(@raw, fn {income, rail_link} -> {rail_link, income} end)
+  def incomes(), do: @rail_link_incomes
 
-  def new() do
-    Enum.with_index(@raw, fn {income, linked_locations}, index ->
-      RailLink.new(index, linked_locations, income)
-    end)
-  end
+  @rail_links Map.keys(@rail_link_incomes)
+  def all(), do: @rail_links
 
-  def connected_to(city) when is_binary(city) do
-    links =
-      Enum.flat_map(@raw, fn {_income, rail_link} ->
+  def get_connecting(city) when is_binary(city) do
+    connected_rail_links =
+      Enum.flat_map(@rail_links, fn rail_link ->
         if city in rail_link, do: [rail_link], else: []
       end)
 
-    if Enum.empty?(links) do
+    if Enum.empty?(connected_rail_links) do
       require Logger
       Logger.warning("there are no links connected to #{city}")
     end
 
-    Enum.sort(links)
+    Enum.sort(connected_rail_links)
   end
 
-  def fetch_rail_link_income(rail_link) do
+  def fetch_income(rail_link) do
     case Map.fetch(@rail_link_incomes, rail_link) do
       {:ok, income} -> {:ok, income}
       :error -> {:error, "invalid rail link"}

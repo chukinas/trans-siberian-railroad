@@ -1,15 +1,15 @@
-defmodule TransSiberianRailroad.Aggregator.Setup do
+defmodule Tsr.Aggregator.Setup do
   @moduledoc """
   Initialize game, add players, set start player and player order, and start the game.
   """
 
-  use TransSiberianRailroad.Aggregator
+  use Tsr.Aggregator
 
   #########################################################
   # PROJECTION
   #########################################################
 
-  use TransSiberianRailroad.Projection
+  use Tsr.Projection
 
   aggregator_typedstruct do
     field :game_id, String.t()
