@@ -7,24 +7,24 @@
 # General application configuration
 import Config
 
-config :trans_siberian_railroad,
+config :tsr,
   generators: [timestamp_type: :utc_datetime]
 
 # Configures the endpoint
-config :trans_siberian_railroad, TransSiberianRailroadWeb.Endpoint,
+config :tsr, TsrWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: TransSiberianRailroadWeb.ErrorHTML, json: TransSiberianRailroadWeb.ErrorJSON],
+    formats: [html: TsrWeb.ErrorHTML, json: TsrWeb.ErrorJSON],
     layout: false
   ],
-  pubsub_server: TransSiberianRailroad.PubSub,
+  pubsub_server: Tsr.PubSub,
   live_view: [signing_salt: "54fsQOsM"]
 
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.17.11",
-  trans_siberian_railroad: [
+  tsr: [
     args:
       ~w(js/app.js --bundle --target=es2017 --outdir=../priv/static/assets --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets", __DIR__),
@@ -34,7 +34,7 @@ config :esbuild,
 # Configure tailwind (the version is required)
 config :tailwind,
   version: "3.4.3",
-  trans_siberian_railroad: [
+  tsr: [
     args: ~w(
       --config=tailwind.config.js
       --input=css/app.css

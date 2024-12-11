@@ -1,9 +1,9 @@
-defmodule TransSiberianRailroad.MixProject do
+defmodule Tsr.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :trans_siberian_railroad,
+      app: :tsr,
       version: "0.1.0",
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -18,13 +18,13 @@ defmodule TransSiberianRailroad.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {TransSiberianRailroad.Application, []},
+      mod: {Tsr.Application, []},
       extra_applications: [:logger, :runtime_tools]
     ]
   end
 
   # Specifies which paths to compile per environment.
-  defp elixirc_paths(:test), do: ["lib", "test/support", "test/trans_siberian_railroad/support"]
+  defp elixirc_paths(:test), do: ["lib", "test/support", "test/tsr/support"]
   defp elixirc_paths(_), do: ["lib"]
 
   # Specifies your project dependencies.
@@ -44,6 +44,7 @@ defmodule TransSiberianRailroad.MixProject do
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
       {:typed_struct, "~> 0.2"},
+      {:ex_heroicons, "~> 3.0.0"},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.1.1",
@@ -69,10 +70,10 @@ defmodule TransSiberianRailroad.MixProject do
     [
       setup: ["deps.get", "assets.setup", "assets.build"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["tailwind trans_siberian_railroad", "esbuild trans_siberian_railroad"],
+      "assets.build": ["tailwind tsr", "esbuild trans_siberian_railroad"],
       "assets.deploy": [
-        "tailwind trans_siberian_railroad --minify",
-        "esbuild trans_siberian_railroad --minify",
+        "tailwind tsr --minify",
+        "esbuild tsr --minify",
         "phx.digest"
       ]
     ]

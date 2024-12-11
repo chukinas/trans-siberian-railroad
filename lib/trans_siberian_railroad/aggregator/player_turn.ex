@@ -1,47 +1,49 @@
-defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
+defmodule Tsr.Aggregator.PlayerTurn do
   @moduledoc """
   This module handles the player's turn.
 
   Players may:
-  - purchase stock
+  - purchase stock (one or two)
   - pass
-  - lay rail for a company they have a majority stake in
+  - lay rail for a company they have a majority stake in (one or two rail links)
   """
 
-  use TransSiberianRailroad.Aggregator
-  use TransSiberianRailroad.Projection
-  require TransSiberianRailroad.Player, as: Player
-  require TransSiberianRailroad.RailCompany, as: Company
-  alias TransSiberianRailroad.Messages
-  alias TransSiberianRailroad.Players
+  use Tsr.Aggregator
+  alias Tsr.Players
 
-  #########################################################
-  # PROJECTION
-  #########################################################
+  aggregator_typedstruct do
+    field :player_order, [Constants.player()]
 
-  typedstruct opaque: true do
-    projection_fields()
-
-    field :player_order, [Player.id()]
-
-    field :fetched_next_player, {:ok, Player.id()} | {:error, String.t()},
+    field :fetched_next_player, {:ok, Constants.player()} | {:error, String.t()},
       default: {:error, "no start player set"}
 
-    field :player_money, %{(Player.id() | Company.id()) => non_neg_integer()}, default: %{}
+    # If nil, then no player turn is in progress.
+    # If a player ID, then that player is taking their turn.
+    field :current_player, Constants.player()
 
-    field :companies, %{Company.id() => map()},
+    field :player_money, %{(Constants.player() | Constants.company()) => non_neg_integer()},
+      default: %{}
+
+    field :companies, %{Constants.company() => map()},
       default:
         Map.new(
-          Company.ids(),
-          &{&1, %{stock_count: 0, stock_price: nil, state: :unauctioned}}
+          Constants.companies(),
+          &{&1, %{stock_count: 0, stock_value: nil, state: :unauctioned}}
         )
+  end
 
-    # If :not_started, no one's had a first turn yet. We're setting up or doing the first auction phase.
-    # If :in_progress, we are in the middle of a player's turn, awaiting their command.
-    # If :start_player_turn, we are ready to start the next player's turn.
-    # If :end_of_turn, we are in the middle of the end-of-turn sequence.
-    field :readiness, :not_started | :in_progress | :start_player_turn | :end_of_turn,
-      default: :not_started
+  handle_command "start_auction_phase", ctx do
+    %{phase: phase} = ctx.payload
+    {:ok, next_player} = ctx.projection.fetched_next_player
+    player_order = ctx.projection.player_order
+
+    start_player =
+      case phase do
+        1 -> next_player
+        2 -> Tsr.Players.previous_player(player_order, next_player)
+      end
+
+    event_builder("auction_phase_started", phase: phase, start_player: start_player)
   end
 
   #########################################################
@@ -62,15 +64,15 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     [fetched_next_player: {:ok, next_player}]
   end
 
+  @phase_1_companies Constants.companies() |> Enum.take(4)
   handle_event "player_won_company_auction", ctx do
-    %{auction_winner: next_player, company: company} = ctx.payload
-    companies = ctx.projection.companies |> put_in([company, :state], :active)
-    fields = [companies: companies]
+    %{player: next_player, company: company} = ctx.payload
+    companies = put_in(ctx.projection.companies, [company, :state], :active)
 
-    if ctx.projection.readiness == :not_started do
-      Keyword.put(fields, :fetched_next_player, {:ok, next_player})
+    if company in @phase_1_companies do
+      [companies: companies, fetched_next_player: {:ok, next_player}]
     else
-      fields
+      [companies: companies]
     end
   end
 
@@ -78,14 +80,14 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   # :player_money
   #########################################################
 
-  handle_event "money_transferred", ctx do
+  handle_event "rubles_transferred", ctx do
     transfers = ctx.payload.transfers
     player_money = ctx.projection.player_money
 
     new_player_money_balances =
       Enum.reduce(transfers, player_money, fn
-        {entity, amount}, balances when Player.is_id(entity) ->
-          Map.update(balances, entity, amount, &(&1 + amount))
+        %{entity: entity, rubles: rubles}, balances when Constants.is_player(entity) ->
+          Map.update(balances, entity, rubles, &(&1 + rubles))
 
         _, balances ->
           balances
@@ -99,13 +101,13 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   #########################################################
 
   handle_event "stock_certificates_transferred", ctx do
-    %{from: from, to: to, quantity: quantity} = ctx.payload
-    transfers = %{from => -quantity, to => quantity}
+    %{from: from, to: to, count: count} = ctx.payload
+    transfers = %{from => -count, to => count}
 
     companies =
-      Enum.reduce(transfers, ctx.projection.companies, fn {entity, amount}, companies ->
-        if Company.is_id(entity) do
-          update_in(companies, [entity, :stock_count], &(&1 + amount))
+      Enum.reduce(transfers, ctx.projection.companies, fn {entity, count}, companies ->
+        if Constants.is_company(entity) do
+          update_in(companies, [entity, :stock_count], &(&1 + count))
         else
           companies
         end
@@ -115,52 +117,55 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   end
 
   #########################################################
-  # :companies[company].stock_price
+  # :companies[company].stock_value
   #########################################################
 
-  handle_event("starting_stock_price_set", ctx, do: stock_price(ctx))
-  handle_event("stock_price_increased", ctx, do: stock_price(ctx))
-
-  defp stock_price(ctx) do
-    %{company: company, price: stock_price} = ctx.payload
-    companies = ctx.projection.companies |> put_in([company, :stock_price], stock_price)
+  handle_event "stock_value_set", ctx do
+    %{company: company, stock_value: stock_value} = ctx.payload
+    companies = ctx.projection.companies |> put_in([company, :stock_value], stock_value)
     [companies: companies]
   end
 
   #########################################################
-  # Starting and endind the Player Turn
+  # Starting and ending the Player Turn
   #########################################################
 
-  handle_event "auction_phase_ended", ctx do
-    %{phase_number: phase_number} = ctx.payload
+  handle_command "start_player_turn", ctx do
+    projection = ctx.projection
 
-    if phase_number == 1 do
-      [readiness: :start_player_turn]
-    end
-  end
-
-  defreaction maybe_start_player_turn(projection) do
     with {:ok, next_player} <- projection.fetched_next_player,
-         :start_player_turn <- projection.readiness do
-      metadata = Projection.next_metadata(projection)
-      Messages.player_turn_started(next_player, metadata)
+         :ok <- validate_not_player_turn(projection) do
+      event_builder("player_turn_started", player: next_player)
     else
-      _ -> nil
+      {:error, msg} -> event_builder("player_turn_rejected", reason: msg)
     end
   end
 
   handle_event "player_turn_started", ctx do
     %{player: current_player} = ctx.payload
     fetched_next_player = fetch_next_player(ctx.projection, current_player)
-    [readiness: :in_progress, fetched_next_player: fetched_next_player]
+
+    [
+      fetched_next_player: fetched_next_player,
+      current_player: current_player
+    ]
   end
 
-  handle_event "end_of_turn_sequence_started", _ctx do
-    [readiness: :end_of_turn]
-  end
+  #########################################################
+  # Checking Player Turn
+  #########################################################
 
-  handle_event "end_of_turn_sequence_ended", _ctx do
-    [readiness: :start_player_turn]
+  handle_command "reserve_player_action", ctx do
+    %{player: player} = ctx.payload
+    projection = ctx.projection
+
+    with :ok <- validate_player_turn(projection),
+         :ok <- validate_current_player(projection, player) do
+      Messages.event_builder("player_action_reserved", player: player)
+    else
+      {:error, reason} ->
+        Messages.event_builder("player_action_rejected", player: player, reason: reason)
+    end
   end
 
   #########################################################
@@ -168,39 +173,38 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   #########################################################
 
   handle_command "purchase_single_stock", ctx do
-    %{purchasing_player: purchasing_player, company: company, price: price} = ctx.payload
+    %{player: purchasing_player, company: company, rubles: rubles} = ctx.payload
     projection = ctx.projection
 
     with :ok <- validate_player_turn(projection),
          :ok <- validate_current_player(projection, purchasing_player),
          :ok <- validate_active_company(projection, company),
-         :ok <- validate_funds(projection, purchasing_player, price),
+         :ok <- validate_funds(projection, purchasing_player, rubles),
          :ok <- validate_company_stock_count(projection, company),
-         :ok <- validate_company_stock_price(projection, company, price) do
-      transfers = %{purchasing_player => -price, company => price}
+         :ok <- validate_company_stock_value(projection, company, rubles) do
       reason = "single stock purchased"
 
       [
-        &Messages.single_stock_purchased(purchasing_player, company, price, &1),
-        &Messages.stock_certificates_transferred(
-          company,
-          company,
-          purchasing_player,
-          1,
-          reason,
-          &1
+        event_builder("single_stock_purchased",
+          player: purchasing_player,
+          company: company,
+          rubles: rubles
         ),
-        &Messages.money_transferred(transfers, reason, &1),
-        &Messages.end_of_turn_sequence_started(&1)
+        event_builder("stock_certificates_transferred",
+          company: company,
+          from: company,
+          to: purchasing_player,
+          count: 1,
+          reason: reason
+        )
       ]
     else
       {:error, reason} ->
-        Messages.single_stock_purchase_rejected(
-          purchasing_player,
-          company,
-          price,
-          reason,
-          ctx.metadata.(0)
+        event_builder("single_stock_purchase_rejected",
+          player: purchasing_player,
+          company: company,
+          rubles: rubles,
+          reason: reason
         )
     end
   end
@@ -210,18 +214,23 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
   #########################################################
 
   handle_command "pass", ctx do
-    %{passing_player: passing_player} = ctx.payload
+    %{player: passing_player} = ctx.payload
     projection = ctx.projection
 
     with :ok <- validate_player_turn(projection),
          :ok <- validate_current_player(projection, passing_player) do
-      [
-        &Messages.passed(passing_player, &1),
-        &Messages.end_of_turn_sequence_started(&1)
-      ]
+      event_builder("passed", player: passing_player)
     else
-      {:error, reason} -> &Messages.pass_rejected(passing_player, reason, &1)
+      {:error, reason} -> event_builder("pass_rejected", player: passing_player, reason: reason)
     end
+  end
+
+  #########################################################
+  # End Turn
+  #########################################################
+
+  handle_event "player_turn_ended", _ctx do
+    [current_player: nil]
   end
 
   #########################################################
@@ -280,25 +289,33 @@ defmodule TransSiberianRailroad.Aggregator.PlayerTurn do
     end
   end
 
-  defp validate_company_stock_price(projection, company, price) do
-    case projection.companies[company][:stock_price] do
-      ^price -> :ok
-      _ -> {:error, "does not match current stock price"}
+  defp validate_company_stock_value(projection, company, stock_value) do
+    case projection.companies[company][:stock_value] do
+      ^stock_value -> :ok
+      _ -> {:error, "does not match current stock value"}
     end
   end
 
-  defp validate_funds(projection, player, price) do
+  defp validate_funds(projection, player, rubles) do
     case Map.get(projection.player_money, player) do
       nil -> {:error, "player does not exist"}
-      balance when is_integer(balance) and balance >= price -> :ok
+      balance when is_integer(balance) and balance >= rubles -> :ok
       _ -> {:error, "insufficient funds"}
     end
   end
 
+  defp validate_not_player_turn(projection) do
+    case validate_player_turn(projection) do
+      :ok -> {:error, "A player's turn is already in progress"}
+      {:error, _} -> :ok
+    end
+  end
+
   defp validate_player_turn(projection) do
-    case projection.readiness do
-      :in_progress -> :ok
-      _ -> {:error, "not a player turn"}
+    if projection.current_player do
+      :ok
+    else
+      {:error, "not a player turn"}
     end
   end
 end

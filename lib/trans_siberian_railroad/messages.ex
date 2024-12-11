@@ -1,55 +1,30 @@
-defmodule TransSiberianRailroad.Messages do
+defmodule Tsr.Messages do
   @moduledoc """
-  This module contains **all** the constructors for `TransSiberianRailroad.Command`
-  and `TransSiberianRailroad.Event`.
+  This module contains **all** the constructors for `Tsr.Command`
+  and `Tsr.Event`.
 
   The messages described in this file **completely** describe the game's player actions and events (found in rulebook.pdf).
+
+  ## Naming Conventions
+
+  - Commands start with an imperative verb, e.g. `add_player`.
+  - Events end with the corresponding past-tense verb, e.g. `player_added`.
+  - `..._sequence_started` - an event that kicks off a series of commands and events.
+    Usually needed where several domains need to coordinate.
+    Typically resolved with a `..._ended` event.
+    Sometimes preceeded by a `start_...` command.
+    Example: `pay_dividends` -> `dividends_sequence_started` -> `...` -> `dividends_paid`
+
+  ## Notes
+
+  - Sometimes, there are command-event pairs that seem unnecessary, where it seems that only the event is needed.
+    But the reason here to still include the command is to make that command available during testing.
+    Example: the `end_game` command is used often in the test suite to force a game-end sequence in order to check player's rubles balance.
   """
 
-  require TransSiberianRailroad.Metadata, as: Metadata
-  require TransSiberianRailroad.Player, as: Player
-  require TransSiberianRailroad.RailCompany, as: Company
-  alias TransSiberianRailroad.Event
-
-  #########################################################
-  # - Local boilerplate reduction
-  # - Accumulate command and event names
-  #   in order to validate then in aggregators
-  #########################################################
-
-  Module.register_attribute(__MODULE__, :command_names, accumulate: true)
-  Module.register_attribute(__MODULE__, :event_names, accumulate: true)
-
-  defmacrop command(fields) do
-    name =
-      with {name, _arity} = __CALLER__.function do
-        to_string(name)
-      end
-
-    Module.put_attribute(__MODULE__, :command_names, name)
-
-    quote do
-      name = unquote(name)
-      payload = Map.new(unquote(fields))
-      %TransSiberianRailroad.Command{name: name, payload: payload, trace_id: Ecto.UUID.generate()}
-    end
-  end
-
-  defmacrop event(fields) do
-    name =
-      with {name, _arity} = __CALLER__.function do
-        to_string(name)
-      end
-
-    Module.put_attribute(__MODULE__, :event_names, name)
-
-    quote do
-      name = unquote(name)
-      payload = Map.new(unquote(fields))
-      metadata = var!(metadata)
-      TransSiberianRailroad.Event.new(name, payload, metadata)
-    end
-  end
+  use Tsr.Command
+  use Tsr.Event
+  require Tsr.Constants, as: Constants
 
   #########################################################
   # "Broad Events"
@@ -57,135 +32,56 @@ defmodule TransSiberianRailroad.Messages do
   # be issued by **any** aggregator.
   #########################################################
 
-  @type entity() :: Player.id() | Company.id() | :bank
+  @type entity() :: Constants.player() | Constants.company() | :bank
 
-  # Money
-  # Moving money between players, bank, and companies is
-  # such a common operation that it's all handled via this
-  # single event.
-  # This is one of the few (only?) messages that can be
-  # issued by any Aggregator.
-  @type amount() :: integer()
-  @spec money_transferred(%{entity() => amount()}, String.t(), Metadata.t()) :: Event.t()
-  def money_transferred(%{} = transfers, reason, metadata) when is_binary(reason) do
-    0 = transfers |> Map.values() |> Enum.sum()
-    event(transfers: transfers, reason: reason)
-  end
+  defevent("stock_certificates_transferred", [:company, :from, :to, :count, :reason])
 
-  @spec stock_certificates_transferred(
-          Company.id(),
-          entity(),
-          entity(),
-          pos_integer(),
-          String.t(),
-          Metadata.t()
-        ) ::
-          Event.t()
-  def stock_certificates_transferred(company, from, to, quantity, reason, metadata)
-      when quantity in 1..5 do
-    event(company: company, from: from, to: to, quantity: quantity, reason: reason)
-  end
-
+  ##########################################################
+  # Rubles
   #########################################################
+
+  defevent("rubles_transferred", [:reason, transfers: [:entity, :rubles]])
+
+  ##########################################################
   # Initializing Game
   #########################################################
 
-  def initialize_game() do
-    game_id =
-      1..6
-      |> Enum.map(fn _ -> Enum.random(?A..?Z) end)
-      |> Enum.join()
-
-    command(game_id: game_id)
-  end
-
-  def game_initialized(game_id, metadata) do
-    event(game_id: game_id)
-  end
-
-  def game_initialization_rejected(game_id, reason, metadata) do
-    event(game_id: game_id, reason: reason)
-  end
+  defcommand("initialize_game", [:game_id])
+  defevent("game_initialized", [:game_id])
+  defevent("game_initialization_rejected", [:game_id, :reason])
 
   #########################################################
   # Adding Players
   #########################################################
 
-  def add_player(player_name) when is_binary(player_name) do
-    command(player_name: player_name)
-  end
-
-  def player_added(player_id, player_name, metadata)
-      when Player.is_id(player_id) and is_binary(player_name) do
-    event(player_id: player_id, player_name: player_name)
-  end
-
-  def player_rejected(player_name, reason, metadata) when is_binary(reason) do
-    event(player_name: player_name, reason: reason)
-  end
+  defcommand("add_player", [:player_name])
+  defevent("player_added", [:player, :player_name])
+  defevent("player_rejected", [:player_name, :reason])
 
   #########################################################
   # SETUP - player order and starting player
   #########################################################
 
-  def set_start_player(start_player) when Player.is_id(start_player) do
-    command(start_player: start_player)
-  end
-
-  def start_player_set(start_player, metadata) when Player.is_id(start_player) do
-    event(start_player: start_player)
-  end
-
-  def set_player_order(player_order) when is_list(player_order) do
-    for player <- player_order do
-      unless Player.is_id(player) do
-        raise ArgumentError, "player_order must be a list of integers"
-      end
-    end
-
-    command(player_order: player_order)
-  end
-
-  def player_order_set(player_order, metadata) when is_list(player_order) do
-    for player_id <- player_order do
-      if player_id not in 1..5 do
-        raise ArgumentError, "player_order must be a list of integers"
-      end
-    end
-
-    event(player_order: player_order)
-  end
+  defcommand("set_start_player", [:player])
+  defevent("start_player_set", [:start_player])
+  defcommand("set_player_order", [:player_order])
+  defevent("player_order_set", [:player_order])
 
   #########################################################
   # Starting Game
   #########################################################
 
-  def start_game() do
-    command([])
-  end
-
-  def game_started(metadata) do
-    event([])
-  end
-
-  def game_start_rejected(reason, metadata) when is_binary(reason) do
-    event(reason: reason)
-  end
+  defcommand("start_game")
+  defevent("game_started", [:players])
+  defevent("game_start_rejected", [:reason])
 
   #########################################################
   # Auctioning - open and close an auction phase
   #########################################################
 
-  defguardp is_phase_number(phase_number) when phase_number in 1..2
-
-  def auction_phase_started(phase_number, start_bidder, metadata)
-      when is_phase_number(phase_number) and Player.is_id(start_bidder) do
-    event(phase_number: phase_number, start_bidder: start_bidder)
-  end
-
-  def auction_phase_ended(phase_number, metadata) when is_phase_number(phase_number) do
-    event(phase_number: phase_number)
-  end
+  defcommand("start_auction_phase", [:phase])
+  defevent("auction_phase_started", [:phase, :start_player])
+  defevent("auction_phase_ended", [:phase, :start_player])
 
   #########################################################
   # Auctioning - open and close a company auction
@@ -197,155 +93,211 @@ defmodule TransSiberianRailroad.Messages do
   This can result in either "player_won_company_auction" (a player won the share)
   or "all_players_passed_on_company" (no player bid on the share).
   """
-  @spec company_auction_started(Player.id(), Company.id(), Metadata.t()) :: Event.t()
-  def company_auction_started(start_bidder, company, metadata)
-      when Player.is_id(start_bidder) and Company.is_id(company) do
-    event(start_bidder: start_bidder, company: company)
-  end
+  defevent("company_auction_started", [:start_player, :company])
 
-  @doc """
-  This and "player_won_company_auction" both end the company auction started by "company_auction_started".
-  """
-  def all_players_passed_on_company(company, metadata) when Company.is_id(company) do
-    event(company: company)
-  end
+  # This and "player_won_company_auction" both end the company auction started by "company_auction_started".
+  defevent("all_players_passed_on_company", [:company])
 
-  @doc """
-  This and "all_players_passed_on_company" both end the company auction started by "company_auction_started".
+  # This and "all_players_passed_on_company" both end the company auction started by "company_auction_started".
+  # At this point, the company is "Open".
+  defevent("player_won_company_auction", [:player, :company, :rubles])
+  defevent("company_auction_ended", [:company])
 
-  At this point, the company is "Open".
-  """
-  def player_won_company_auction(auction_winner, company, bid_amount, metadata)
-      when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(bid_amount) and
-             bid_amount >= 8 do
-    event(auction_winner: auction_winner, company: company, bid_amount: bid_amount)
-  end
+  #########################################################
+  # Auctioning - awaiting next player to bid or pass
+  #########################################################
+
+  defevent("awaiting_bid_or_pass", [:player, :company, :min_bid])
 
   #########################################################
   # Auctioning - players pass on a company
   #########################################################
 
-  def pass_on_company(passing_player, company)
-      when Player.is_id(passing_player) and Company.is_id(company) do
-    command(passing_player: passing_player, company: company)
-  end
-
-  def company_passed(passing_player, company, metadata)
-      when Player.is_id(passing_player) and Company.is_id(company) do
-    event(passing_player: passing_player, company: company)
-  end
-
-  def company_pass_rejected(passing_player, company, reason, metadata)
-      when Player.is_id(passing_player) and Company.is_id(company) and is_binary(reason) do
-    event(passing_player: passing_player, company: company, reason: reason)
-  end
+  defcommand("pass_on_company", [:player, :company])
+  defevent("company_passed", [:player, :company])
+  defevent("company_pass_rejected", [:player, :company, :reason])
 
   #########################################################
   # Auctioning - players bid on a company
   #########################################################
 
-  def submit_bid(bidder, company, amount)
-      when Player.is_id(bidder) and Company.is_id(company) and is_integer(amount) do
-    command(bidder: bidder, company: company, amount: amount)
-  end
-
-  def bid_submitted(bidder, company, amount, metadata)
-      when Player.is_id(bidder) and Company.is_id(company) and is_integer(amount) do
-    event(bidder: bidder, company: company, amount: amount)
-  end
-
-  def bid_rejected(bidder, company, amount, reason, metadata)
-      when Player.is_id(bidder) and Company.is_id(company) and is_binary(reason) do
-    event(bidder: bidder, company: company, amount: amount, reason: reason)
-  end
+  defcommand("submit_bid", [:player, :company, :rubles])
+  defevent("bid_submitted", [:player, :company, :rubles])
+  defevent("bid_rejected", [:player, :company, :rubles, :reason])
 
   #########################################################
-  # Auctioning - set starting stock price
+  # Auctioning - initial rail link
   #########################################################
 
-  def set_starting_stock_price(auction_winner, company, price)
-      when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(price) do
-    command(auction_winner: auction_winner, company: company, price: price)
-  end
+  defevent("awaiting_initial_rail_link", [:player, :company, :available_links])
+  defcommand("build_initial_rail_link", [:player, :company, :rail_link])
+  defevent("initial_rail_link_rejected", [:player, :company, :rail_link, :reason])
+  defevent("initial_rail_link_built", [:player, :company, :rail_link, :link_income])
 
-  def starting_stock_price_set(auction_winner, company, price, metadata)
-      when Player.is_id(auction_winner) and Company.is_id(company) and is_integer(price) do
-    event(auction_winner: auction_winner, company: company, price: price)
-  end
+  #########################################################
+  # Auctioning - set starting stock value
+  #########################################################
 
-  def starting_stock_price_rejected(auction_winner, company, price, reason, metadata)
-      when Player.is_id(auction_winner) and Company.is_id(company) and is_binary(reason) do
-    event(auction_winner: auction_winner, company: company, price: price, reason: reason)
-  end
-
-  # owner: nil
-  def stock_price_increased(company, new_price, metadata)
-      when Company.is_id(company) and is_integer(new_price) do
-    event(company: company, price: new_price)
-  end
+  defevent("awaiting_stock_value", [:player, :company, :max_stock_value])
+  defcommand("set_stock_value", [:player, :company, :stock_value])
+  defevent("stock_value_set", [:player, :company, :stock_value])
+  defevent("stock_value_rejected", [:player, :company, :stock_value, :reason])
+  defevent("stock_value_incremented", [:company])
 
   #########################################################
   # Player Turn
   #########################################################
 
-  def player_turn_started(player, metadata) when Player.is_id(player) do
-    event(player: player)
-  end
+  defcommand("start_player_turn")
+  defevent("player_turn_started", [:player])
+  defevent("player_turn_rejected", [:reason])
+  defevent("player_turn_ended", [:player])
 
   #########################################################
   # Player Action Option #1A: Buy Single Stock
   #########################################################
 
-  def purchase_single_stock(purchasing_player, company, price)
-      when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) do
-    command(purchasing_player: purchasing_player, company: company, price: price)
-  end
+  defcommand("purchase_single_stock", [:player, :company, :rubles])
+  defevent("single_stock_purchased", [:player, :company, :rubles])
+  defevent("single_stock_purchase_rejected", [:player, :company, :rubles, :reason])
 
-  def single_stock_purchased(purchasing_player, company, price, metadata)
-      when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) do
-    event(purchasing_player: purchasing_player, company: company, price: price)
-  end
+  #########################################################
+  # Player Action Option #1A: Buy Two Stock Certificates
+  #########################################################
 
-  def single_stock_purchase_rejected(purchasing_player, company, price, reason, metadata)
-      when Player.is_id(purchasing_player) and Company.is_id(company) and is_integer(price) and
-             is_binary(reason) do
-    event(purchasing_player: purchasing_player, company: company, price: price, reason: reason)
-  end
+  defevent("two_stock_certificates_purchased", [:player])
+
+  #########################################################
+  # Reserving Player Actions
+  # Player actions can be complicated, involving input from
+  # multiple aggregator. This set of command/events lets us
+  # block the current player turn from accepting any new
+  # actions until the current one is resolved.
+  #########################################################
+
+  defcommand("reserve_player_action", [:player])
+  defevent("player_action_reserved", [:player])
+  defevent("player_action_rejected", [:player, :reason])
+
+  #########################################################
+  # Player Action Option #2A: Build Rail Link (single)
+  #########################################################
+
+  @keys [:player, :company, :rail_link]
+  @rejection_keys [:reasons | @keys]
+
+  defcommand("build_internal_rail_link", @keys)
+  defevent("internal_rail_link_sequence_started", @keys)
+  defevent("internal_rail_link_built", @keys)
+  defevent("internal_rail_link_rejected", @rejection_keys)
+
+  defcommand("build_external_rail_link", @keys)
+  defevent("external_rail_link_sequence_started", @keys)
+  defevent("external_rail_link_built", @keys)
+  defevent("external_rail_link_rejected", @rejection_keys)
+
+  # Company must be public
+  defcommand("validate_public_company", [:company])
+  defevent("public_company_validated", [:company, :maybe_error])
+
+  # Player must have controlling share
+  defcommand("validate_controlling_share", [:player, :company])
+  defevent("controlling_share_validated", [:player, :company, :maybe_error])
+
+  # Rail link must
+  defcommand("validate_company_rail_link", [:company, :rail_link])
+  defevent("company_rail_link_validated", [:company, :rail_link, :maybe_error])
+
+  # Company must have the rubles
+  defcommand("validate_company_money", [:company, :rubles])
+  defevent("company_money_validated", [:company, :rubles, :maybe_error])
+
+  #########################################################
+  # Player Action Option #2B: Build two Rail Link
+  #########################################################
+
+  defevent("two_internal_rail_links_built", [:player])
 
   #########################################################
   # Player Action Option #3: Pass
   #########################################################
 
-  def pass(passing_player) when Player.is_id(passing_player) do
-    command(passing_player: passing_player)
-  end
-
-  def passed(passing_player, metadata) when Player.is_id(passing_player) do
-    event(passing_player: passing_player)
-  end
-
-  def pass_rejected(passing_player, reason, metadata)
-      when Player.is_id(passing_player) and is_binary(reason) do
-    event(passing_player: passing_player, reason: reason)
-  end
+  defcommand("pass", [:player])
+  defevent("passed", [:player])
+  defevent("pass_rejected", [:player, :reason])
 
   #########################################################
   # End of Turn Sequence
   #########################################################
 
-  def end_of_turn_sequence_started(metadata) do
-    event([])
-  end
-
-  def end_of_turn_sequence_ended(metadata) do
-    event([])
-  end
+  defcommand("start_interturn")
+  defevent("interturn_started")
+  defevent("interturn_skipped")
+  defevent("interturn_ended")
 
   #########################################################
-  # Message name guards
-  # These must remain at the bottom of the module
+  # Dividends
   #########################################################
 
-  def command_names(), do: @command_names
-  def event_names(), do: @event_names
+  defcommand("pay_dividends")
+  defevent("dividends_sequence_started")
+  defcommand("pay_company_dividends", [:company, :income])
+
+  defevent(
+    "company_dividends_paid",
+    [
+      :company,
+      :income,
+      :stock_count,
+      :certificate_value,
+      :command_id,
+      player_payouts: [:player, :rubles]
+    ]
+  )
+
+  defevent("dividends_paid")
+
+  #########################################################
+  # Phase Shift Check
+  #########################################################
+
+  defcommand("check_phase_shift")
+  defevent("phase_1_continues")
+  defevent("phase_2_started")
+
+  #########################################################
+  # Nationalization
+  #########################################################
+
+  defevent("company_nationalized", [:company])
+
+  #########################################################
+  # Timing Track
+  #########################################################
+
+  defevent("timing_track_reset")
+
+  #########################################################
+  # Game End Sequence
+  #########################################################
+
+  defcommand("end_game", [:reasons])
+  defevent("game_end_sequence_started", [:reasons])
+  defevent("game_end_stock_values_determined", [:company_stock_values, :note])
+
+  defevent("game_end_player_stock_values_calculated",
+    player_stock_values: [
+      :player,
+      :company,
+      :count,
+      :value_per,
+      :total_value,
+      :public_cert_count
+    ]
+  )
+
+  defevent("game_end_player_money_calculated", player_money: [:player, :rubles])
+  defevent("player_scores_calculated", player_scores: [:player, :score])
+  defevent("winners_determined", [:players, :score])
+  defevent("game_ended", [:game_id])
 end
