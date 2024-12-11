@@ -1,4 +1,4 @@
-defmodule TsrWeb.Map do
+defmodule TsrWeb.MapLayout do
   @moduledoc """
   One every single render, the main geometry of the game board is not going to change.
   This struct ensures that all the calculations are done only once.
@@ -6,16 +6,25 @@ defmodule TsrWeb.Map do
 
   use TypedStruct
   alias Tsr.RailLinks
+  alias TsrWeb.GameState
   alias TsrWeb.MapLayout.LocationCoords
+
+  # e.g. "smolensk"
+  @typep location() :: String.t()
+
+  # e.g. ["moscow", "smolensk"]
+  @typep rail_link() :: [String.t()]
+
+  # e.g. {1508, 1880}
+  @typep coord() :: {integer(), integer()}
 
   typedstruct enforce: true do
     field :viewbox, term()
     field :landmass_coords, term()
-    field :rail_link_segments, term()
-    field :moscow_xy, term()
-    field :internal_location_coords, term()
-    field :external_location_coords, term()
+    field :moscow_xy, coord()
+    field :locations_and_coords, %{location() => coord()}
     field :income_box_coords, term()
+    field :rail_links_and_segments, %{rail_link() => [coord()]}
   end
 
   #########################################################
@@ -32,22 +41,22 @@ defmodule TsrWeb.Map do
 
       # Locations
       moscow_xy:
-        with {x, y} = LocationCoords.moscow(scale) do
+        with {x, y} = Map.fetch!(location_coords, "moscow") do
           %{x: x, y: y}
         end,
-      internal_location_coords: LocationCoords.internal(scale),
-      external_location_coords: LocationCoords.external(scale),
+      locations_and_coords: LocationCoords.get(scale),
 
       # Income Boxes
       income_box_coords: income_box_coords,
 
       # Rail Segments
-      rail_link_segments:
+      rail_links_and_segments:
         RailLinks.all()
-        |> Enum.flat_map(fn rail_link ->
+        |> Map.new(fn rail_link ->
           location_coords = Enum.map(rail_link, &location_coords[&1])
           {x2, y2} = income_box_coords[rail_link]
-          Enum.map(location_coords, fn {x1, y1} -> {x1, y1, x2, y2} end)
+          segments = Enum.map(location_coords, fn {x1, y1} -> {x1, y1, x2, y2} end)
+          {rail_link, segments}
         end)
     }
   end
@@ -56,10 +65,36 @@ defmodule TsrWeb.Map do
   # Converters
   #########################################################
 
-  def income_dice(%__MODULE__{} = map) do
-    for {rail_link, income} <- RailLinks.incomes() do
+  def income_dice(%__MODULE__{} = map, %GameState{} = game_state) do
+    for rail_link <- GameState.rail_links(game_state, :unclaimed) do
+      income = RailLinks.income(rail_link)
       {x, y} = map.income_box_coords[rail_link]
       {x, y, income}
     end
+  end
+
+  def ext_loc_coords(%__MODULE__{} = map, %GameState{} = game_state, owner) do
+    loc_ext = fn loc ->
+      String.starts_with?(loc, "ext_") and loc != "moscow"
+    end
+
+    GameState.locations(game_state, owner)
+    |> Stream.filter(loc_ext)
+    |> Enum.map(&map.locations_and_coords[&1])
+  end
+
+  def int_loc_coords(%__MODULE__{} = map, %GameState{} = game_state, owner) do
+    loc_int = fn loc ->
+      !String.starts_with?(loc, "ext_") and loc != "moscow"
+    end
+
+    GameState.locations(game_state, owner)
+    |> Stream.filter(loc_int)
+    |> Enum.map(&map.locations_and_coords[&1])
+  end
+
+  def segments(%__MODULE__{} = map, %GameState{} = game_state, owner) do
+    GameState.rail_links(game_state, owner)
+    |> Enum.flat_map(&map.rail_links_and_segments[&1])
   end
 end

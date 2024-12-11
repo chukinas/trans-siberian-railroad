@@ -9,25 +9,6 @@ defmodule TsrWeb.MapLayout.LocationCoords do
     end)
   end
 
-  def moscow(scale) do
-    get(scale) |> Map.fetch!("moscow")
-  end
-
-  def internal(scale) do
-    Enum.flat_map(get(scale), fn
-      {"ext_" <> _, _c} -> []
-      {"moscow", _c} -> []
-      {_, c} -> [c]
-    end)
-  end
-
-  def external(scale) do
-    get(scale)
-    |> Enum.flat_map(fn {l, c} ->
-      if String.starts_with?(l, "ext_"), do: [c], else: []
-    end)
-  end
-
   defp raw() do
     %{
       "ext_stpetersburg1" => {1647, 1182},
