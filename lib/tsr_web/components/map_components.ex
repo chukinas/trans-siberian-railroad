@@ -1,10 +1,13 @@
 defmodule TsrWeb.MapComponents do
   use TsrWeb, :html
+  alias TsrWeb.GameState
   alias TsrWeb.MapLayout
 
   @map_layout MapLayout.new(0.02)
 
   attr :rest, :global
+  attr :game_state, GameState, required: true
+  attr :latest_rail_link, :list, default: []
 
   def map(assigns) do
     color = %{
@@ -18,7 +21,6 @@ defmodule TsrWeb.MapComponents do
         dot_size: 0.75,
         color: color,
         map_layout: @map_layout,
-        game_state: TsrWeb.GameState.new(),
         stroke_colors: [
           unclaimed: "stroke-yellow-600",
           red: "stroke-red-600",
@@ -55,15 +57,25 @@ defmodule TsrWeb.MapComponents do
         stroke-linejoin="bevel"
         points={@map_layout.landmass_coords}
       />
+      <!-- ------------------------------------------------------- -->
+      <!-- RAIL_LINKS / SEGMENTS -->
+      <!-- ------------------------------------------------------- -->
       <%= for {owner, class} <- @stroke_colors do %>
-        <g
-          stroke-dasharray={if owner == :unclaimed, do: "2 .35"}
-          class={
-            if owner == :unclaimed, do: "stroke-[0.4px] #{class}", else: "stroke-[0.6px] #{class}"
-          }
-        >
-          <%= for {x1, y1, x2, y2} <- MapLayout.segments(@map_layout, @game_state, owner) do %>
-            <line x1={x1} y1={y1} x2={x2} y2={y2} />
+        <g stroke-dasharray={if owner == :unclaimed, do: "2 .35"} class={class}>
+          <%= for segment <- MapLayout.segments(@map_layout, @game_state, owner) do %>
+            <line
+              x1={segment.x1}
+              y1={segment.y1}
+              x2={segment.x2}
+              y2={segment.y2}
+              class={
+                cond do
+                  owner == :unclaimed -> "stroke-[0.4px]"
+                  segment.latest -> "stroke-[1.4px]"
+                  true -> "stroke-[0.6px]"
+                end
+              }
+            />
           <% end %>
         </g>
       <% end %>
@@ -71,7 +83,7 @@ defmodule TsrWeb.MapComponents do
       <%= for {owner, class} <- @fill_colors do %>
         <% r = if owner == :unclaimed, do: @dot_size, else: @dot_size * 1.4 %>
         <%= for {x, y} <- MapLayout.int_loc_coords(@map_layout, @game_state, owner) do %>
-          <circle id="blarg" r={r} cx={x} cy={y} class={class} />
+          <circle r={r} cx={x} cy={y} class={class} />
         <% end %>
       <% end %>
 
@@ -83,8 +95,8 @@ defmodule TsrWeb.MapComponents do
       <% end %>
 
       <use xlink:href="#moscow" x={@map_layout.moscow_xy.x} y={@map_layout.moscow_xy.y} />
-      <%= for {x, y, income} <- MapLayout.income_dice(@map_layout, @game_state) do %>
-        <.rail_link_pips x={x} y={y} dot_size={@dot_size} pip_count={income} />
+      <%= for die <- MapLayout.income_dice(@map_layout, @game_state) do %>
+        <.rail_link_pips x={die.x} y={die.y} dot_size={@dot_size} pip_count={die.income} />
       <% end %>
     </svg>
     """
@@ -96,6 +108,7 @@ defmodule TsrWeb.MapComponents do
   attr :pip_count, :integer, required: true
   attr :dot_size, :any
 
+  # TODO I shouldn't render this from scratch every time
   def rail_link_pips(assigns) do
     scale = 0.5
 

@@ -17,14 +17,14 @@ defmodule TsrWeb.GameState do
   typedstruct enforce: true do
     field :locations, %{owner() => [location()]}
     field :rail_links, %{owner() => [rail_link()]}
+    field :latest_rail_link, rail_link(), default: []
   end
 
   #########################################################
   # Constructors
   #########################################################
-
   def new() do
-    game_state = %__MODULE__{
+    %__MODULE__{
       locations: %{
         unclaimed:
           RailLinks.all()
@@ -48,37 +48,13 @@ defmodule TsrWeb.GameState do
         white: []
       }
     }
-
-    phase_1_owners =
-      Stream.cycle([:red, :blue, :green, :yellow])
-      |> Stream.take(80)
-
-    phase_2_owners =
-      Stream.cycle([:red, :blue, :green, :yellow, :black, :white])
-      |> Stream.take(20)
-
-    owners =
-      Stream.concat([phase_1_owners, phase_2_owners])
-      |> Enum.to_list()
-
-    Enum.reduce(owners, game_state, fn owner, game_state ->
-      add_rand(game_state, owner)
-    end)
   end
 
   #########################################################
   # Reducers
   #########################################################
 
-  defp add_rand(%__MODULE__{} = game_state, owner) do
-    if rail_link = get_rand_rail_link(game_state, owner) do
-      add_rail_link(game_state, owner, rail_link)
-    else
-      game_state
-    end
-  end
-
-  defp add_rail_link(%__MODULE__{} = game_state, new_owner, rail_link) do
+  def add_rail_link(%__MODULE__{} = game_state, new_owner, rail_link) do
     rail_links =
       Map.new(game_state.rail_links, fn {owner, rail_links} ->
         if owner == new_owner do
@@ -102,14 +78,19 @@ defmodule TsrWeb.GameState do
     locations =
       Map.merge(game_state.locations, %{new_owner => owner_locs, unclaimed: unclaimed_locs})
 
-    %__MODULE__{game_state | rail_links: rail_links, locations: locations}
+    %__MODULE__{
+      game_state
+      | rail_links: rail_links,
+        locations: locations,
+        latest_rail_link: rail_link
+    }
   end
 
   #########################################################
   # Converters
   #########################################################
 
-  defp get_rand_rail_link(%__MODULE__{} = game_state, owner) do
+  def get_rand_rail_link(%__MODULE__{} = game_state, owner) do
     connected_locs =
       if owner in ~w/black white/a and Enum.empty?(game_state.rail_links[owner]) do
         game_state.rail_links
@@ -136,6 +117,11 @@ defmodule TsrWeb.GameState do
       [] -> nil
       rail_links -> Enum.random(rail_links)
     end
+  end
+
+  def latest?(%__MODULE__{latest_rail_link: latest_rail_link}, rail_link)
+      when is_list(rail_link) do
+    latest_rail_link == rail_link
   end
 
   # results might include moscow; it's up to the consumer to filter it out

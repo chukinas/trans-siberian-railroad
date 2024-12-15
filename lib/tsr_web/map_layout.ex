@@ -69,7 +69,7 @@ defmodule TsrWeb.MapLayout do
     for rail_link <- GameState.rail_links(game_state, :unclaimed) do
       income = RailLinks.income(rail_link)
       {x, y} = map.income_box_coords[rail_link]
-      {x, y, income}
+      %{x: x, y: y, income: income}
     end
   end
 
@@ -95,6 +95,12 @@ defmodule TsrWeb.MapLayout do
 
   def segments(%__MODULE__{} = map, %GameState{} = game_state, owner) do
     GameState.rail_links(game_state, owner)
-    |> Enum.flat_map(&map.rail_links_and_segments[&1])
+    |> Enum.flat_map(fn rail_link ->
+      latest = GameState.latest?(game_state, rail_link)
+
+      for {x1, y1, x2, y2} <- map.rail_links_and_segments[rail_link] do
+        %{x1: x1, y1: y1, x2: x2, y2: y2, latest: latest}
+      end
+    end)
   end
 end
