@@ -16,9 +16,15 @@ module.exports = {
       colors: {
         brand: "#FD4F00",
       },
-      strokeWidth: {
-        '50': '50px',
-      }
+			animation: {
+				fade: 'fadeOut 0.7s ease-out',
+			},
+			keyframes: {
+				fadeOut: {
+					from: { opacity: 1 },
+					to: { opacity: 0 },
+				},
+			},
     },
   },
   plugins: [

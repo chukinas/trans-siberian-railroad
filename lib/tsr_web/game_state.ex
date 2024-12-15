@@ -17,7 +17,6 @@ defmodule TsrWeb.GameState do
   typedstruct enforce: true do
     field :locations, %{owner() => [location()]}
     field :rail_links, %{owner() => [rail_link()]}
-    field :latest_rail_link, rail_link(), default: []
   end
 
   #########################################################
@@ -78,12 +77,7 @@ defmodule TsrWeb.GameState do
     locations =
       Map.merge(game_state.locations, %{new_owner => owner_locs, unclaimed: unclaimed_locs})
 
-    %__MODULE__{
-      game_state
-      | rail_links: rail_links,
-        locations: locations,
-        latest_rail_link: rail_link
-    }
+    %__MODULE__{game_state | rail_links: rail_links, locations: locations}
   end
 
   #########################################################
@@ -119,11 +113,6 @@ defmodule TsrWeb.GameState do
     end
   end
 
-  def latest?(%__MODULE__{latest_rail_link: latest_rail_link}, rail_link)
-      when is_list(rail_link) do
-    latest_rail_link == rail_link
-  end
-
   # results might include moscow; it's up to the consumer to filter it out
   def locations(%__MODULE__{} = game_state, owner) do
     Map.fetch!(game_state.locations, owner)
@@ -131,5 +120,43 @@ defmodule TsrWeb.GameState do
 
   def rail_links(%__MODULE__{} = game_state, owner) do
     Map.fetch!(game_state.rail_links, owner)
+  end
+
+  def claimed_rail_links(%__MODULE__{} = game_state) do
+    Map.drop(game_state.rail_links, [:unclaimed])
+    |> Map.values()
+    |> Enum.flat_map(& &1)
+  end
+
+  def rail_link_owner!(%__MODULE__{} = game_state, rail_link) do
+    Enum.find(
+      Enum.map(game_state.rail_links, fn {owner, rail_links} ->
+        if Enum.member?(rail_links, rail_link) do
+          owner
+        end
+      end),
+      & &1
+    )
+    |> case do
+      nil -> raise "rail link not found"
+      owner -> owner
+    end
+  end
+
+  def location_owner!(_, "moscow"), do: :unclaimed
+
+  def location_owner!(%__MODULE__{locations: locations}, location) when is_binary(location) do
+    Enum.find(
+      Enum.map(locations, fn {owner, locs} ->
+        if Enum.member?(locs, location) do
+          owner
+        end
+      end),
+      & &1
+    )
+    |> case do
+      nil -> raise "#{inspect(location)} not found"
+      owner -> owner
+    end
   end
 end

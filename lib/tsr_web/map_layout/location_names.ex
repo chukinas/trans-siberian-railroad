@@ -1,4 +1,4 @@
-defmodule TsrWeb.BlargComponents.LocationNames do
+defmodule TsrWeb.MapLayout.LocationNames do
   @moduledoc """
   Map location ids (e.g. "ext_rostovnadonu")
   to their human-readable englishs (e.g. "Rostov-Na-Donu External Link")
