@@ -40,7 +40,8 @@ defmodule TsrWeb.GameLive do
      assign(socket,
        turns: turns(),
        game_state: GameState.new(),
-       count: 0
+       count: 0,
+       page_title: "Trans-Siberian Railroad"
      )}
   end
 
