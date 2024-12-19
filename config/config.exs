@@ -13,6 +13,7 @@ config :tsr,
 # Configures the endpoint
 config :tsr, TsrWeb.Endpoint,
   url: [host: "localhost"],
+  check_origin: ["https://chukinas.com", "https://www.chukinas.com"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: TsrWeb.ErrorHTML, json: TsrWeb.ErrorJSON],

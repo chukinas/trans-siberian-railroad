@@ -1,4 +1,4 @@
-defmodule TsrWeb.PageControllerTest do
+defmodule TsrWeb.GameLiveTest do
   use TsrWeb.ConnCase
 
   test "GET /", %{conn: conn} do

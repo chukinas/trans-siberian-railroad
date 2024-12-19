@@ -16,11 +16,8 @@ defmodule TsrWeb.Router do
 
   scope "/", TsrWeb do
     pipe_through :browser
-
-    get "/", PageController, :home
+    live "/", GameLive, :show
   end
-
-  live "/tsr", TsrWeb.GameLive.Show, :show
 
   # Other scopes may use custom stacks.
   # scope "/api", TsrWeb do
