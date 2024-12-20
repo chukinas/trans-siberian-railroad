@@ -98,6 +98,10 @@ defmodule Tsr.RailLinks do
   @rail_link_incomes Map.new(@raw, fn {income, rail_link} -> {rail_link, income} end)
   def incomes(), do: @rail_link_incomes
 
+  def income(rail_link) do
+    Map.fetch!(incomes(), rail_link)
+  end
+
   @rail_links Map.keys(@rail_link_incomes)
   def all(), do: @rail_links
 
